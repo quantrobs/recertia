@@ -9,7 +9,8 @@ mandatory step before any new problem-solving attempt.
 This document describes the runtime shape. Data contracts are in
 [`specifications.md`](specifications.md); build order is in
 [`implementation-plan.md`](implementation-plan.md). Decisions with alternatives worth
-recording live in [`adr/`](adr).
+recording live in [`adr/`](adr), and [`references.md`](references.md) lists the literature
+this draws on — including the findings that contradicted an earlier draft and changed it.
 
 ### Design goals
 
@@ -21,6 +22,10 @@ recording live in [`adr/`](adr).
   never degrades *below* that because of a bad retrieval.
 - Improvement claims are falsifiable: the system measures its own lift against a control,
   not against its own optimism.
+- The library has a **performance floor**: a bounded active set plus outcome-driven retirement
+  keep expected performance from drifting below the no-memory baseline as the library grows
+  (§7.2). Growth without this property is a known failure mode, not a theoretical worry — see
+  [`references.md`](references.md) §1.1.
 
 ### Explicit non-goals
 
@@ -248,6 +253,13 @@ rather than down-ranking them, a score floor discards weak matches, `plan` may r
 everything, and an empty bundle is a healthy outcome. Retrieval is reproducible because the
 index snapshot id is recorded in the run manifest.
 
+Only the **active set** is retrievable (§7.2). This matters more than it sounds: flat retrieval
+is reported to degrade in the moderate regime of tens to hundreds of skills
+([`references.md`](references.md) §1.5), so an unbounded retrievable library is a decay mechanism
+rather than a growing asset. Skills below the evidence floor are score-demoted rather than
+dropped, since premature exclusion measured *worse* than having no library at all
+([`references.md`](references.md) §1.2).
+
 ### 5.6 Solver and Tool Runtime
 
 Model-driven execution against a registered tool set. Every call and result is appended to a
@@ -265,14 +277,30 @@ and every criterion must carry a **sensitivity proof** (§11.2).
 
 ### 5.8 Distiller
 
-Turns a winning transcript into (a) a skill draft, (b) extracted facts, and (c) affordance
-updates. Generalises literals into parameters, prunes incidental steps, proposes criteria.
+Two authoring paths, because skills learned from success and skills learned from failure carry
+different information:
 
-The **reusability filter** is what keeps the library from filling with one-offs. All checks
-must pass: parameterisable, context-free, checkable, not a near-duplicate, and bounded.
-A `one_off` verdict is recorded against the task class rather than discarded; three
-accumulated one-offs in a class is the strongest available signal that a skill is missing,
-and the Practice job (§8.3) consumes exactly that signal.
+- **Success path.** A winning transcript becomes a skill draft, extracted facts, and affordance
+  updates. Literals generalise into parameters, incidental steps are pruned, criteria are
+  proposed.
+- **Failure-cluster path.** Recurring failures in the episodic plane — the same dead end reached
+  by three or more runs in a task class — become pitfall-oriented skills whose substance is
+  `failure_modes` and preconditions rather than a happy-path sequence. This path exists because
+  the systems that measured real gains synthesise from failure clusters, and because constraining
+  guardrails outperformed aspirational guidance ([`references.md`](references.md) §1.4).
+
+Both paths run under an **authoring prior**: versioned guidance fixing skill shape, granularity,
+and naming. This is a T2 surface (§14) and the single highest-value component in the one ablation
+study that measured its removal, costing 43% of the total gain
+([`references.md`](references.md) §1.3). It also implicitly
+suppresses near-duplicates, which is why deduplication is a secondary Curator mechanism here
+rather than a primary one.
+
+The **reusability filter** keeps the library from filling with one-offs. All checks must pass:
+parameterisable, context-free, checkable, not a near-duplicate, and bounded. A `one_off` verdict
+is recorded against the task class rather than discarded; three accumulated one-offs in a class is
+the strongest available signal that a skill is missing, and the Practice job (§8.3) consumes
+exactly that signal.
 
 ### 5.9 Review Service
 
@@ -309,7 +337,9 @@ Rules that make composition safe rather than a new failure mode:
   (§8.2). Abstraction is how the library gets *smaller* while coverage grows — the only
   mechanism here that fights entropy.
 
-## 7. Promotion, trust, and earned autonomy
+## 7. Promotion, trust, and library capacity
+
+### 7.1 Lifecycle and earned autonomy
 
 ```mermaid
 stateDiagram-v2
@@ -318,6 +348,8 @@ stateDiagram-v2
     candidate --> shadow: eval set exists for the task class
     shadow --> approved: trial wins and zero regressions
     candidate --> approved: human approval
+    approved --> benched: cap pressure or negative contribution
+    benched --> approved: evidence improves or Curator revision
     approved --> needs_recert: child change, model upgrade, or drift check due
     needs_recert --> approved: recertified green
     needs_recert --> quarantined: recertification fails
@@ -333,10 +365,51 @@ version's result is what ships, and the two are compared offline. Enough shadow 
 policy promote without a human — the human gate relaxes on evidence rather than being absent
 from the start.
 
-Trust is a smoothed success ratio, so one lucky application cannot mint a high-trust skill.
-But a ratio is not causal evidence, which is why trust is reported alongside a **causal lift
-estimate** from the ablation arm (§11.4). A skill applied to easy tasks will show high trust
-and zero lift; only the second number distinguishes a useful skill from a lucky one.
+**Curation provenance affects the bar.** Skills carry `curation`: `human_authored`,
+`mined_from_human_artifact`, or `self_distilled`. The one benchmark that separated these found
+human-curated skills worth +16.2pp against a no-skill baseline while self-generated skills
+delivered +0.0pp ([`references.md`](references.md) §1.1), so self-distilled skills require more
+evidence to reach `approved`. This is a calibration of trust to measured reliability, not a
+philosophical position about machine authorship.
+
+Trust is a smoothed success ratio, so one lucky application cannot mint a high-trust skill. But a
+ratio is not causal evidence, which is why trust is reported alongside a **causal lift estimate**
+from the ablation arm (§11.4). A skill applied to easy tasks will show high trust and zero lift;
+only the second number distinguishes a useful skill from a lucky one.
+
+### 7.2 Bounded active set and retirement
+
+The library is capped, and skills are retired on measured contribution. See
+[ADR-0006](adr/0006-bounded-library-and-retirement.md).
+
+| Mechanism | Rule | Default |
+| --- | --- | --- |
+| **Active cap** | Only `active` skills are retrievable; skills compete for slots per task class | 50 |
+| **Contribution** | `ĉ(s) =` mean success with the skill applied, minus the control-arm baseline for that task class | — |
+| **Evidence floor** | No retirement decision before this many applications | 30 |
+| **Retirement threshold** | Bench when `ĉ(s) ≤ −τ` and the evidence floor is met | `τ = 0.10` |
+| **Low evidence** | Score-demote in ranking; never drop | — |
+
+Three properties this buys, each answering a specific failure:
+
+**A performance floor.** With a finite cap and threshold, expected performance cannot drift more
+than a bounded margin below the no-memory baseline. With an unbounded library and no retirement
+rule, that bound does not exist at all — which is the configuration the earlier draft had.
+
+**Retirement that measures the right thing.** Contribution is lift over solving *without* the
+skill, not a raw success ratio. The control arm (§11.4) supplies the baseline, so the measurement
+machinery already in the design does double duty here.
+
+**Protection against over-pruning.** Aggressive retirement is not a conservative choice: in the
+one ablation that tested it, harsh settings performed *below* the no-skill floor
+([`references.md`](references.md) §1.2). Hence the evidence floor, a deliberately loose threshold,
+and reversible benching rather than deletion. An earlier draft of this design cut skills at a 0.4
+trust ratio after three applications, which is precisely the harmful setting.
+
+Benching is reversible and lossless: history is retained, and a benched skill returns to `active`
+when evidence improves or the Curator revises it. Because a cap means good skills can be benched
+by competition rather than by poor performance, `active_cap_pressure` is tracked so a chronically
+saturated cap is visible instead of silently discarding value.
 
 ## 8. Improvement plane
 
@@ -353,14 +426,29 @@ requests, CI configuration, runbooks, and docs. Mined candidates enter as `draft
 pass validation like anything else — but they arrive with real evidence attached, because a
 merged PR is a solved task with a review already on it.
 
-### 8.2 Curator — entropy control
+This job is more than a convenience. Mined skills are `mined_from_human_artifact`, and the
+measured gap between human-curated and self-generated skills
+([`references.md`](references.md) §1.1) makes human-authored history the single most promising
+source of early library quality. If that gap replicates in our domain, the Miner is the primary
+mechanism and self-distillation is the supplement — the reverse of the original assumption.
 
-Retrieval precision decays as a library grows, which attacks the central thesis directly, so
-curation is not housekeeping. The Curator proposes: merging near-duplicates, extracting
-shared sub-procedures into child skills (§6), splitting overloaded skills whose criteria fail
-in uncorrelated clusters, deprecating skills with no application in N runs, tightening
-preconditions that produced wrong retrievals, and compacting version chains. Every proposal
-is a diff, gated by the golden-set regression run.
+### 8.2 Curator — capacity and entropy control
+
+Retrieval precision decays as a library grows, and the surveyed literature puts that decay in the
+moderate regime of tens to hundreds of skills, with lifecycle management "largely neglected" as
+the field-wide bottleneck ([`references.md`](references.md) §1.1, §1.5). Curation is therefore the
+load-bearing subsystem, not housekeeping.
+
+The Curator proposes, in rough order of measured value: **retiring** skills with negative
+contribution past the evidence floor (§7.2), **extracting** shared sub-procedures into child
+skills (§6), **splitting** overloaded skills whose criteria fail in uncorrelated clusters,
+**tightening** preconditions that produced wrong retrievals, **merging** near-duplicates, and
+**compacting** version chains. Every proposal is a diff, gated by the golden-set regression run.
+
+Deduplication sits late in that list deliberately: with a consistent authoring prior in place,
+explicit deduplication was found to be largely subsumed by the prior itself
+([`references.md`](references.md) §1.2), so it earns effort only after retirement and abstraction
+are working.
 
 ### 8.3 Practice — curriculum at the frontier
 
@@ -480,6 +568,9 @@ destructive tasks) runs with retrieval suppressed as a control. That control is 
 against the most comfortable failure mode: a library that grows, metrics that drift upward
 for unrelated reasons, and nobody able to tell the difference.
 
+The control arm also supplies the per-task-class baseline `p0` that per-skill contribution is
+measured against (§7.2), so the same sampling serves both measurement and retirement.
+
 ## 12. Failure taxonomy
 
 Blind retry is a waste of budget. `classify_failure` assigns a class, and the class dictates
@@ -522,8 +613,8 @@ become unsafe or unmeasurable. So capability is tiered explicitly
 | --- | --- | --- |
 | **T0 — autonomous** | Trust scores, affordance aggregates, episodic cases, retrieval caches | Written by runs; derived, revertible, no gate |
 | **T1 — policy-gated** | New skill versions, facts, curator proposals, shadow promotions | Automatic promotion only with eval evidence and zero regressions |
-| **T2 — human-gated** | Distiller guidance, criteria templates, retrieval thresholds, routing and escalation ladder, budget defaults | Versioned config; change requires human approval plus an eval comparison |
-| **T3 — never autonomous** | Tool registry and side-effect classes, sandbox policy, promotion thresholds, the ablation rate, the graph topology, this boundary | Human-authored code or config review only |
+| **T2 — human-gated** | Authoring prior and distiller guidance, criteria templates, retrieval thresholds, routing and escalation ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` | Versioned config; change requires human approval plus an eval comparison |
+| **T3 — never autonomous** | Tool registry and side-effect classes, sandbox policy, promotion thresholds, the ablation rate, the graph topology, the *finiteness* of the active cap and retirement threshold, this boundary | Human-authored code or config review only |
 
 The rule behind the table: **the system may not modify the mechanisms that measure or
 constrain it.** A system that can lower its own promotion bar, shrink its own control arm, or
@@ -570,6 +661,9 @@ applying — or leaking — into another.
 | Bad skill becomes default | Lifecycle gates, shadow trials, non-`judge` criterion required |
 | Confidently wrong retrieval | Preconditions drop candidates, score floor, `plan` may reject all, `retrieval` failure class tightens preconditions |
 | Library entropy and retrieval decay | Curator compaction and abstraction, `library_yield`, retrieval precision tracked over snapshots |
+| Library drift: growth silently erodes quality | Bounded active cap plus contribution-score retirement give a floor; unbounded growth has none (§7.2) |
+| Over-pruning, which measures worse than no library | Evidence floor before any retirement, loose threshold, reversible benching, `active_cap_pressure` |
+| Self-distilled skills underperforming human-curated ones | `curation` provenance with a higher evidence bar for self-distilled; Miner treated as a primary quality source |
 | Criteria gaming | Pre-registration, sensitivity proofs, criteria changes are reviewable diffs, `criteria` failures escalate |
 | Metric self-deception | Ablation control arm, eval firewall, run manifests, calibration scoring |
 | Attribution illusion | Causal lift alongside trust; environment and tool failures excluded from trust |
@@ -603,6 +697,10 @@ Tracked per task class over library snapshots:
 | `abstention_precision` | Were abstentions actually the unsolvable ones |
 | `recert_pass_rate` | Is the library rotting |
 | `mean_composition_depth` | Is abstraction happening, or is the library just growing |
+| `skill_contribution` | Per-skill lift over the control baseline; the retirement input (§7.2) |
+| `active_cap_pressure` | Share of task classes at their cap; high pressure means value is being benched by competition |
+| `retirement_reversal_rate` | Benched skills later restored; a high rate means retirement is too aggressive |
+| `curation_gap` | First-attempt success of human-authored and mined skills minus self-distilled ones; tests the SkillsBench finding in our domain |
 
 A library change that raises size without moving `first_attempt_success`, `causal_lift`, or
 cost is not an improvement, and the harness makes that visible.

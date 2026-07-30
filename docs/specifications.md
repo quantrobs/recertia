@@ -91,13 +91,27 @@ Canonical form is JSON at `skills/<skill_id>/v<version>.json`, validated against
 - `certification` MUST record the model and tool fingerprint validated against; drift in
   either marks the version `needs_recert` (§20).
 - `hygiene.secret_scan` MUST be `passed` before a version may be stored.
+- `provenance.curation` MUST be one of `human_authored`, `mined_from_human_artifact`, or
+  `self_distilled`, and `self_distilled` versions require the higher evidence bar in §24.
+- `contribution` is derived, never authored, and is the retirement input (§24).
 
 ### 2.2 Lifecycle values
 
-`draft` → `candidate` → `shadow` → `approved` → `deprecated`, plus `needs_recert` and
-terminal `quarantined`. Only `approved` versions are eligible for direct application;
-`shadow` versions are retrieved for comparison only and MUST NOT affect the caller's result;
-`needs_recert` versions are not retrievable as `approved` until they pass recertification.
+`draft` → `candidate` → `shadow` → `approved` → `deprecated`, plus `benched`, `needs_recert`,
+and terminal `quarantined`.
+
+| State | Retrievable | Notes |
+| --- | --- | --- |
+| `draft`, `candidate` | No | Awaiting validation or promotion |
+| `shadow` | Comparison only | MUST NOT affect the caller's result |
+| `approved` **and** in the active set | Yes | The only state eligible for direct application |
+| `benched` | No | Retained in full with history; reversible (§24) |
+| `needs_recert` | No | Until recertification passes |
+| `deprecated`, `quarantined` | No | Terminal |
+
+`benched` is distinct from both `deprecated` (superseded by a newer version) and `quarantined`
+(suspected harmful). It means "not currently earning a retrievable slot", and returning to
+`approved` requires no new version.
 
 ## 3. Graph state
 
@@ -212,14 +226,19 @@ plane:
    embeddings and lexical top-`k` over title, tags, and step tool names.
 2. **Merge** — reciprocal rank fusion, `k=60`.
 3. **Filter** — drop any candidate failing a `precondition` (including environment
-   fingerprint mismatch), in a lifecycle other than `approved`/`shadow`, in a scope not
-   readable by the task, or with `trust.score` below `min_trust` (default 0.4) once it has
-   at least 3 applications.
+   fingerprint mismatch), not in the **active set** (§24), in a lifecycle other than
+   `approved`/`shadow`, or in a scope not readable by the task.
 4. **Rerank** — cross-encoder or model rerank of the top 10 against the task text.
 5. **Score floor** — discard candidates below `min_score` (default 0.55). An empty
    candidate list is a valid and healthy outcome.
-6. **Staleness demotion** — multiply score by a decay factor from time since last successful
-   application and certification age (§21).
+6. **Evidence and staleness demotion** — multiply score by (a) a low-evidence factor for
+   skills below the `evidence_floor`, (b) a decay factor from time since last successful
+   application and certification age (§21), and (c) a curation prior favouring
+   `human_authored` and `mined_from_human_artifact` over `self_distilled` (§24).
+
+Retrieval MUST NOT hard-drop a candidate for low trust or thin evidence — demotion only.
+Hard trust cuts reproduce a measured failure mode in which aggressive exclusion performed
+worse than having no library at all (`references.md` §1.2).
 7. **Return** — at most 3 candidates with score, matched parameters, and precondition
    evidence attached.
 
@@ -584,7 +603,7 @@ Every job: reads memory and the run store, writes **only** proposals, and is bud
 | Job | Trigger | Emits | Hard rule |
 | --- | --- | --- | --- |
 | `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
-| `curator` | Scheduled, or on library-size or precision-decay trigger | Merge, extract-child, split, deprecate, tighten-precondition, compact proposals | Every proposal MUST pass the golden-set regression gate |
+| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
 | `practice` | Scheduled, or ≥3 one-offs in a class | Practice runs marked `arm="practice"` | Excluded from user-facing metrics; separate budget |
 | `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions | MUST re-run sensitivity proofs, not just criteria |
 | `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
@@ -618,8 +637,8 @@ Every mutable surface carries a tier (see [ADR-0005](adr/0005-self-modification-
 | --- | --- | --- |
 | T0 | Trust scores, affordance aggregates, cases, retrieval caches | Runs write directly; derived and rebuildable |
 | T1 | Skill and fact versions, curator proposals, shadow promotions | Promotion policy with eval evidence and zero regressions |
-| T2 | Distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults | Versioned config, human approval, eval comparison |
-| T3 | Tool registry and side-effect classes, sandbox policy, promotion thresholds, ablation rate, graph topology, tier assignments | Code or config review only; unreachable from run and job code paths |
+| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` | Versioned config, human approval, eval comparison |
+| T3 | Tool registry and side-effect classes, sandbox policy, promotion thresholds, ablation rate, graph topology, finiteness of the active cap and retirement threshold, tier assignments | Code or config review only; unreachable from run and job code paths |
 
 Enforcement requirements:
 
@@ -647,3 +666,103 @@ Enforcement requirements:
 
 `retrieval_decay` is the early-warning metric for library entropy: it turns negative before
 `first_attempt_success` does, which is what gives the Curator time to act.
+
+| Metric | Definition |
+| --- | --- |
+| `skill_contribution` | Per-skill `ĉ(s)`: mean first-attempt success when applied, minus the control-arm baseline for its task class (§24) |
+| `active_cap_pressure` | Task classes at `active_cap` ÷ task classes with skills |
+| `retirement_reversal_rate` | Benched versions later restored to `approved` ÷ versions benched |
+| `curation_gap` | First-attempt success of `human_authored` + `mined_from_human_artifact` skills minus `self_distilled` skills, per task class |
+
+`curation_gap` exists to test a specific external finding in our own domain (`references.md`
+§1.1). If it is near zero here, the higher evidence bar on self-distilled skills should be
+relaxed; if it reproduces, the Miner deserves more investment than the distiller.
+
+## 24. Library capacity and retirement
+
+Contracts implementing [ADR-0006](adr/0006-bounded-library-and-retirement.md).
+
+### 24.1 Active set
+
+| Rule | Detail |
+| --- | --- |
+| Retrievability | Only skills in the active set are retrievable for application |
+| Cap | `active_cap` per task class, default 50; MUST be finite |
+| Selection | Rank `approved` versions by `contribution`, then `trust.decayed_score`, then recency; the top `active_cap` are `active` |
+| Overflow | Versions outside the cap become `benched`, not deleted |
+| Re-evaluation | The Curator recomputes the active set on schedule and after any promotion |
+| Newly approved skills | Enter active with a protected grace period of `evidence_floor` applications, so a new skill is not benched before it can be measured |
+
+The grace period matters: without it, a cap plus a contribution ranking would permanently favour
+incumbents, and no new skill could ever accumulate the evidence needed to displace one.
+
+### 24.2 Contribution estimate
+
+```python
+class Contribution(BaseModel):
+    skill_id: str
+    version: int
+    applications: int                 # trials counted toward the evidence floor
+    successes: int
+    baseline_success: float           # control-arm first-attempt success for the task class
+    estimate: float                   # ĉ(s) = successes/applications - baseline_success
+    interval: tuple[float, float]     # Wilson interval on the difference
+    last_evaluated_at: datetime
+```
+
+Rules: only `treatment`-arm applications count toward `applications`; `environment`, `tool`, and
+`budget` failure classes are excluded from the denominator (§16); `baseline_success` comes from
+the ablation arm (§19), and when a task class has no control samples, contribution is `null` and
+the skill MUST NOT be retired on contribution grounds.
+
+### 24.3 Retirement
+
+```text
+bench(s)  : applications >= evidence_floor          (default 30)
+            AND estimate <= -retirement_threshold   (default 0.10)
+restore(s): estimate > -retirement_threshold on later evidence,
+            OR Curator revision produces a new version that validates
+never     : applications < evidence_floor           → demote score only
+```
+
+Additional rules: retirement is per version, not per skill; a benched version's parents (§14) are
+marked `needs_recert`, since composition pins may now reference a non-active child; benching MUST
+be recorded in the ledger (§21) with the contribution evidence that justified it.
+
+Defaults are deliberately loose. A harsh configuration (evidence floor 20, threshold 0) measured
+*below* the no-library baseline (`references.md` §1.2), so `evidence_floor` and
+`retirement_threshold` MUST be changed together and validated jointly against the golden sets.
+
+### 24.4 Floor property
+
+With finite `active_cap` and `retirement_threshold`, expected performance is bounded below the
+no-memory baseline by a margin depending only on the threshold, the estimator tolerance, and the
+cap. The finiteness of both is a T3 invariant (§22) and MUST be asserted in CI: an unbounded cap
+or a zero threshold removes the floor entirely rather than merely loosening it.
+
+## 25. Authoring prior and failure-cluster distillation
+
+### 25.1 Authoring prior
+
+A versioned document (T2) constraining how the distiller writes skills: granularity, naming,
+parameter conventions, step phrasing, and how `failure_modes` should be expressed. Every skill
+version records `provenance.authoring_prior_version`.
+
+Rules: the prior MUST be applied on both distillation paths; changing it requires an eval
+comparison (§22); and since a consistent prior largely subsumes explicit deduplication
+(`references.md` §1.3), Curator deduplication MUST NOT be treated as a prerequisite for shipping
+distillation.
+
+### 25.2 Failure-cluster path
+
+| Stage | Rule |
+| --- | --- |
+| Cluster | Group episodic `dead_end` records by task class and normalised failure signature |
+| Threshold | A cluster with ≥3 distinct runs is eligible for authoring |
+| Output | A pitfall-oriented skill whose substance is `preconditions` and `failure_modes`, plus a minimal corrective step sequence |
+| Criteria | MUST include a criterion that fails on the recorded failure signature — the sensitivity proof is the cluster itself (§15.2) |
+| Provenance | `self_distilled`, with `distilled_from_run` set to the cluster's representative run and the cluster id recorded |
+
+Failure-derived skills are validated identically to success-derived ones. Their advantage is that
+a known-bad artifact for the sensitivity proof already exists, which makes them the cheapest
+skills in the system to certify honestly.
