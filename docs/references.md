@@ -5,10 +5,12 @@ draft and forced a change.
 
 Two honesty notes. First, the architecture was designed before this survey was run, so the
 citations below are post-hoc grounding rather than provenance; where the evidence disagreed with
-the design, the design changed (§2). Second, verification status is marked per entry, because
+the design, the design changed (§1). Second, verification status is marked per entry, because
 several 2026 entries were read through a citing paper's bibliography rather than fetched
 directly: **[F]** = primary source fetched and read, **[B]** = citation taken from a fetched
-paper's bibliography and not independently verified.
+paper's bibliography and not independently verified, and **[F, practitioner]** = non-academic
+source read directly, carrying no measurements of its own and weighted as argument rather than
+evidence.
 
 ## 1. Findings that changed the design
 
@@ -97,6 +99,37 @@ unbounded `C` and no `τ` "have no finite analogue: the bound collapses."
 
 **Change made:** finiteness of cap and threshold is now a structural invariant (T3), and the
 floor property is stated as a design goal rather than an aspiration.
+
+### 1.7 Graph execution: fake edges, verifier isolation, hidden edges, silent merges
+
+> **"Graph Engineering explained: what it is, when to use it and when not to"** — Anatoli Kopadze,
+> X long-form article, 24 July 2026,
+> [x.com/AnatoliKopadze/status/2080668775796314331](https://x.com/AnatoliKopadze/status/2080668775796314331)
+> **[F, practitioner]**
+
+A practitioner explainer rather than research: no citations, no measurements of its own, and a
+promotional close. Weighted accordingly — but it names four execution problems the design either
+had or had solved only partially, and the reasoning behind each survives scrutiny independent of
+the source.
+
+Section numbers in the right-hand column refer to [`specifications.md`](specifications.md).
+
+| Claim | Our response |
+| --- | --- |
+| The **fake-edge test**: a dependency is real only if the later step consumes the earlier one's output; steps ordered by habit serialise for nothing | Skill `steps` became a DAG with `depends_on`, so independent steps run concurrently and only data-carrying edges serialise (§26.1) |
+| Fan-out for **decomposition** — split, reduce, synthesise — is distinct from racing strategies | Added `decomposition` branches alongside the existing `portfolio` kind, with all-must-complete join semantics (§18) |
+| **A worker and its verifier must never share a context**, or the check is agreement in a different font | `judge` criteria now require `fresh_context`, and the producing model instance may not score its own artifact (§26.3) |
+| **Split the checking three ways** — correct, current, is the source real — since different lenses catch what identical ones miss | Multiple `judge` criteria must use distinct `lens` values (§26.3) |
+| **Hidden edges**: two steps look independent while sharing a file, lock, or rate-limited API | Declared resource claims; overlapping `write`/`exclusive` claims forbid concurrency regardless of workspace isolation (§26.2) |
+| **Silent node failure**: in a graph one dead branch can vanish into a result that looks complete | Merge audits recording expected against received, failing on gaps for decomposition joins (§26.4) |
+| **Context collapse**: feeding a large raw fan-in into one synthesis exhausts the window | Layered fan-in — batch, summarise, combine — with deterministic code reduction where mechanical (§26.4) |
+| **Anchors**: topology does not buy truth; verification needs facts that cannot argue back, and rules an optimiser would weaken must be frozen | Independent corroboration of two decisions already made: the non-`judge` criterion requirement (ADR-0003) and the T3 boundary (ADR-0005). No change |
+
+Its framing that graphs supersede loops is timeline commentary and was ignored; a graph of loops
+is still loops. Its cost illustration is worth recording, though: the Bun runtime rewrite it cites
+ran roughly 50 workflows at up to 64 concurrent agents for about $165,000 in usage, with human
+supervision throughout — which is the scale at which our budget and approval controls stop being
+theoretical.
 
 ## 2. Skill libraries and lifecycle management
 
