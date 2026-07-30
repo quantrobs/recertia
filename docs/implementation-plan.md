@@ -15,8 +15,16 @@ each one lets you *measure*, not by calendar time.
 3. **Governance boundaries are structural, not retrofitted.** The T0–T3 module boundary
    (specs §22) is enforced from M0, since separating it later means auditing every call
    path that already exists.
+4. **Curation is not a late-stage nicety.** The one field-wide finding we have says lifecycle
+   management, not skill authoring, is the bottleneck — self-generated skills measured +0.0pp
+   against a no-skill baseline while managed libraries produced large gains
+   ([`references.md`](references.md) §1.1). The authoring prior lands with the distiller in M3, and
+   capacity plus retirement land in M5 alongside the first autonomy.
 
 ## Technology stack
+
+Literature grounding for the sequencing choices, including the findings that changed the design,
+is in [`references.md`](references.md).
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
@@ -102,14 +110,15 @@ snapshot; the boundary test fails if a node imports a T3 module.
   and git adapter.
 - Index build from canonical files with snapshot ids; embeddings + FTS5.
 - Retrieval pipeline: generation, RRF merge, precondition filter including environment
-  fingerprint, rerank, score floor, staleness decay.
+  fingerprint, active-set filter, rerank, score floor, evidence and staleness demotion.
 - `plan` chooses `apply` / `adapt` / `scratch` / `abstain` with `predicted_success`.
-- 8–12 hand-authored `repo-chore` skills.
+- 8–12 hand-authored `repo-chore` skills, marked `curation: human_authored`.
 - `fandea skills lint`, `fandea skills search --explain`.
 
 **Done when:** `retrieval_precision_at_3` ≥ 0.7 on a labelled probe set; unrelated tasks return
 an empty bundle; novel tasks route to `scratch`; a skill whose environment fingerprint does not
-match is dropped rather than down-ranked.
+match is dropped rather than down-ranked; a thin-evidence skill is demoted in ranking but never
+hard-dropped.
 
 ## M2 — Solver, tool runtime, episodic and affordance memory
 
@@ -135,18 +144,25 @@ with no model calls.
 
 - Critic pass proposing criteria pre-solve when the caller supplies none.
 - **Sensitivity proofs** generated and stored per criterion; unproven criteria are advisory.
-- Distiller: parameter extraction, generalisation, pruning, criteria proposal, **fact
-  extraction**.
+- **Authoring prior** as a versioned T2 document, applied on every distillation, with
+  `authoring_prior_version` recorded on each skill. This lands here rather than later because it
+  was the highest-value single component in the only ablation that measured it
+  ([`references.md`](references.md) §1.3).
+- Distiller success path: parameter extraction, generalisation, pruning, criteria proposal,
+  **fact extraction**.
+- **Failure-cluster path:** cluster episodic dead ends by task class and failure signature, author
+  pitfall-oriented skills at ≥3 distinct runs, using the cluster as the negative fixture.
 - Reusability filter, `one_off` recording per task class, near-duplicate routing to a new
   version of the nearest skill.
 - Fact store with verification, confidence, and contradiction retention.
-- Hygiene scan at store time; failing drafts rejected.
+- Hygiene scan at store time; failing drafts rejected. `curation` provenance recorded.
 - Review service, queue, decisions; `store` writes transactionally and appends to the ledger.
 
 **Done when:** a novel task solved from scratch yields a `candidate` skill a reviewer approves,
 and a later similar task retrieves and applies it with `attempt_no == 1`. That transition is the
 system's core claim. Also: a deliberately vacuous criterion is rejected by its sensitivity
-check, and a draft containing a planted secret is refused.
+check, a draft containing a planted secret is refused, and a repeated failure signature produces
+a pitfall skill whose criteria fail on the recorded failure.
 
 ## M4 — Measurement: evals, ablation, calibration
 
@@ -158,6 +174,8 @@ check, and a draft containing a planted secret is refused.
 - **Ablation arm:** stratified control sampling at the governed rate, `causal_lift` with Wilson
   intervals, `fandea lift`.
 - Calibration scoring of `predicted_success`; abstention precision.
+- Per-task-class control baselines persisted, since per-skill contribution in M5 is measured
+  against them.
 - All metrics from specs §11 and §23; regression gate wired into promotion.
 
 **Done when:** the harness shows first-attempt success and cost per solved task improving
@@ -165,17 +183,27 @@ against an empty-memory baseline; `causal_lift` is positive with an interval exc
 intentionally bad skill version is blocked by the regression gate; a lift claim with an interval
 spanning zero is reported as "not established".
 
-## M5 — Earned autonomy
+## M5 — Earned autonomy, capacity, and retirement
 
-**Goal:** relax the human gate exactly where evidence supports it.
+**Goal:** relax the human gate exactly where evidence supports it, and give the library a floor.
 
 - Shadow execution with offline comparison; shadow results never reach the caller.
 - Trust scoring, decay, and lift reported together.
 - Auto-promotion on the shadow thresholds; quarantine on consecutive field failures.
+- **Bounded active set** per task class with `benched` as a reversible state, incumbent-displacement
+  grace periods, and `active_cap_pressure` tracking.
+- **Contribution estimates** against the M4 control baselines, with Wilson intervals.
+- **Retirement** on `estimate <= -retirement_threshold` past `evidence_floor`, ledger-recorded, with
+  parents of a benched child marked `needs_recert`.
+- Curation prior in ranking; higher evidence bar for `self_distilled` promotion.
 
-**Done when:** a skill reaches `approved` through shadow evidence alone with no human decision,
-an injected regression drives a skill to `quarantined` automatically, and a skill with high
-trust but zero lift is *not* auto-promoted.
+**Done when:** a skill reaches `approved` through shadow evidence alone with no human decision;
+an injected regression drives a skill to `quarantined` automatically; a skill with high trust but
+zero lift is *not* auto-promoted; a skill with sustained negative contribution is benched and
+restorable; a skill below the evidence floor is never benched on contribution; and a synthetic
+harsh configuration (evidence floor 20, threshold 0) is demonstrated to *underperform* the loose
+defaults on the golden sets, reproducing the finding that motivated them
+([`references.md`](references.md) §1.2).
 
 ## M6 — Portfolio fan-out
 
@@ -195,8 +223,11 @@ by model preference.
 **Goal:** the system reorganises, practises, and re-certifies without a user waiting.
 
 - Job runner with per-job budgets; proposals-only write path.
-- **Miner:** bootstrap candidates from git history, merged PRs, CI config, runbooks.
-- **Curator:** merge, extract-child, split, deprecate, tighten-precondition, compact.
+- **Miner:** bootstrap candidates from git history, merged PRs, CI config, runbooks, marked
+  `mined_from_human_artifact`. Treated as a primary quality source, not just cold-start relief.
+- **Curator:** active-set recomputation and retirement first, then extract-child, split,
+  tighten-precondition, merge, compact. Deduplication is last because a consistent authoring prior
+  largely subsumes it ([`references.md`](references.md) §1.2).
 - **Practice:** curriculum targeting `predicted_success ∈ [0.2, 0.8]`, fed by one-off clusters
   and failure-heavy classes; excluded from user-facing metrics.
 - **Recertifier:** scheduled and triggered re-validation, re-running sensitivity proofs.
@@ -253,7 +284,9 @@ no duplicate or missing versions under load.
 CI-asserted invariants: no write to an existing `SkillVersion`; every back-edge decrements a
 budget; no `approved` skill has only `judge` criteria; every required criterion has a sensitivity
 proof; every `loop` has `max_iterations`; the `uses` graph is acyclic with depth ≤ 3; eval
-fixtures never appear in skill provenance; `ablation_rate` is unreachable from run and job code.
+fixtures never appear in skill provenance; `ablation_rate` is unreachable from run and job code;
+`active_cap` and `retirement_threshold` are finite and non-zero; no retirement occurs below the
+evidence floor.
 
 ## Risks and mitigations
 
@@ -265,6 +298,9 @@ fixtures never appear in skill provenance; `ablation_rate` is unreachable from r
 | Metrics improve while capability does not | The comfortable failure mode: nobody can tell | Ablation control arm, eval firewall, manifests, calibration |
 | Trust without causation | A skill applied to easy tasks looks excellent | Lift reported with trust; no auto-promotion on trust alone |
 | Library entropy | Retrieval precision decays as size grows | Curator compaction and abstraction, `retrieval_decay` early warning |
+| Library drift | Unbounded growth erodes quality with no performance floor | Bounded active cap plus contribution-score retirement (specs §24) |
+| Over-pruning | Aggressive retirement measured worse than no library | Evidence floor, loose threshold, reversible benching, `retirement_reversal_rate` |
+| Self-distilled skills may add nothing | Measured +0.0pp in one benchmark against +16.2pp human-curated | `curation_gap` metric to test it in our domain; Miner as a primary source; higher bar for `self_distilled` |
 | Skill rot | Tools and models change underneath | Environment fingerprints, model-version gates, scheduled recertification, trust decay |
 | Memory poisoning or injection | Model-authored memory re-enters context | Memory-as-data discipline, hash-chained ledger, provenance-weighted trust, adversarial tests |
 | Practice burns budget on noise | Curriculum drifts to trivial or impossible tasks | Target the 0.2–0.8 band, separate budget, `practice_conversion` metric |
