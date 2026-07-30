@@ -15,6 +15,7 @@ practise, and re-certify what has been learned.
 | [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
 | [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
+| [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 | [`docs/preprints-self-improving-agents.xlsx`](docs/preprints-self-improving-agents.xlsx) | Scored survey of ~117 preprints against Fandea's non-negotiables |
 | [`docs/score10-references/`](docs/score10-references/) | Bibliographies extracted from the four score-10 papers |
