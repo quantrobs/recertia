@@ -109,13 +109,41 @@
         "required": ["branch_id", "strategy", "workspace_ref"],
         "properties": {
           "branch_id": { "type": "string" },
+          "kind": {
+            "enum": ["portfolio", "decomposition"],
+            "default": "portfolio",
+            "description": "portfolio branches are competing strategies for the same task and one wins; decomposition branches are disjoint parts of the work and all must complete before synthesis."
+          },
           "strategy": { "enum": ["apply", "adapt", "scratch"] },
+          "subtask": { "type": ["string", "null"], "description": "Set for decomposition branches: the part of the work this branch owns." },
           "candidate": { "type": ["object", "null"] },
           "workspace_ref": { "type": "string" },
+          "resources": {
+            "type": "array",
+            "description": "Resource claims held by this branch. Overlapping write or exclusive claims are a hidden edge and forbid concurrency.",
+            "items": { "type": "object" }
+          },
           "results": { "$ref": "#/$defs/resultVector" },
           "selected": { "type": "boolean", "default": false },
           "margin": { "type": ["number", "null"], "description": "Winner score minus runner-up." },
           "cost_usd": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "merge_audits": {
+      "type": "array",
+      "description": "Every fan-in records expected against received inputs. A merge that proceeds on partial data silently produces a result that looks complete, which is the characteristic graph failure a chain does not have.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["merge_id", "expected", "received"],
+        "properties": {
+          "merge_id": { "type": "string" },
+          "expected": { "type": "integer", "minimum": 0 },
+          "received": { "type": "integer", "minimum": 0 },
+          "missing": { "type": "array", "items": { "type": "string" } },
+          "action": { "enum": ["proceeded", "flagged", "failed"] },
+          "layered": { "type": "boolean", "default": false, "description": "True when inputs were batched and summarised before combining, rather than concatenated raw." }
         }
       }
     },

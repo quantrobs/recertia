@@ -112,6 +112,26 @@
           "intent": { "type": "string", "minLength": 5 },
           "inputs": { "type": "object" },
           "optional": { "type": "boolean", "default": false },
+          "depends_on": {
+            "type": "array",
+            "description": "Step ids whose output this step consumes. An empty list means the step may run concurrently with any other independent step. A dependency that carries no data is a fake edge and must be removed rather than declared.",
+            "items": { "type": "string", "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$" },
+            "uniqueItems": true
+          },
+          "resources": {
+            "type": "array",
+            "description": "Claims on shared state outside the workspace. Two steps claiming the same resource with a write or exclusive mode have a hidden edge and must not run concurrently.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "id", "mode"],
+              "properties": {
+                "kind": { "enum": ["file", "path", "service", "rate_limit", "lock", "external_system"] },
+                "id": { "type": "string" },
+                "mode": { "enum": ["read", "write", "exclusive"] }
+              }
+            }
+          },
           "loop": {
             "type": "object",
             "additionalProperties": false,
@@ -146,6 +166,15 @@
           "op": { "enum": ["lt", "lte", "gt", "gte", "eq"] },
           "threshold": { "type": "number" },
           "rubric": { "type": "string" },
+          "isolation": {
+            "enum": ["fresh_context", "inherits_context"],
+            "default": "fresh_context",
+            "description": "Model-scored criteria must run in a fresh context holding only the artifact and the rubric. A judge that sees the solver's transcript measures agreement, not correctness."
+          },
+          "lens": {
+            "enum": ["correctness", "currency", "provenance", "scope", "safety"],
+            "description": "Which question this criterion asks. Multiple judge criteria should use distinct lenses, since several identical checks catch less than a few different ones."
+          },
           "timeout_s": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 300 },
           "weight": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 },
           "authored_by": {
