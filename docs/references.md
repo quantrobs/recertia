@@ -131,6 +131,29 @@ ran roughly 50 workflows at up to 64 concurrent agents for about $165,000 in usa
 supervision throughout — which is the scale at which our budget and approval controls stop being
 theoretical.
 
+### 1.8 A biased judge silently disables retirement
+
+> "A biased judge does not merely add noise; it *silently switches off the curator*."
+
+— **The Blind Curator: How a Biased Judge Silently Disables Skill Retirement in Self-Evolving
+Agents**, Zhang et al., arXiv:2607.07436, 2026 **[B]** (applicability score 10 in the preprint
+survey; not previously cited here)
+
+Ratchet's floor property assumes an unbiased reward. On reference-free tasks the reward is an
+LLM judge, and that assumption fails. The paper's corrupted-reward analysis and behavioral study
+show that *symmetric* noise leaves contribution-based retirement intact, but **false-pass bias**
+— failures scored as passes — disables it past a sharp threshold that more data cannot cross.
+The system still looks healthy: contribution stays high, the active set looks curated, and the
+library drifts below the no-skill floor with nobody watching, because the mechanism that was
+supposed to notice has been switched off.
+
+**Change made:** contribution estimates (§24) are computed from required non-`judge` criteria
+only. A skill whose only required criteria are model-scored has `contribution = null` and
+MUST NOT be retired (or protected from retirement) on contribution grounds — the same rule the
+ablation arm already applies when a task class has no control samples. Judge isolation (§26.3)
+remains necessary but is no longer treated as sufficient: an isolated judge that is still
+false-pass-biased would disable the curator just as quietly.
+
 ## 2. Skill libraries and lifecycle management
 
 | Work | Relevance |
@@ -187,7 +210,26 @@ of ADR-0003), **mutation testing** (software testing, the basis of sensitivity p
 **sagas and compensating transactions** (distributed systems, the basis of attempt isolation),
 and **append-only hash chains** (tamper-evident logging, the basis of the provenance ledger).
 
-## 7. Open questions the literature does not settle for us
+## 7. Scored survey and next reading
+
+The full applicability scoring of ~117 preprints against Fandea's non-negotiables lives in
+[`preprints-self-improving-agents.xlsx`](preprints-self-improving-agents.xlsx) (also `.xls`),
+with sheets for the rubric, every entry's score and rationale, the core/high cut (7–10), and the
+distribution. Score-10 papers are already absorbed above; the remaining score-9 papers are next
+reading, not yet design-shaping, and are listed so they do not get lost behind the spreadsheet:
+
+| Paper | arXiv | Why it is next |
+| --- | --- | --- |
+| **Falsifiable Release Gates for Self-Improving Systems** | [2607.13070](https://arxiv.org/abs/2607.13070) | Pre-declared machine-checkable acceptance suites and standing invariants — close kin to criteria preregistration and the T3 boundary |
+| **Not All Skills Help: Measuring and Repairing Agent Knowledge** | [2606.15390](https://arxiv.org/abs/2606.15390) | Per-skill causal contribution via randomized measurement — independent support for `causal_lift` / contribution retirement |
+| **PACE: Anytime-Valid Acceptance Tests for Self-Evolving Agents** | [2606.08106](https://arxiv.org/abs/2606.08106) | The acceptor, not the proposer, is the weak point; "keep it if the score went up" is uncontrolled adaptive testing |
+| **Self-Authored Verification Is Unreliable in Heuristic Self-Improving Agents** | [2607.24300](https://arxiv.org/abs/2607.24300) | Verifier–deployment gap when the agent authors its own tests — further support for ADR-0003 |
+
+Reference lists extracted from the four score-10 papers are in
+[`score10-references/`](score10-references/) and
+[`preprints-score10-reference-lists.xlsx`](preprints-score10-reference-lists.xlsx).
+
+## 8. Open questions the literature does not settle for us
 
 - SkillsBench's null result was measured on general agent-skill tasks, not on repository chores
   with tool-defined success. Whether machine-checkable domains change the result is exactly what

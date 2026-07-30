@@ -1,7 +1,7 @@
 # ADR-0006: Bounded active library with contribution-score retirement
 
 - **Status:** accepted
-- **Evidence base:** [`../references.md`](../references.md) §1.1, §1.2, §1.6
+- **Evidence base:** [`../references.md`](../references.md) §1.1, §1.2, §1.6, §1.8
 
 ## Context
 
@@ -33,7 +33,9 @@ only when the active cap `C` and retirement threshold `τ` are finite. With unbo
 2. **Contribution-score retirement with an evidence floor.** Retire (bench) a skill when it has
    at least `evidence_floor` applications (default 30) **and** its estimated contribution
    `ĉ(s) ≤ −retirement_threshold` (default 0.10). Contribution is estimated against the ablation
-   control arm's baseline for the task class, which the design already collects.
+   control arm's baseline for the task class, which the design already collects, and is scored
+   from required non-`judge` criteria only — a false-pass-biased model judge silently disables
+   retirement otherwise ([`references.md`](../references.md) §1.8).
 3. **`benched` is reversible and non-destructive.** A benched skill is retained with full history
    and may return to `active` if evidence changes or the Curator revises it. Benching is not
    deprecation and not quarantine.

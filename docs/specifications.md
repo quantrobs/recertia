@@ -792,10 +792,13 @@ class Contribution(BaseModel):
     last_evaluated_at: datetime
 ```
 
-Rules: only `treatment`-arm applications count toward `applications`; `environment`, `tool`, and
-`budget` failure classes are excluded from the denominator (§16); `baseline_success` comes from
-the ablation arm (§19), and when a task class has no control samples, contribution is `null` and
-the skill MUST NOT be retired on contribution grounds.
+Rules: only `treatment`-arm applications count toward `applications`; `environment`, `tool`,
+`budget`, and `merge` failure classes are excluded from the denominator (§16); success is scored
+from **required non-`judge` criteria only**, because a false-pass-biased model judge silently
+disables contribution-based retirement (`references.md` §1.8); `baseline_success` comes from the
+ablation arm (§19) under the same non-`judge` scoring; when a task class has no control samples,
+or a skill has no required non-`judge` criterion, contribution is `null` and the skill MUST NOT
+be retired (or protected from retirement) on contribution grounds.
 
 ### 24.3 Retirement
 
