@@ -90,7 +90,7 @@
       }
     },
     "chosen": { "type": ["object", "null"] },
-    "strategy": { "enum": ["apply", "adapt", "scratch", "portfolio", "abstain", null] },
+    "strategy": { "enum": ["apply", "adapt", "scratch", "portfolio", "decomposition", "abstain", null] },
     "strategy_reason": { "type": ["string", "null"] },
     "predicted_success": {
       "type": ["number", "null"],
@@ -102,7 +102,7 @@
     "branches": {
       "type": "array",
       "maxItems": 3,
-      "description": "Portfolio fan-out. Budget is divided across branches, never multiplied.",
+      "description": "Fan-out branches, racing or decomposed. Budget is divided across branches, never multiplied.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -121,7 +121,7 @@
           "resources": {
             "type": "array",
             "description": "Resource claims held by this branch. Overlapping write or exclusive claims are a hidden edge and forbid concurrency.",
-            "items": { "type": "object" }
+            "items": { "$ref": "#/$defs/resourceClaim" }
           },
           "results": { "$ref": "#/$defs/resultVector" },
           "selected": { "type": "boolean", "default": false },
@@ -144,6 +144,39 @@
           "missing": { "type": "array", "items": { "type": "string" } },
           "action": { "enum": ["proceeded", "flagged", "failed"] },
           "layered": { "type": "boolean", "default": false, "description": "True when inputs were batched and summarised before combining, rather than concatenated raw." }
+        }
+      }
+    },
+    "step_waves": {
+      "type": "array",
+      "description": "Ordered record of which steps ran concurrently. A transcript alone cannot show this, and without it a parallel attempt is not replayable. A wave is also the unit of rollback: evolve restores the snapshot taken before the wave, never a partial wave.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["wave", "step_ids"],
+        "properties": {
+          "wave": { "type": "integer", "minimum": 0 },
+          "step_ids": { "type": "array", "items": { "type": "string" } },
+          "attempt_no": { "type": "integer", "minimum": 0 },
+          "snapshot_ref": { "type": ["string", "null"] },
+          "duration_s": { "type": ["number", "null"] },
+          "serial_duration_s": { "type": ["number", "null"], "description": "Sum of step durations, the denominator for parallel_speedup." }
+        }
+      }
+    },
+    "resource_conflicts": {
+      "type": "array",
+      "description": "Every wait on a claimed resource. Aggregated into the affordance plane so contention becomes a scheduling input rather than folklore.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "waiting", "holder", "waited_ms"],
+        "properties": {
+          "claim": { "$ref": "#/$defs/resourceClaim" },
+          "waiting": { "type": "string", "description": "Step or branch id that blocked." },
+          "holder": { "type": "string", "description": "Step or branch id holding the claim." },
+          "waited_ms": { "type": "integer", "minimum": 0 },
+          "resolution": { "enum": ["acquired", "timed_out", "deadlock_serialised"] }
         }
       }
     },
@@ -188,13 +221,14 @@
       "description": "Set by classify_failure. The class dictates evolve's repair move and whether trust is affected.",
       "properties": {
         "failure_class": {
-          "enum": ["environment", "tool", "retrieval", "plan", "execution", "criteria", "budget"]
+          "enum": ["environment", "tool", "retrieval", "plan", "execution", "criteria", "budget", "merge"],
+          "description": "merge covers work that never came back: a fan-in missing inputs, or a resource claim that timed out. Its repair re-dispatches only the missing piece, which is why it is not execution."
         },
         "evidence": { "type": "array", "items": { "type": "string" } },
         "implicated_skill": { "type": ["object", "null"] },
         "counts_against_trust": {
           "type": "boolean",
-          "description": "False for environment, tool and budget, so flaky infrastructure cannot quarantine good skills."
+          "description": "False for environment, tool, budget and merge, so flaky infrastructure cannot quarantine good skills."
         },
         "escalate_to_human": {
           "type": "boolean",
@@ -259,6 +293,8 @@
         "max_wall_clock_s": { "type": "integer", "minimum": 1, "default": 900 },
         "max_cost_usd": { "type": "number", "minimum": 0 },
         "max_branches": { "type": "integer", "minimum": 1, "maximum": 3, "default": 3 },
+        "max_parallel_steps": { "type": "integer", "minimum": 1, "default": 8, "description": "Width cap on a step wave, so a wide skill cannot exhaust tool-runtime capacity." },
+        "claim_timeout_s": { "type": "integer", "minimum": 1, "default": 60, "description": "A wait longer than this is a merge failure and re-runs the wave serially." },
         "max_versions_written": { "type": "integer", "minimum": 0, "default": 2 }
       }
     },
@@ -297,6 +333,17 @@
     "terminal": { "enum": ["solved", "unsolved", "abstained", "rejected", "error", null] }
   },
   "$defs": {
+    "resourceClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "mode"],
+      "description": "A declared claim on something shared. Two units conflict when they claim the same id and either mode is write or exclusive, whether or not a dependency edge exists between them.",
+      "properties": {
+        "kind": { "enum": ["file", "path", "service", "rate_limit", "lock", "external_system"] },
+        "id": { "type": "string" },
+        "mode": { "enum": ["read", "write", "exclusive"] }
+      }
+    },
     "memoryRef": {
       "type": "object",
       "additionalProperties": false,
@@ -321,6 +368,9 @@
           "kind": { "type": "string" },
           "passed": { "type": "boolean" },
           "weight": { "type": "number" },
+          "isolation": { "enum": ["fresh_context", "inherits_context"], "description": "Recorded per result so an inherited-context judge is auditable after the fact rather than invisible." },
+          "lens": { "enum": ["correctness", "currency", "provenance", "scope", "safety"] },
+          "context_hash": { "type": ["string", "null"], "description": "Hash of the exact context a judge was given, which is what makes an isolation violation provable." },
           "exit_code": { "type": ["integer", "null"] },
           "output_excerpt": { "type": "string", "maxLength": 32768 },
           "errored": { "type": "boolean", "default": false, "description": "An errored criterion counts as failed, never skipped." },

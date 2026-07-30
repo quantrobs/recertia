@@ -120,7 +120,7 @@ with a distinct write path and read path. See [ADR-0002](adr/0002-plural-memory.
 | **Procedural** | Skills: parameterised, validated procedures | `distill` → `review` → `store` | `retrieve` | — |
 | **Semantic** | Durable facts and invariants: "migrations run through `scripts/migrate`", "package X is pinned for reason Y" | `distill` (fact extraction), Miner, humans | `retrieve`, `plan`, `solve` | A fact has no steps and no exit code; it constrains *how* a procedure runs |
 | **Episodic** | Cases: transcripts of solved and failed attempts, including **dead ends** with the reason they failed | every run, automatically | `retrieve` (analogy), `evolve` (avoid repeats), Practice | Most cases never generalise into a skill; they are still the best evidence for a novel task |
-| **Affordance** | Learned model of tools and environment: error signatures, flake rates, latency and cost, version quirks | tool runtime telemetry, `validate` | `plan`, `solve`, `evolve`, Recertifier | It describes the world, not the work; it changes without any task occurring |
+| **Affordance** | Learned model of tools and environment: error signatures, flake rates, latency and cost, version quirks, and observed contention on claimed resources | tool runtime telemetry, `validate` | `plan`, `fan_out`, `solve`, `evolve`, Recertifier | It describes the world, not the work; it changes without any task occurring |
 | **Policy** | Meta-parameters: model tier per task class, budget defaults, retrieval thresholds, escalation ladder | Correction miner, eval harness, humans | `intake`, `plan`, `retrieve` | It governs the system's own behaviour and is therefore governed (§14) |
 
 Two consequences worth stating plainly.
@@ -144,7 +144,7 @@ flowchart LR
     IN[intake] --> RET[retrieve]
     RET --> PLAN[plan]
     PLAN -->|single strategy| SOLVE[solve]
-    PLAN -->|portfolio| FAN[fan_out]
+    PLAN -->|"portfolio / decomposition"| FAN[fan_out]
     FAN --> SOLVE
     SOLVE --> VAL[validate]
     VAL --> JOIN[join]
@@ -166,11 +166,11 @@ flowchart LR
 | --- | --- | --- |
 | `intake` | Normalise the request into a `Task`; resolve budgets and model tier from the policy store; record the run manifest (§11.3); **lock pre-registered success criteria** (§11.1) | Call a solver model |
 | `retrieve` | Federated query across memory planes; evaluate preconditions; apply score floor; honour ablation suppression (§11.4) | Execute anything |
-| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `abstain`; emit a calibrated `predicted_success`; record the reason | Mutate memory |
-| `fan_out` | Split budget across ≤3 branches with distinct strategies | Exceed the parent budget |
-| `solve` | Execute tools and models to produce artifacts plus a structured transcript, inside an isolated attempt workspace (§10.2) | Judge its own success |
-| `validate` | Execute locked criteria in a sandbox; emit a per-criterion result vector | Rewrite or relax criteria |
-| `join` | Select the winning branch by validator result, then cost; discard losers to episodic memory | Prefer a branch on model preference alone |
+| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `decomposition` / `abstain`; emit a calibrated `predicted_success`; record the reason | Mutate memory |
+| `fan_out` | Split budget across ≤3 branches — racing strategies, or disjoint parts of the work — with disjoint workspaces and non-overlapping write claims | Exceed the parent budget, or fan out work whose criteria cannot be partitioned |
+| `solve` | Execute the skill's step graph in dependency waves with bounded concurrency, producing artifacts plus a structured transcript, inside an isolated attempt workspace (§10.2) | Judge its own success, or run steps whose resource claims collide |
+| `validate` | Execute locked criteria in a sandbox; score model-judged criteria in fresh contexts; emit a per-criterion result vector | Rewrite or relax criteria, or show a judge the solver's reasoning |
+| `join` | Audit expected against received inputs; select a portfolio winner by validator result then cost, or reduce and synthesise decomposition inputs; discard losers to episodic memory | Prefer a branch on model preference alone, or synthesise across a gap |
 | `classify_failure` | Assign a failure class from the taxonomy (§12) with evidence | Retry |
 | `evolve` | Choose the repair move dictated by the failure class; decrement a budget; restore the workspace to a clean snapshot | Loop without a class or a budget decrement |
 | `distill` | Extract skill draft **and** facts and affordance updates; apply the reusability filter | Store directly |
@@ -317,7 +317,11 @@ different information:
 
 - **Success path.** A winning transcript becomes a skill draft, extracted facts, and affordance
   updates. Literals generalise into parameters, incidental steps are pruned, criteria are
-  proposed.
+  proposed. Dependencies and resource claims are derived from what the transcript shows —
+  an edge only where a later step read an earlier step's output, a claim wherever a tool call
+  touched something shared — rather than from the order the steps happened to run in. A
+  transcript is inherently sequential, so writing edges from that order is the default failure
+  and it silently serialises every skill the system learns.
 - **Failure-cluster path.** Recurring failures in the episodic plane — the same dead end reached
   by three or more runs in a task class — become pitfall-oriented skills whose substance is
   `failure_modes` and preconditions rather than a happy-path sequence. This path exists because
@@ -517,6 +521,14 @@ skills (§6), **splitting** overloaded skills whose criteria fail in uncorrelate
 **tightening** preconditions that produced wrong retrievals, **merging** near-duplicates, and
 **compacting** version chains. Every proposal is a diff, gated by the golden-set regression run.
 
+Two proposals act on step graphs rather than skill content. **Parallelise** removes a
+`depends_on` edge that failed the fake-edge test across repeated runs — the later step never
+read the earlier step's output and their claims do not overlap. **Serialise** does the
+reverse, adding an edge or widening a claim after repeated merge failures or resource
+conflicts on the same wave. This is the loop that makes concurrency a learned property: the
+distiller writes edges conservatively from a single transcript, and the Curator relaxes or
+tightens them once many runs have shown which orderings were real.
+
 Deduplication sits late in that list deliberately: with a consistent authoring prior in place,
 explicit deduplication was found to be largely subsumed by the prior itself
 ([`references.md`](references.md) §1.2), so it earns effort only after retirement and abstraction
@@ -574,6 +586,8 @@ a driver swap rather than a data model change.
 | `max_wall_clock_s` | orchestrator, per node | 900 |
 | `max_cost_usd` | solver + tool runtime | task class default |
 | `max_branches` | `fan_out` | 3 |
+| `max_parallel_steps` | step scheduler in `solve` | 8 |
+| `claim_timeout_s` | resource claim acquisition | 60 |
 | `max_versions_written` | `store` | 2 |
 
 Exhausting any budget routes to `classify_failure` then `quarantine`, never to another
@@ -595,6 +609,8 @@ mess — a bug that produces uninterpretable failures and poisons distillation. 
 - `evolve` restores the snapshot before routing back to `solve`, so every attempt starts
   from a known state, and the diff between attempts is attributable.
 - Fan-out branches get disjoint workspace clones.
+- Steps running in the same wave share the attempt's workspace, so the wave — not the step —
+  is the unit of rollback. Restoring half a wave would leave a state no attempt ever produced.
 - Irreversible external side effects (`external` tools) are gated by approval and recorded
   with a compensating action where one exists; a skill whose steps include an uncompensable
   external effect cannot run in `portfolio` or `shadow` mode.
@@ -657,11 +673,16 @@ Blind retry is a waste of budget. `classify_failure` assigns a class, and the cl
 | `execution` | Right plan, wrong edit | Patch artifacts using criteria output |
 | `criteria` | Criteria contradictory or unsatisfiable as written | Halt and escalate to human; never relax criteria |
 | `budget` | Ran out of room | Terminate, report the frontier reached |
+| `merge` | A merge audit found missing inputs, or a resource claim timed out (§5.10, §5.6) | Re-dispatch only what never arrived, once; a claim timeout re-runs the wave serially |
 
-Two consequences matter. Environment and tool failures must not damage a skill's trust score
-— otherwise flaky infrastructure silently quarantines good skills. And `criteria` failures
+Three consequences matter. Environment and tool failures must not damage a skill's trust
+score — otherwise flaky infrastructure silently quarantines good skills. `criteria` failures
 escalate to a human rather than being repaired by the system, since self-repair of the
-scorecard is precisely what §11 exists to prevent.
+scorecard is precisely what §11 exists to prevent. And `merge` is separated from `execution`
+because the two look identical from the outside and want opposite repairs: an execution
+failure means the work was wrong, while a merge failure means some of the work never came
+back. Retrying the whole attempt on a lost branch wastes the branches that succeeded, and
+charging trust for it would let executor noise demote skills that did their job.
 
 ## 13. Drift and non-stationarity
 
@@ -685,8 +706,8 @@ become unsafe or unmeasurable. So capability is tiered explicitly
 | --- | --- | --- |
 | **T0 — autonomous** | Trust scores, affordance aggregates, episodic cases, retrieval caches | Written by runs; derived, revertible, no gate |
 | **T1 — policy-gated** | New skill versions, facts, curator proposals, shadow promotions | Automatic promotion only with eval evidence and zero regressions |
-| **T2 — human-gated** | Authoring prior and distiller guidance, criteria templates, retrieval thresholds, routing and escalation ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` | Versioned config; change requires human approval plus an eval comparison |
-| **T3 — never autonomous** | Tool registry and side-effect classes, sandbox policy, promotion thresholds, the ablation rate, the graph topology, the *finiteness* of the active cap and retirement threshold, this boundary | Human-authored code or config review only |
+| **T2 — human-gated** | Authoring prior and distiller guidance, criteria templates, retrieval thresholds, routing and escalation ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` / `max_parallel_steps` / `layer_threshold` | Versioned config; change requires human approval plus an eval comparison |
+| **T3 — never autonomous** | Tool registry with side-effect classes and declared resource claims, sandbox policy, promotion thresholds, the ablation rate, the graph topology, enforcement of judge isolation and merge audits, the *finiteness* of the active cap and retirement threshold, this boundary | Human-authored code or config review only |
 
 The rule behind the table: **the system may not modify the mechanisms that measure or
 constrain it.** A system that can lower its own promotion bar, shrink its own control arm, or
@@ -777,9 +798,15 @@ Tracked per task class over library snapshots:
 | `active_cap_pressure` | Share of task classes at their cap; high pressure means value is being benched by competition |
 | `retirement_reversal_rate` | Benched skills later restored; a high rate means retirement is too aggressive |
 | `curation_gap` | First-attempt success of human-authored and mined skills minus self-distilled ones; tests the SkillsBench finding in our domain |
+| `merge_gap_rate` | Fan-ins that lost an input; the number that says whether parallelism is honest |
+| `parallel_speedup` | Serial step time over observed wall clock, per skill; the only justification for step graphs |
+| `fake_edge_rate` | Declared dependencies that carry no data; how much latency the distiller invents |
+| `judge_isolation_violations` | Judge invocations that saw solver reasoning; a release blocker at any value above zero |
 
 A library change that raises size without moving `first_attempt_success`, `causal_lift`, or
-cost is not an improvement, and the harness makes that visible.
+cost is not an improvement, and the harness makes that visible. The same discipline applies
+to the concurrency metrics: `parallel_speedup` is only reportable next to `merge_gap_rate`,
+because a graph that finishes faster by dropping a branch will show excellent speedup.
 
 ## 17. Domain scoping for v1
 
