@@ -31,7 +31,13 @@
       "description": "Version this one replaces. Null for the first version."
     },
     "lifecycle": {
-      "enum": ["draft", "candidate", "shadow", "approved", "needs_recert", "deprecated", "quarantined"]
+      "enum": ["draft", "candidate", "shadow", "approved", "benched", "needs_recert", "deprecated", "quarantined"],
+      "description": "benched means retained but not currently holding a retrievable slot; it is reversible and distinct from deprecated and quarantined."
+    },
+    "active": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this version currently holds a slot in the capped active set. Only active approved versions are retrievable for application."
     },
     "scope": {
       "enum": ["run", "project", "org", "global"],
@@ -193,8 +199,49 @@
         "distilled_from_run": { "type": "string" },
         "distilled_at": { "type": "string", "format": "date-time" },
         "authored_by": { "type": "string", "description": "Set for hand-authored seed skills." },
+        "curation": {
+          "enum": ["human_authored", "mined_from_human_artifact", "self_distilled"],
+          "default": "self_distilled",
+          "description": "Human-curated skills have measured higher reliability than self-generated ones, so self_distilled carries a higher evidence bar for promotion."
+        },
+        "derivation": {
+          "enum": ["success_transcript", "failure_cluster", "mined_artifact", "hand_authored"],
+          "description": "failure_cluster skills are pitfall-oriented and carry a ready-made negative fixture for sensitivity proofs."
+        },
+        "failure_cluster_id": { "type": ["string", "null"] },
+        "authoring_prior_version": { "type": ["string", "null"] },
         "evolved_because": { "type": "string" },
         "model": { "type": "string" }
+      }
+    },
+    "contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Derived retirement input: measured lift over the control-arm baseline for this skill's task class. Null estimate means the class has no control samples yet, in which case the skill must not be retired on contribution grounds.",
+      "properties": {
+        "applications": { "type": "integer", "minimum": 0, "description": "Treatment-arm applications, excluding environment, tool and budget failures." },
+        "successes": { "type": "integer", "minimum": 0 },
+        "baseline_success": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "estimate": { "type": ["number", "null"], "minimum": -1, "maximum": 1 },
+        "interval_low": { "type": ["number", "null"] },
+        "interval_high": { "type": ["number", "null"] },
+        "last_evaluated_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "retirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Benching record. Reversible: history is retained and restoration requires no new version.",
+      "properties": {
+        "benched_at": { "type": ["string", "null"], "format": "date-time" },
+        "reason": { "enum": ["negative_contribution", "cap_pressure", "superseded_child", "manual"] },
+        "evidence": { "type": "string" },
+        "restored_at": { "type": ["string", "null"], "format": "date-time" },
+        "grace_period_remaining": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Applications remaining before this version is eligible for contribution-based benching."
+        }
       }
     },
     "trust": {
