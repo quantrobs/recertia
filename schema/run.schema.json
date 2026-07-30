@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/run.schema.json",
+  "title": "Fandea Run State",
+  "description": "The state threaded through the cyclic execution graph for one task. Nodes return deltas that the orchestrator applies, and every applied delta is checkpointed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "task", "budget", "spent"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "arm": {
+      "enum": ["treatment", "control", "shadow", "practice"],
+      "default": "treatment",
+      "description": "control suppresses retrieval to measure causal lift; shadow must not affect the caller's result; practice is excluded from user-facing metrics."
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Full system fingerprint, so any measurement ties to an exact state and can be replayed.",
+      "properties": {
+        "model": { "type": "string" },
+        "model_version": { "type": "string" },
+        "tool_versions": { "type": "object", "additionalProperties": { "type": "string" } },
+        "index_snapshot_id": { "type": ["string", "null"] },
+        "library_commit": { "type": ["string", "null"] },
+        "policy_version": { "type": ["string", "null"] },
+        "criteria_hash": { "type": ["string", "null"], "description": "sha256 of the locked required criteria set." },
+        "seed": { "type": ["integer", "null"] }
+      }
+    },
+    "criteria_locked_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Required criteria are immutable after this instant. Criteria found later are advisory only."
+    },
+    "is_eval_fixture": {
+      "type": "boolean",
+      "default": false,
+      "description": "Eval-fixture runs are blocked at distill, so evals measure generalisation rather than memorisation."
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "request"],
+      "properties": {
+        "task_id": { "type": "string" },
+        "request": { "type": "string", "minLength": 1 },
+        "task_class": { "type": ["string", "null"] },
+        "workspace": { "type": ["string", "null"] },
+        "declared_criteria": { "type": "array", "items": { "type": "object" } },
+        "submitted_by": { "type": ["string", "null"] },
+        "submitted_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Federated retrieval result across memory planes. Every element carries plane, provenance and trust, and is treated by the solver as untrusted evidence.",
+      "properties": {
+        "suppressed": { "type": "boolean", "default": false, "description": "True on control-arm runs." },
+        "skills": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["skill_id", "version", "score"],
+            "properties": {
+              "skill_id": { "type": "string" },
+              "version": { "type": "integer" },
+              "score": { "type": "number" },
+              "lexical_rank": { "type": ["integer", "null"] },
+              "vector_rank": { "type": ["integer", "null"] },
+              "bound_parameters": { "type": "object" },
+              "precondition_evidence": { "type": "array", "items": { "type": "object" } },
+              "staleness_factor": { "type": ["number", "null"] },
+              "shadow": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "facts": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/memoryRef" } },
+        "cases": { "type": "array", "maxItems": 3, "items": { "$ref": "#/$defs/memoryRef" } },
+        "dead_ends": {
+          "type": "array",
+          "maxItems": 3,
+          "description": "Recorded failed approaches. evolve must not re-select an approach whose recorded reason still applies.",
+          "items": { "$ref": "#/$defs/memoryRef" }
+        },
+        "tool_cautions": { "type": "array", "items": { "$ref": "#/$defs/memoryRef" } }
+      }
+    },
+    "chosen": { "type": ["object", "null"] },
+    "strategy": { "enum": ["apply", "adapt", "scratch", "portfolio", "abstain", null] },
+    "strategy_reason": { "type": ["string", "null"] },
+    "predicted_success": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Scored against outcome for calibration; also drives practice task selection."
+    },
+    "attempt_no": { "type": "integer", "minimum": 0 },
+    "branches": {
+      "type": "array",
+      "maxItems": 3,
+      "description": "Portfolio fan-out. Budget is divided across branches, never multiplied.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["branch_id", "strategy", "workspace_ref"],
+        "properties": {
+          "branch_id": { "type": "string" },
+          "strategy": { "enum": ["apply", "adapt", "scratch"] },
+          "candidate": { "type": ["object", "null"] },
+          "workspace_ref": { "type": "string" },
+          "results": { "$ref": "#/$defs/resultVector" },
+          "selected": { "type": "boolean", "default": false },
+          "margin": { "type": ["number", "null"], "description": "Winner score minus runner-up." },
+          "cost_usd": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "workspace_snapshots": {
+      "type": "array",
+      "description": "One per attempt. evolve must restore before retrying; retrying on a dirty workspace is invalid.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["attempt_no", "snapshot_ref"],
+        "properties": {
+          "attempt_no": { "type": "integer", "minimum": 0 },
+          "snapshot_ref": { "type": "string" },
+          "restored": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": { "enum": ["diff", "file", "json", "text", "metric_set"] },
+          "ref": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "transcript_ref": { "type": ["string", "null"], "description": "Content hash of the structured transcript." },
+    "results": { "$ref": "#/$defs/resultVector" },
+    "results_history": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/resultVector" },
+      "description": "Enables no-progress detection: an identical consecutive vector forbids routing back to solve."
+    },
+    "failure": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["failure_class"],
+      "description": "Set by classify_failure. The class dictates evolve's repair move and whether trust is affected.",
+      "properties": {
+        "failure_class": {
+          "enum": ["environment", "tool", "retrieval", "plan", "execution", "criteria", "budget"]
+        },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "implicated_skill": { "type": ["object", "null"] },
+        "counts_against_trust": {
+          "type": "boolean",
+          "description": "False for environment, tool and budget, so flaky infrastructure cannot quarantine good skills."
+        },
+        "escalate_to_human": {
+          "type": "boolean",
+          "default": false,
+          "description": "True for the criteria class: the system never repairs its own scorecard."
+        }
+      }
+    },
+    "draft": { "type": ["object", "null"], "description": "Proposed skill version, shaped by skill.schema.json." },
+    "facts_extracted": {
+      "type": "array",
+      "description": "Semantic-plane writes proposed by distill.",
+      "items": { "type": "object" }
+    },
+    "affordance_updates": {
+      "type": "array",
+      "description": "Tool and environment telemetry deltas. Derived data, tier T0.",
+      "items": { "type": "object" }
+    },
+    "reusability": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["verdict", "checks"],
+      "properties": {
+        "verdict": { "enum": ["reusable", "one_off", "duplicate"] },
+        "nearest_skill": { "type": ["string", "null"] },
+        "nearest_similarity": { "type": ["number", "null"] },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "parameterisable": { "type": "boolean" },
+            "context_free": { "type": "boolean" },
+            "checkable": { "type": "boolean" },
+            "not_duplicate": { "type": "boolean" },
+            "bounded": { "type": "boolean" }
+          }
+        },
+        "reason": { "type": "string" }
+      }
+    },
+    "written_versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["skill_id", "version"],
+        "properties": {
+          "skill_id": { "type": "string" },
+          "version": { "type": "integer" },
+          "lifecycle": { "type": "string" }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 1, "default": 4 },
+        "max_tool_calls": { "type": "integer", "minimum": 1, "default": 200 },
+        "max_tokens": { "type": "integer", "minimum": 1 },
+        "max_wall_clock_s": { "type": "integer", "minimum": 1, "default": 900 },
+        "max_cost_usd": { "type": "number", "minimum": 0 },
+        "max_branches": { "type": "integer", "minimum": 1, "maximum": 3, "default": 3 },
+        "max_versions_written": { "type": "integer", "minimum": 0, "default": 2 }
+      }
+    },
+    "spent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attempts": { "type": "integer", "minimum": 0 },
+        "tool_calls": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "wall_clock_s": { "type": "number", "minimum": 0 },
+        "cost_usd": { "type": "number", "minimum": 0 },
+        "versions_written": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "ledger_head": {
+      "type": ["string", "null"],
+      "description": "Hash-chain head after this run's memory writes (see specifications.md section 21)."
+    },
+    "route_log": {
+      "type": "array",
+      "description": "Ordered audit trail. Together with the transcript it must explain the run without re-running a model.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node", "route", "reason", "at"],
+        "properties": {
+          "node": { "type": "string" },
+          "route": { "type": "string" },
+          "reason": { "type": "string" },
+          "attempt_no": { "type": "integer" },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "terminal": { "enum": ["solved", "unsolved", "abstained", "rejected", "error", null] }
+  },
+  "$defs": {
+    "memoryRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plane", "ref"],
+      "properties": {
+        "plane": { "enum": ["procedural", "semantic", "episodic", "affordance", "policy"] },
+        "ref": { "type": "string" },
+        "summary": { "type": "string" },
+        "score": { "type": ["number", "null"] },
+        "trust": { "type": ["number", "null"] },
+        "provenance": { "type": "object" }
+      }
+    },
+    "resultVector": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterion_id", "passed"],
+        "properties": {
+          "criterion_id": { "type": "string" },
+          "kind": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "weight": { "type": "number" },
+          "exit_code": { "type": ["integer", "null"] },
+          "output_excerpt": { "type": "string", "maxLength": 32768 },
+          "errored": { "type": "boolean", "default": false, "description": "An errored criterion counts as failed, never skipped." },
+          "duration_s": { "type": "number" }
+        }
+      }
+    }
+  }
+}
