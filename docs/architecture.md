@@ -461,7 +461,7 @@ The library is capped, and skills are retired on measured contribution. See
 | Mechanism | Rule | Default |
 | --- | --- | --- |
 | **Active cap** | Only `active` skills are retrievable; skills compete for slots per task class | 50 |
-| **Contribution** | `ĉ(s) =` mean success with the skill applied, minus the control-arm baseline for that task class | — |
+| **Contribution** | `ĉ(s) =` mean success with the skill applied, minus the control-arm baseline for that task class; success counted from required non-`judge` criteria only | — |
 | **Evidence floor** | No retirement decision before this many applications | 30 |
 | **Retirement threshold** | Bench when `ĉ(s) ≤ −τ` and the evidence floor is met | `τ = 0.10` |
 | **Low evidence** | Score-demote in ranking; never drop | — |
@@ -474,7 +474,10 @@ rule, that bound does not exist at all — which is the configuration the earlie
 
 **Retirement that measures the right thing.** Contribution is lift over solving *without* the
 skill, not a raw success ratio. The control arm (§11.4) supplies the baseline, so the measurement
-machinery already in the design does double duty here.
+machinery already in the design does double duty here. And it is scored from required non-`judge`
+criteria only: a false-pass-biased model judge does not add noise to retirement, it *switches
+retirement off* ([`references.md`](references.md) §1.8), so a skill whose only required criteria
+are model-scored has `contribution = null` rather than a flattering estimate.
 
 **Protection against over-pruning.** Aggressive retirement is not a conservative choice: in the
 one ablation that tested it, harsh settings performed *below* the no-skill floor
@@ -767,6 +770,7 @@ applying — or leaking — into another.
 | Silent partial merges | Expected-versus-received audit at every fan-in; flag or fail, never proceed quietly (§5.10) |
 | Context collapse at synthesis | Layered fan-in: batch, summarise, combine; code-based reduction where mechanical |
 | Judges agreeing with the work rather than checking it | Fresh context for model-scored criteria; distinct lenses across judges (§5.7) |
+| Biased judges silently disabling retirement | Contribution scored from required non-`judge` criteria only (`references.md` §1.8); a skill with no such criterion has `contribution = null` |
 | Runaway loops or cost | Budgets, no-progress detection, escalation ladder, branch caps |
 | Destructive tool use | Side-effect classes, sandboxing, approval gates, no uncompensable effects in portfolio or shadow |
 | Memory poisoning and injection | Memory-as-data discipline, hash-chained ledger, provenance-weighted trust |
