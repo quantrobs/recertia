@@ -175,7 +175,7 @@ theoretical.
 | **Judging LLM-as-a-Judge with MT-Bench**, Zheng et al., NeurIPS 2023 **[B]** | Limits of model-scored evaluation; why `judge` criteria never gate promotion alone |
 | **Overcoming Catastrophic Forgetting**, Kirkpatrick et al., PNAS 2017 **[B]** | Why external memory avoids the forgetting problem parametric learning has |
 | **Retrieval-Augmented Generation**, Lewis et al., NeurIPS 2020 **[B]** | The retrieval substrate |
-| **The Bitter Lesson**, Sutton, 2019 **[B]** | The standing argument against elaborate hand-built scaffolding; the reason §18 defers parametric learning rather than dismissing it |
+| **The Bitter Lesson**, Sutton, 2019 **[B]** | The standing argument against elaborate hand-built scaffolding; the reason `architecture.md` defers parametric learning rather than dismissing it |
 
 ## 6. Ideas used without a specific citation
 

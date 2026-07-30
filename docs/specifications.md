@@ -142,20 +142,23 @@ class RunState(BaseModel):
     # retrieval — federated bundle across memory planes (§13)
     bundle: MemoryBundle = MemoryBundle()   # skills, facts, cases, dead_ends, tool_cautions
     chosen: Candidate | None = None
-    strategy: Literal["apply", "adapt", "scratch", "portfolio", "abstain"] | None = None
+    strategy: Literal["apply", "adapt", "scratch", "portfolio", "decomposition", "abstain"] | None = None
     strategy_reason: str | None = None
     predicted_success: float | None = None  # scored for calibration (§23)
 
     # solving
     attempt_no: int = 0
-    branches: list[Branch] = []             # populated only under portfolio (§18)
+    branches: list[Branch] = []             # populated under fan-out strategies (§18)
     artifacts: list[ArtifactRef] = []
     transcript_ref: str | None = None
     workspace_snapshots: list[SnapshotRef] = []
+    step_waves: list[list[str]] = []         # step ids executed concurrently, in order (§26.1)
+    resource_conflicts: list[ResourceConflict] = []
 
     # validation
     results: list[CriterionResult] = []     # latest attempt only
     results_history: list[list[CriterionResult]] = []
+    merge_audits: list[MergeAudit] = []     # one per fan-in, expected vs received (§26.4)
     failure: FailureVerdict | None = None   # class + evidence (§16)
 
     # learning
@@ -190,10 +193,10 @@ route only to declared successors.
 | `intake` | Request validated | `task` set, budget + model tier resolved, `manifest` recorded, `criteria` locked with hash | `retrieve` |
 | `retrieve` | `task` set, criteria locked | `bundle` populated across planes, preconditions evaluated; empty when `arm == "control"` | `plan` |
 | `plan` | `bundle` present (possibly empty) | `strategy`, `strategy_reason`, `predicted_success` set | `solve`, `fan_out`, `finalize` (abstain) |
-| `fan_out` | `strategy == "portfolio"` | `branches` created with disjoint workspaces and divided budget | `solve` |
-| `solve` | `strategy` set, budget not exhausted, clean workspace snapshot taken | `transcript_ref`, `artifacts` set; `attempt_no` incremented | `validate` |
-| `validate` | `transcript_ref` set | `results` set and appended to history | `join` |
-| `join` | `results` present for every live branch | Winner selected by result vector then cost; losers written to episodic memory | `distill`, `classify_failure` |
+| `fan_out` | `strategy` is `portfolio` or `decomposition` | `branches` created with `kind` set, disjoint workspaces, non-overlapping write claims, and divided budget | `solve` |
+| `solve` | `strategy` set, budget not exhausted, clean workspace snapshot taken | Steps executed in `depends_on` order with bounded concurrency (§26.1); `transcript_ref`, `artifacts`, `step_waves` set; `attempt_no` incremented | `validate` |
+| `validate` | `transcript_ref` set | `results` set and appended to history; `judge` criteria scored in fresh contexts (§26.3) | `join` |
+| `join` | Every dispatched branch has terminated (result, error, or timeout) | `merge_audits` appended; portfolio winner selected by result vector then cost, decomposition inputs reduced then synthesised; losers written to episodic memory | `distill`, `classify_failure` |
 | `classify_failure` | Some required criterion failed | `failure` set with class + evidence | `evolve`, `quarantine` |
 | `evolve` | Budget remains, progress observed, `failure` set | Repair move applied per §16; workspace restored; a budget decremented | `solve` |
 | `distill` | All required criteria passed, `arm != "control"`, task is not an eval fixture | `draft`, `facts_extracted`, `affordance_updates`, `reusability` set | `review`, `finalize` |
@@ -206,9 +209,10 @@ route only to declared successors.
 
 ```text
 plan     → finalize         : strategy == "abstain"                  (terminal="abstained")
-plan     → fan_out          : strategy == "portfolio"
-join     → distill          : every criterion with weight >= 1.0 passed
-join     → classify_failure : otherwise
+plan     → fan_out          : strategy in {"portfolio", "decomposition"}
+join     → distill          : merge_audit.complete
+                              AND every criterion with weight >= 1.0 passed
+join     → classify_failure : otherwise (including an incomplete merge)
 classify → evolve           : spent.attempts < budget.max_attempts
                               AND results != previous results
                               AND failure.class not in {"criteria", "budget"}
@@ -410,6 +414,12 @@ Additional required events for the expanded architecture: `criteria.locked` (has
 `fact.written`, `case.written`, `proposal.created` (job + kind), `recert.completed`,
 `policy.changed` (tier + approver), `ledger.appended`.
 
+Concurrency and merge events, required because a parallel run is otherwise unreadable after
+the fact: `step.wave.started` (wave index + step ids + claims held), `resource.conflict`
+(claim, blocking step, wait duration), `judge.context.opened` (criterion id + lens + inputs
+hash, asserting the solver transcript was not attached), `merge.audited` (expected ids,
+received ids, missing ids, action taken).
+
 ## 13. Memory plane contracts
 
 ### 13.1 MemoryBundle
@@ -464,6 +474,13 @@ recorded `why_failed` still applies in the current environment.
 Derived aggregates per tool and environment: invocation count, failure rate, known error
 signatures with suggested responses, flake rate, p50/p95 duration, mean cost. Rebuildable
 from the run store, so it is T0 (§22) and never reviewed.
+
+The plane also aggregates **contention** observed through resource claims (§26.2): median
+and p95 wait time per claimed resource, conflict rate, and observed concurrency ceiling for
+rate-limited services. `fan_out` MUST read the ceiling before dispatching branches that
+claim the same `rate_limit` resource, and `plan` MUST prefer a sequential strategy when the
+observed ceiling is 1. This is how a rate limit discovered the hard way becomes a scheduling
+constraint rather than a recurring failure.
 
 `plan` and `evolve` MUST consult flake rate before classifying a failure as `execution`:
 a known-flaky tool produces `tool`, which does not damage skill trust (§16).
@@ -531,14 +548,14 @@ when justified, and impossible to do quietly.
 
 ```python
 FailureClass = Literal[
-    "environment", "tool", "retrieval", "plan", "execution", "criteria", "budget"
+    "environment", "tool", "retrieval", "plan", "execution", "criteria", "budget", "merge"
 ]
 
 class FailureVerdict(BaseModel):
     failure_class: FailureClass
     evidence: list[str]              # criterion ids, tool errors, affordance matches
     implicated_skill: SkillVersionRef | None
-    counts_against_trust: bool       # False for environment, tool, budget
+    counts_against_trust: bool       # False for environment, tool, budget, merge
     escalate_to_human: bool          # True for criteria
 ```
 
@@ -551,9 +568,18 @@ class FailureVerdict(BaseModel):
 | `execution` | Partial progress with specific criterion failures | Patch artifacts using criterion output | Yes |
 | `criteria` | Criteria unsatisfiable, mutually contradictory, or sensitivity proof invalid | **None** — halt | None |
 | `budget` | Any budget exhausted | **None** — halt | None |
+| `merge` | A merge audit reported missing inputs, or a resource claim deadlocked (§26.2, §26.4) | Re-dispatch only the missing branches or steps once, from their retained snapshot; a deadlock re-runs the cycle serially | None |
+
+`merge` exists as its own class because the repair is narrow — rerun the piece that never
+arrived — and because charging trust for a branch that died in the executor would let
+infrastructure noise demote working skills. A second consecutive `merge` verdict on the same
+run halts rather than retrying, and files the loss as evidence against the skill's step
+graph rather than its content.
 
 Misclassification is itself a tracked defect: a `retrieval` verdict that recurs on the same
-skill MUST trigger a Curator proposal to tighten that skill's preconditions.
+skill MUST trigger a Curator proposal to tighten that skill's preconditions, and a `merge`
+verdict that recurs on the same skill MUST trigger a Curator proposal to serialise the
+implicated steps.
 
 ## 17. Attempt isolation
 
@@ -562,11 +588,13 @@ skill MUST trigger a Curator proposal to tighten that skill's preconditions.
 | Snapshot before attempt | `solve` MUST run against a snapshot taken before its first mutation |
 | Restore before retry | `evolve` MUST restore the pre-attempt snapshot; retrying on a dirty workspace is invalid |
 | Disjoint branch workspaces | `fan_out` clones per branch; branches MUST NOT share a mutable workspace |
+| Concurrent step isolation | Steps in the same wave share the attempt's workspace, so their write claims MUST be disjoint (§26.2); a wave is atomic for restore purposes — `evolve` rolls back the whole wave, never half of it |
+| Verifier isolation | A `judge` criterion's context is built from artifacts and the criterion text alone; it MUST NOT inherit the solver's transcript (§26.3) |
 | Snapshot retention | Retained for the run's lifetime plus the eval retention window, then garbage-collected |
 | External effects | `external`-class tool calls are recorded with a compensating action where one exists |
 | Uncompensable effects | A skill containing an uncompensable `external` step MUST NOT run in `portfolio` or `shadow` mode |
 
-## 18. Portfolio fan-out
+## 18. Fan-out: portfolio and decomposition
 
 ```python
 class Branch(BaseModel):
@@ -589,6 +617,13 @@ Two kinds with different join semantics:
 | --- | --- | --- | --- |
 | `portfolio` | Competing strategies for the same task | Select one winner | Tolerated; remaining branches still adjudicate |
 | `decomposition` | Disjoint parts of the work | All must complete, then synthesise | Blocks synthesis; recorded in the merge audit (§26.4) |
+
+`plan` MAY choose `decomposition` only when the locked criteria can be partitioned: every
+branch owns a subset of the required criteria, the subsets are disjoint, and their union is
+the full required set. A criterion that no branch owns is a criterion nothing is accountable
+for, which is how a decomposed run reports success while missing a requirement. Criteria that
+can only be scored on the merged artifact stay with the join and are evaluated after
+synthesis; if any exists, the join MUST NOT route to `distill` before scoring them.
 
 Rules: `max_branches` default 3; the parent budget is divided, so fan-out trades latency for
 cost-neutral exploration; branches MUST hold disjoint workspaces **and** non-overlapping `write`
@@ -624,14 +659,26 @@ Every job: reads memory and the run store, writes **only** proposals, and is bud
 | Job | Trigger | Emits | Hard rule |
 | --- | --- | --- | --- |
 | `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
-| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
+| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, and **serialise** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
 | `practice` | Scheduled, or ≥3 one-offs in a class | Practice runs marked `arm="practice"` | Excluded from user-facing metrics; separate budget |
-| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions | MUST re-run sensitivity proofs, not just criteria |
+| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes |
 | `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
 
 Practice task selection targets estimated success probability in `[0.2, 0.8]`, using
 `predicted_success` calibrated against outcomes: outside that band an attempt yields little
 information, which is the whole point of a curriculum.
+
+The two step-graph proposals are the Curator's half of the concurrency story, and both must
+argue from run evidence rather than from reading the skill:
+
+| Proposal | Evidence required | Effect |
+| --- | --- | --- |
+| `parallelise` | A `depends_on` edge that failed the fake-edge test (§26.1) across ≥5 runs: the later step never read the earlier step's output, and their claims do not overlap | Removes the edge, producing a new skill version |
+| `serialise` | ≥2 `merge` verdicts or a resource conflict rate above `conflict_threshold` (default 0.1) on the same wave | Adds an edge or widens a claim to `exclusive`, producing a new skill version |
+
+Both go through the normal promotion gate, so a wrongly removed edge shows up as a golden-set
+regression before it reaches a user's run. A `serialise` proposal MUST NOT be blocked on the
+latency regression it causes: correctness outranks the parallelism metric.
 
 ## 21. Provenance ledger
 
@@ -658,8 +705,8 @@ Every mutable surface carries a tier (see [ADR-0005](adr/0005-self-modification-
 | --- | --- | --- |
 | T0 | Trust scores, affordance aggregates, cases, retrieval caches | Runs write directly; derived and rebuildable |
 | T1 | Skill and fact versions, curator proposals, shadow promotions | Promotion policy with eval evidence and zero regressions |
-| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` | Versioned config, human approval, eval comparison |
-| T3 | Tool registry and side-effect classes, sandbox policy, promotion thresholds, ablation rate, graph topology, finiteness of the active cap and retirement threshold, tier assignments | Code or config review only; unreachable from run and job code paths |
+| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` / `max_parallel_steps` / `conflict_threshold` / `layer_threshold` | Versioned config, human approval, eval comparison |
+| T3 | Tool registry with side-effect classes **and declared resource claims**, sandbox policy, promotion thresholds, ablation rate, graph topology, judge-isolation and merge-audit enforcement, finiteness of the active cap and retirement threshold, tier assignments | Code or config review only; unreachable from run and job code paths |
 
 Enforcement requirements:
 
@@ -698,6 +745,20 @@ Enforcement requirements:
 `curation_gap` exists to test a specific external finding in our own domain (`references.md`
 §1.1). If it is near zero here, the higher evidence bar on self-distilled skills should be
 relaxed; if it reproduces, the Miner deserves more investment than the distiller.
+
+Concurrency and verification integrity:
+
+| Metric | Definition |
+| --- | --- |
+| `merge_gap_rate` | Merge audits with missing inputs ÷ merge audits — the rate at which work is dispatched and silently lost; target zero |
+| `merge_recovery_rate` | Incomplete merges resolved by re-dispatch ÷ incomplete merges |
+| `resource_conflict_rate` | Step waves that blocked on a claim ÷ waves with ≥2 steps |
+| `parallel_speedup` | Serial step duration ÷ observed wall-clock duration per skill; the only justification for step DAGs, so it is reported per skill, not in aggregate |
+| `fake_edge_rate` | `depends_on` edges failing the fake-edge test ÷ declared edges — a measure of how conservatively the distiller writes graphs |
+| `judge_isolation_violations` | Judge invocations whose context hash included solver-transcript content; a non-zero value is a release blocker, not a metric to trend |
+
+`parallel_speedup` and `merge_gap_rate` are read together or not at all. Speedup with a
+non-zero gap rate is not speed, it is a system that finishes early by dropping work.
 
 ## 24. Library capacity and retirement
 
@@ -807,6 +868,13 @@ the practitioner account in [`references.md`](references.md) §1.7.
 Concurrency is bounded by `max_parallel_steps` (default 8) so a wide skill cannot exhaust
 tool-runtime capacity.
 
+Execution proceeds in **waves**: the scheduler takes all steps whose dependencies are
+satisfied and whose claims do not conflict with a running step, dispatches up to
+`max_parallel_steps` of them, and waits for the wave before computing the next. Waves are
+recorded in `state.step_waves` in order, which keeps a parallel attempt as replayable as a
+serial one — the transcript alone cannot tell you what ran together. A wave is the unit of
+rollback: `evolve` restores the snapshot taken before the wave started, never a partial wave.
+
 ### 26.2 Resource claims
 
 ```python
@@ -814,6 +882,13 @@ class ResourceClaim(BaseModel):
     kind: Literal["file", "path", "service", "rate_limit", "lock", "external_system"]
     id: str
     mode: Literal["read", "write", "exclusive"]
+
+class ResourceConflict(BaseModel):
+    claim: ResourceClaim
+    waiting: str               # step or branch id
+    holder: str                # step or branch id holding the claim
+    waited_ms: int
+    resolution: Literal["acquired", "timed_out", "deadlock_serialised"]
 ```
 
 | Rule | Detail |
@@ -823,6 +898,9 @@ class ResourceClaim(BaseModel):
 | Scope | Applies to steps within a skill, to branches under fan-out, and to concurrent runs sharing an external system |
 | Undeclared claims | A tool that touches a shared resource without declaring it is a defect; the tool registry (T3) is where claims are declared |
 | Rate limits | Modelled as a `rate_limit` resource with `write` mode, so contention serialises rather than failing under load |
+| Acquisition order | Claims are acquired in a fixed global order (`kind`, then `id`), which makes hold-and-wait cycles impossible between units that declare honestly |
+| Undeclared deadlock | A wait exceeding `claim_timeout_s` (default 60) is a `merge` failure (§16); the repair re-runs the wave serially and records a `serialise` signal for the Curator |
+| Observation | Every wait is recorded as a `ResourceConflict` and aggregated into the affordance plane (§13.4), so contention becomes a scheduling input rather than folklore |
 
 Workspace isolation is necessary but not sufficient: the collisions that matter most —
 rate-limited APIs, external systems, shared locks — live outside the workspace entirely.
@@ -856,7 +934,7 @@ class MergeAudit(BaseModel):
 | Rule | Detail |
 | --- | --- |
 | Count | Every fan-in MUST record expected against received inputs |
-| Gap handling | `decomposition` joins MUST fail on a gap; `portfolio` joins MAY proceed but MUST flag it |
+| Gap handling | `decomposition` joins MUST NOT synthesise across a gap: the audit routes to `classify_failure`, which files a `merge` verdict and re-dispatches only the missing branches once (§16). `portfolio` joins MAY proceed on a gap, because a race with a surviving winner is still a valid result, but MUST flag it |
 | No silent partials | A merge MUST NOT emit a result that is indistinguishable from a complete one when inputs are missing |
 | Layering | Merges above `layer_threshold` inputs (default 8) MUST batch, summarise per batch, then combine summaries, rather than concatenating raw outputs |
 | Deterministic reduction | Where combination is mechanical, reduction MUST use code rather than a model |

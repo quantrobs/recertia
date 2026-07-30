@@ -12,8 +12,8 @@ practise, and re-certify what has been learned.
 
 | Document | Contents |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, library capacity, improvement jobs, measurement integrity, governance |
-| [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, HTTP/CLI surface, metrics |
+| [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
+| [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 
@@ -52,7 +52,7 @@ flowchart LR
 
 ## Non-negotiables
 
-Seven properties separate this from a chat log with extra steps:
+Eight properties separate this from a chat log with extra steps:
 
 1. **Retrieval before invention.** Solve never runs without first querying memory.
 2. **Machine-checkable success.** Criteria are locked before solving and must prove they can fail.
@@ -67,8 +67,11 @@ Seven properties separate this from a chat log with extra steps:
    eagerly measured worse than keeping nothing.
 7. **Bounded self-modification.** The system may not change the mechanisms that measure or
    constrain it.
+8. **Nothing dispatched goes missing.** Every fan-in counts what it expected against what it
+   received, and every model-scored check runs in a fresh context, so a run cannot finish early
+   by losing a branch or by asking the solver whether it agrees with itself.
 
-Everything else in these documents supports those seven.
+Everything else in these documents supports those eight.
 
 ## Status
 
