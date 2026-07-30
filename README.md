@@ -78,9 +78,10 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design phase. No runtime code has been committed yet;
-[`docs/implementation-plan.md`](docs/implementation-plan.md) defines the build order, and M0 is
-the first executable slice.
+Design intent is complete; several load-bearing contracts are not yet implementable as
+written. [`docs/refactor-plan.md`](docs/refactor-plan.md) lists the blockers that must land
+before M0; [`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order
+after that.
 
 ## License
 
