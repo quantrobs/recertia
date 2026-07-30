@@ -12,9 +12,10 @@ practise, and re-certify what has been learned.
 
 | Document | Contents |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, improvement jobs, measurement integrity, governance |
-| [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, HTTP/CLI surface, metrics |
+| [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, library capacity, improvement jobs, measurement integrity, governance |
+| [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, HTTP/CLI surface, metrics |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
+| [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 
 Decision records:
 
@@ -25,6 +26,7 @@ Decision records:
 | [0003](docs/adr/0003-criteria-preregistration.md) | Pre-registered criteria with sensitivity proofs |
 | [0004](docs/adr/0004-offline-improvement-plane.md) | A separate offline improvement plane |
 | [0005](docs/adr/0005-self-modification-boundary.md) | Tiered self-modification boundary |
+| [0006](docs/adr/0006-bounded-library-and-retirement.md) | Bounded active library with contribution-score retirement |
 
 Machine-readable contracts live in [`schema/`](schema).
 
@@ -50,20 +52,23 @@ flowchart LR
 
 ## Non-negotiables
 
-Six properties separate this from a chat log with extra steps:
+Seven properties separate this from a chat log with extra steps:
 
 1. **Retrieval before invention.** Solve never runs without first querying memory.
 2. **Machine-checkable success.** Criteria are locked before solving and must prove they can fail.
 3. **Versioned evolution.** Memory changes by producing a new version with lineage, never by
    silent mutation.
-4. **Failure is knowledge.** Dead ends are stored and retrieved, so the system does not re-enter
-   them.
+4. **Failure is knowledge.** Dead ends are stored, retrieved, and distilled into pitfall skills,
+   so the system does not re-enter them.
 5. **Causal measurement.** A sampled control arm runs with retrieval suppressed, so "it improved"
    is a measured claim rather than a hopeful one.
-6. **Bounded self-modification.** The system may not change the mechanisms that measure or
+6. **A bounded library with a floor.** The active set is capped and skills retire on measured
+   contribution, because unbounded growth has no performance floor — and because pruning too
+   eagerly measured worse than keeping nothing.
+7. **Bounded self-modification.** The system may not change the mechanisms that measure or
    constrain it.
 
-Everything else in these documents supports those six.
+Everything else in these documents supports those seven.
 
 ## Status
 
