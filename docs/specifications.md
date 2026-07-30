@@ -46,17 +46,22 @@ Canonical form is JSON at `skills/<skill_id>/v<version>.json`, validated against
     { "kind": "command_succeeds", "value": "python -c 'import tomllib'" }
   ],
   "steps": [
-    { "id": "locate", "tool": "grep", "intent": "Find the current pin for {{package}}." },
-    { "id": "edit", "tool": "edit_file", "intent": "Raise the pin to {{target_version}}." },
-    { "id": "sync", "tool": "shell", "intent": "Regenerate the lockfile." },
+    { "id": "locate", "tool": "grep", "intent": "Find the current pin for {{package}}.", "depends_on": [] },
+    { "id": "changelog", "tool": "fetch", "intent": "Read the upstream changelog for breaking changes.",
+      "depends_on": [], "resources": [{ "kind": "rate_limit", "id": "pypi", "mode": "write" }] },
+    { "id": "edit", "tool": "edit_file", "intent": "Raise the pin to {{target_version}}.",
+      "depends_on": ["locate"], "resources": [{ "kind": "file", "id": "pyproject.toml", "mode": "write" }] },
+    { "id": "sync", "tool": "shell", "intent": "Regenerate the lockfile.", "depends_on": ["edit"] },
     { "id": "repair", "tool": "agent_subtask", "intent": "Fix breakage surfaced by the type checker and tests.",
+      "depends_on": ["sync", "changelog"],
       "loop": { "until": "criteria_pass", "max_iterations": 3 } }
   ],
   "success_criteria": [
     { "id": "install", "kind": "command", "run": "uv sync --frozen", "expect_exit": 0, "weight": 1.0 },
     { "id": "types",   "kind": "command", "run": "mypy .",            "expect_exit": 0, "weight": 1.0 },
     { "id": "tests",   "kind": "command", "run": "pytest -q",         "expect_exit": 0, "weight": 1.0 },
-    { "id": "scope",   "kind": "judge",   "rubric": "Only dependency-related files changed.", "weight": 0.3 }
+    { "id": "scope",   "kind": "judge",   "rubric": "Only dependency-related files changed.",
+      "isolation": "fresh_context", "lens": "scope", "weight": 0.3 }
   ],
   "failure_modes": [
     { "symptom": "Transitive pin conflict.", "response": "Relax the narrowest conflicting constraint, then re-run install." }
@@ -76,6 +81,10 @@ Canonical form is JSON at `skills/<skill_id>/v<version>.json`, validated against
   with only model-judged criteria MUST NOT reach `approved`.
 - `steps[].loop.max_iterations` MUST be present when `loop` is present. Unbounded step
   loops are invalid.
+- `steps[].depends_on` MUST reference existing step ids and MUST form a DAG. A dependency is
+  valid only when the step consumes the referenced step's output; ordering-only edges are
+  invalid (§26.1).
+- `success_criteria[].isolation` MUST be `fresh_context` for `judge` criteria (§26.3).
 - `preconditions` are evaluated by `retrieve` **before** a candidate is offered to `plan`.
   A candidate failing any precondition MUST be dropped, not down-ranked.
 - `trust.score` is derived, never authored: it is a smoothed success ratio
@@ -262,11 +271,12 @@ Criterion kinds and their contracts:
 | `assertion` | `expr` | Predicate over artifacts evaluates true |
 | `schema` | `target`, `schema_ref` | Target validates against schema |
 | `metric` | `metric`, `op`, `threshold` | Comparison holds |
-| `judge` | `rubric` | Model score ≥ 0.7 with recorded justification |
+| `judge` | `rubric`, `isolation`, `lens` | Model score ≥ 0.7 with recorded justification, evaluated in a fresh context |
 
 Rules: criteria run in a sandbox with the run's workspace mounted; each has its own
 timeout (default 300s) counted against `max_wall_clock_s`; a criterion that errors is a
 **fail**, not a skip; output is captured (truncated to 32 KiB) and stored with the result.
+Model-scored criteria additionally follow the isolation and triangulation rules in §26.3.
 
 Required criteria MUST be locked at `intake` and MUST carry a sensitivity proof; criteria
 lacking either property are advisory regardless of declared weight (§15).
@@ -561,20 +571,31 @@ skill MUST trigger a Curator proposal to tighten that skill's preconditions.
 ```python
 class Branch(BaseModel):
     branch_id: str
+    kind: Literal["portfolio", "decomposition"] = "portfolio"
     strategy: Literal["apply", "adapt", "scratch"]
+    subtask: str | None = None     # decomposition only: the part of the work owned
     candidate: Candidate | None
     workspace_ref: str
+    resources: list[ResourceClaim] = []
     budget: Budget                 # a division of the parent budget, never a multiple
     results: list[CriterionResult] = []
     selected: bool = False
     margin: float | None = None    # winner score minus runner-up
 ```
 
+Two kinds with different join semantics:
+
+| Kind | Branches | Join | Failure of one branch |
+| --- | --- | --- | --- |
+| `portfolio` | Competing strategies for the same task | Select one winner | Tolerated; remaining branches still adjudicate |
+| `decomposition` | Disjoint parts of the work | All must complete, then synthesise | Blocks synthesis; recorded in the merge audit (§26.4) |
+
 Rules: `max_branches` default 3; the parent budget is divided, so fan-out trades latency for
-cost-neutral exploration; `join` selects by required-criteria pass count, then by advisory
-score, then by lowest cost — a model preference MUST NOT break a tie; losing branches are
-written to the episodic plane as cases, because a validated comparison between approaches is
-exactly the evidence the Curator and Practice jobs need.
+cost-neutral exploration; branches MUST hold disjoint workspaces **and** non-overlapping `write`
+or `exclusive` resource claims (§26.2); `join` selects by required-criteria pass count, then by
+advisory score, then by lowest cost — a model preference MUST NOT break a tie; losing portfolio
+branches are written to the episodic plane as cases, because a validated comparison between
+approaches is exactly the evidence the Curator and Practice jobs need.
 
 ## 19. Ablation and eval integrity
 
@@ -766,3 +787,80 @@ distillation.
 Failure-derived skills are validated identically to success-derived ones. Their advantage is that
 a known-bad artifact for the sensitivity proof already exists, which makes them the cheapest
 skills in the system to certify honestly.
+
+## 26. Concurrency, isolation, and merges
+
+Contracts for the graph-execution rules in `architecture.md` §5.6, §5.10 and §6.1. Sourced from
+the practitioner account in [`references.md`](references.md) §1.7.
+
+### 26.1 Step dependency graphs
+
+| Rule | Detail |
+| --- | --- |
+| Declaration | Every step declares `depends_on`; an empty list means no predecessor is required |
+| Validity | An edge is valid only if the step consumes the referenced step's output. Ordering-only edges MUST be removed, not declared |
+| Structure | The step graph MUST be acyclic and all referenced ids MUST exist; both checked at store time |
+| Execution | Steps whose dependencies are satisfied run concurrently, subject to §26.2 |
+| Authoring | The authoring prior (§25.1) instructs the distiller to emit only data-carrying edges |
+| Curation | The Curator MAY propose removing an edge; such a proposal MUST show that the dependent step's output is unchanged when the edge is dropped |
+
+Concurrency is bounded by `max_parallel_steps` (default 8) so a wide skill cannot exhaust
+tool-runtime capacity.
+
+### 26.2 Resource claims
+
+```python
+class ResourceClaim(BaseModel):
+    kind: Literal["file", "path", "service", "rate_limit", "lock", "external_system"]
+    id: str
+    mode: Literal["read", "write", "exclusive"]
+```
+
+| Rule | Detail |
+| --- | --- |
+| Conflict | Two units conflict when they claim the same `id` and at least one mode is `write` or `exclusive` |
+| Effect | Conflicting units MUST NOT run concurrently, even with no `depends_on` between them and even in separate workspaces |
+| Scope | Applies to steps within a skill, to branches under fan-out, and to concurrent runs sharing an external system |
+| Undeclared claims | A tool that touches a shared resource without declaring it is a defect; the tool registry (T3) is where claims are declared |
+| Rate limits | Modelled as a `rate_limit` resource with `write` mode, so contention serialises rather than failing under load |
+
+Workspace isolation is necessary but not sufficient: the collisions that matter most —
+rate-limited APIs, external systems, shared locks — live outside the workspace entirely.
+
+### 26.3 Verifier isolation and triangulation
+
+| Rule | Detail |
+| --- | --- |
+| Fresh context | A `judge` criterion MUST be evaluated with only the artifact under test and the rubric in context. Solver transcripts, plans, and prior justifications MUST be excluded |
+| No self-grading | The model instance that produced an artifact MUST NOT score it |
+| Distinct lenses | When a skill has multiple `judge` criteria, they MUST use distinct `lens` values; duplicate lenses collapse to one for scoring |
+| Recording | The isolation mode and lens are recorded with each result, so an inherited-context evaluation is auditable after the fact |
+| Standing limit | Judges remain advisory: promotion still requires a non-`judge` criterion (§2.1) |
+
+The reason for the fresh-context rule is that a judge sharing the worker's context measures
+agreement with the reasoning that produced the artifact, which is the self-grading failure the
+whole verification design exists to avoid — reintroduced under a second name.
+
+### 26.4 Merge completeness and layered fan-in
+
+```python
+class MergeAudit(BaseModel):
+    merge_id: str
+    expected: int
+    received: int
+    missing: list[str] = []
+    action: Literal["proceeded", "flagged", "failed"]
+    layered: bool = False
+```
+
+| Rule | Detail |
+| --- | --- |
+| Count | Every fan-in MUST record expected against received inputs |
+| Gap handling | `decomposition` joins MUST fail on a gap; `portfolio` joins MAY proceed but MUST flag it |
+| No silent partials | A merge MUST NOT emit a result that is indistinguishable from a complete one when inputs are missing |
+| Layering | Merges above `layer_threshold` inputs (default 8) MUST batch, summarise per batch, then combine summaries, rather than concatenating raw outputs |
+| Deterministic reduction | Where combination is mechanical, reduction MUST use code rather than a model |
+
+The silent-partial rule addresses the failure mode specific to graphs: in a chain a dead step
+halts everything visibly, while in a graph one dead branch can disappear into a synthesis that
+reads as complete.

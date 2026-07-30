@@ -221,9 +221,26 @@ Checkpoints after every node, so runs are resumable at node granularity. Determi
 several plausible strategies exist — apply skill A, adapt skill B, solve from scratch —
 running them concurrently and letting the criteria pick the winner converts model
 uncertainty into compute spend, which is the trade you want when a validator is trustworthy.
-It also gives shadow trials (§7) and ablation arms (§11.4) the same machinery. Constraints:
-branches get disjoint workspaces, the parent budget is divided not multiplied, and `join`
-must break ties by cost rather than by a model's preference.
+It also gives shadow trials (§7) and ablation arms (§11.4) the same machinery.
+
+Two kinds of fan-out, with different join semantics:
+
+| Kind | Branches are | Join rule | Use when |
+| --- | --- | --- | --- |
+| **Portfolio** | Competing strategies for the *same* task | One winner by criteria, then cost | The right approach is uncertain |
+| **Decomposition** | Disjoint *parts* of the work | All must complete, then synthesise | The work is wide and parts are independent |
+
+Decomposition is the "diamond" — fan out, reduce, synthesise — and it was missing from the
+first draft, which could only race strategies against each other, never split work
+([`references.md`](references.md) §1.7). The test for whether a split is legitimate is the
+**fake-edge test**: a dependency is real only if the later step consumes what the earlier one
+produced. Steps ordered merely because someone wrote them in that order are sequential for no
+reason, and that ordering is usually where latency hides (§6.1).
+
+Constraints on both kinds: branches get disjoint workspaces **and** non-overlapping write
+claims on shared resources (§5.6), the parent budget is divided rather than multiplied, `join`
+breaks ties by cost rather than model preference, and every join audits input completeness
+(§5.10).
 
 ### 5.4 Memory stores
 
@@ -268,12 +285,30 @@ product, not a log. Tools declare a side-effect class (`read`, `write`, `externa
 required approvals; anything beyond `read` runs sandboxed and, when policy demands, waits for
 approval. Tool telemetry (durations, exit signatures, retries) feeds the affordance plane.
 
+**Resource claims make hidden edges visible.** Two steps can look independent because neither
+mentions the other while both write the same file, hold the same lock, or exhaust the same
+rate-limited API. Workspace isolation does not help, because the collision is outside the
+workspace. Steps and tools therefore declare claims — `file`, `path`, `service`, `rate_limit`,
+`lock`, `external_system` — in `read`, `write`, or `exclusive` mode, and overlapping non-read
+claims are treated as a dependency edge that forbids concurrency
+([`references.md`](references.md) §1.7).
+
 ### 5.7 Validation Runner
 
 Executes locked `success_criteria` as real, isolated checks with per-criterion pass/fail and
 captured output. Kinds: `command`, `assertion`, `schema`, `metric`, `judge`. A `judge`
 criterion is never sufficient alone — promotion requires at least one non-`judge` criterion —
 and every criterion must carry a **sensitivity proof** (§11.2).
+
+**Model-scored criteria run in a fresh context.** A judge that inherits the solver's transcript
+is not checking the work, it is agreeing with the reasoning that produced it — the same
+self-agreement failure that makes a model a poor grader of its own output, just wearing a second
+name. Judges therefore receive the artifact and the rubric and nothing else.
+
+**Judges triangulate rather than repeat.** When several model-scored criteria apply, they must
+ask different questions — `correctness`, `currency`, `provenance`, `scope`, `safety` — because
+a few different lenses catch what many identical ones miss
+([`references.md`](references.md) §1.7).
 
 ### 5.8 Distiller
 
@@ -307,7 +342,44 @@ exactly that signal.
 Implements the promotion lifecycle and the human gate (§7), plus trust and calibration
 bookkeeping.
 
+### 5.10 Merge discipline
+
+Fan-in is where graphs fail differently from chains, and worse. In a chain a dead step halts
+everything, which is annoying but obvious. In a graph, one dead branch among many can vanish into
+a synthesis that looks complete ([`references.md`](references.md) §1.7). Two rules:
+
+**Count inputs at every merge.** Each fan-in records expected against received and either flags
+or fails on a gap. Proceeding silently on partial data is forbidden, because the output is
+indistinguishable from a full result.
+
+**Layer the fan-in.** Feeding many raw branch outputs into one synthesis step exhausts context
+before synthesis begins. Merges batch, summarise each batch, then combine summaries — never the
+raw pile. Reduction steps prefer plain code over a model wherever the combination is mechanical,
+since deterministic reduction is cheaper and cannot hallucinate a merge.
+
 ## 6. Skill algebra: composition and hierarchy
+
+### 6.1 Steps are a graph, not a list
+
+A skill's steps declare `depends_on`, so the steps of one skill form a DAG rather than a
+sequence. Independent steps run concurrently; only real dependencies serialise.
+
+This exists because an ordered list encodes a dependency between every adjacent pair, most of
+which do not exist. "Review file A, then review file B" reads as a sequence but the second step
+never consumes the first's output, so the ordering buys nothing and costs the sum of both
+runtimes instead of the larger one. The **fake-edge test** — does this step actually consume what
+the previous one produced? — is the rule for authoring and for Curator review alike
+([`references.md`](references.md) §1.7).
+
+Constraints: the step graph is acyclic and validated at store time; `depends_on` ids must exist;
+concurrency additionally respects resource claims (§5.6), so two steps with overlapping write
+claims serialise even when neither depends on the other's output; and a merge step reading many
+predecessors follows the merge discipline in §5.10.
+
+The authoring prior (§5.8) instructs the distiller to declare only edges that carry data, which
+makes parallelism the default outcome of honest authoring rather than a later optimisation.
+
+### 6.2 Skills compose
 
 Flat skills scale badly. Coverage grows combinatorially with task variation while a flat
 library grows linearly with tasks solved, so a flat design forces either an enormous library
@@ -670,6 +742,10 @@ applying — or leaking — into another.
 | Silent regression on evolution | Golden-set gate before promotion, transitive invalidation, lineage revert |
 | Drift and rot | Environment fingerprints, model-version gates, scheduled recertification, trust decay |
 | Dirty retries | Per-attempt workspace snapshot and restore |
+| Hidden edges through shared resources | Declared resource claims; overlapping write or exclusive claims forbid concurrency (§5.6) |
+| Silent partial merges | Expected-versus-received audit at every fan-in; flag or fail, never proceed quietly (§5.10) |
+| Context collapse at synthesis | Layered fan-in: batch, summarise, combine; code-based reduction where mechanical |
+| Judges agreeing with the work rather than checking it | Fresh context for model-scored criteria; distinct lenses across judges (§5.7) |
 | Runaway loops or cost | Budgets, no-progress detection, escalation ladder, branch caps |
 | Destructive tool use | Side-effect classes, sandboxing, approval gates, no uncompensable effects in portfolio or shadow |
 | Memory poisoning and injection | Memory-as-data discipline, hash-chained ledger, provenance-weighted trust |
