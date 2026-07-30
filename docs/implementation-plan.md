@@ -125,9 +125,12 @@ hard-dropped.
 **Goal:** real model-driven solving that produces distillable transcripts and remembers failures.
 
 - Model client with retry, timeout, token and cost accounting.
-- Tool registry with side-effect classes and approval hooks; tools for the first domain.
+- Tool registry with side-effect classes, **resource claims**, and approval hooks; tools for the
+  first domain. Claims cover files, paths, services, rate limits, locks, and external systems, so
+  hidden edges are declared rather than discovered under load.
 - Structured transcript writer, content-addressed.
-- Skill application: parameter binding, step execution, `steps[].loop` bounds.
+- Skill application: parameter binding, **dependency-ordered step execution** with concurrency for
+  independent steps, resource-claim serialisation, `steps[].loop` bounds, `max_parallel_steps`.
 - **Episodic writes for every attempt**, including `dead_end` records with reasons.
 - **Affordance telemetry:** durations, error signatures, flake rates.
 - `evolve` implements all repair moves from specs §16, consults dead ends to avoid repeats, and
@@ -135,14 +138,17 @@ hard-dropped.
 
 **Done when:** golden `repo-chore` tasks are solved end-to-end via applied skills; a task that
 previously failed a given way does not repeat that approach; a known-flaky tool produces a
-`tool` classification that leaves skill trust untouched; replay tests reconstruct node decisions
-with no model calls.
+`tool` classification that leaves skill trust untouched; two independent steps demonstrably run
+concurrently while two steps claiming the same `write` resource serialise; replay tests
+reconstruct node decisions with no model calls.
 
 ## M3 — Distillation, facts, review
 
 **Goal:** the loop closes. Successful runs produce reviewed memory.
 
 - Critic pass proposing criteria pre-solve when the caller supplies none.
+- **Verifier isolation:** `judge` criteria evaluated in a fresh context holding only the artifact
+  and rubric, with distinct `lens` values across judges and the isolation mode recorded per result.
 - **Sensitivity proofs** generated and stored per criterion; unproven criteria are advisory.
 - **Authoring prior** as a versioned T2 document, applied on every distillation, with
   `authoring_prior_version` recorded on each skill. This lands here rather than later because it
@@ -205,18 +211,26 @@ harsh configuration (evidence floor 20, threshold 0) is demonstrated to *underpe
 defaults on the golden sets, reproducing the finding that motivated them
 ([`references.md`](references.md) §1.2).
 
-## M6 — Portfolio fan-out
+## M6 — Fan-out: portfolio and decomposition
 
-**Goal:** convert model uncertainty into compute spend where validators can adjudicate.
+**Goal:** convert model uncertainty into compute spend where validators can adjudicate, and run
+genuinely independent work at once.
 
 - `fan_out` / `join` in the engine with divided budgets and disjoint workspace clones.
-- Selection by required-criteria pass count, then advisory score, then cost.
-- Losing branches written to episodic memory as compared alternatives.
-- Uncompensable `external` effects blocked from portfolio and shadow modes.
+- **Portfolio branches:** competing strategies, selection by required-criteria pass count, then
+  advisory score, then cost. Losing branches written to episodic memory as compared alternatives.
+- **Decomposition branches:** disjoint parts of the work, all-must-complete join, then synthesis.
+- **Merge audits** recording expected against received, failing decomposition joins on a gap.
+- **Layered fan-in** above the layer threshold, with deterministic code reduction where the
+  combination is mechanical.
+- Resource-claim disjointness enforced across branches; uncompensable `external` effects blocked
+  from portfolio and shadow modes.
 
 **Done when:** portfolio runs beat single-strategy runs on first-attempt success for ambiguous
-tasks at bounded cost; total spend never exceeds the parent budget; a tie is broken by cost, not
-by model preference.
+tasks at bounded cost; decomposition runs finish at the speed of the slowest part rather than the
+sum; total spend never exceeds the parent budget; a tie is broken by cost, not by model
+preference; and a killed branch causes a visible merge failure rather than a plausible-looking
+partial result.
 
 ## M7 — Improvement plane
 
@@ -279,6 +293,7 @@ no duplicate or missing versions under load.
 | Replay | Recorded transcripts drive nodes deterministically, no live models |
 | Regression | Golden sets per task class, gating promotion |
 | Adversarial | Planted vacuous criteria, planted secrets, poisoned memory documents, injected instructions in tool output |
+| Concurrency | Independent steps overlap in time; conflicting resource claims serialise; killed branches surface as merge failures |
 | E2E | Full loop on a scratch repo fixture, including checkpoint kill/resume and control-arm runs |
 
 CI-asserted invariants: no write to an existing `SkillVersion`; every back-edge decrements a
@@ -286,7 +301,8 @@ budget; no `approved` skill has only `judge` criteria; every required criterion 
 proof; every `loop` has `max_iterations`; the `uses` graph is acyclic with depth ≤ 3; eval
 fixtures never appear in skill provenance; `ablation_rate` is unreachable from run and job code;
 `active_cap` and `retirement_threshold` are finite and non-zero; no retirement occurs below the
-evidence floor.
+evidence floor; every step's `depends_on` resolves within an acyclic graph; every `judge`
+criterion is `fresh_context`; every fan-in emits a merge audit.
 
 ## Risks and mitigations
 
@@ -305,6 +321,9 @@ evidence floor.
 | Memory poisoning or injection | Model-authored memory re-enters context | Memory-as-data discipline, hash-chained ledger, provenance-weighted trust, adversarial tests |
 | Practice burns budget on noise | Curriculum drifts to trivial or impossible tasks | Target the 0.2–0.8 band, separate budget, `practice_conversion` metric |
 | Composition brittleness | Deep chains break opaquely | Pinned children, depth ≤ 3, transitive invalidation, parent-level criteria |
+| Hidden edges | Steps share a file, lock, or rate-limited API without declaring it | Resource claims in the tool registry; conflicting claims serialise; concurrency tests |
+| Silent partial results | A dead branch disappears into a synthesis that looks complete | Merge audits with expected-versus-received; decomposition joins fail on gaps |
+| Judges that agree instead of check | A verifier inheriting the worker's context grades its own reasoning | Fresh-context judges, distinct lenses, isolation mode recorded per result |
 | Cost blowup | Loops and fan-out multiply spend | Per-run cost budget, divided branch budgets, escalation ladder |
 | Unsafe self-modification | Optimising the objective by weakening constraints | T0–T3 tiering with import-boundary enforcement |
 | Engine scope creep | In-house engine becomes a framework | ADR-0001 revisit trigger |
