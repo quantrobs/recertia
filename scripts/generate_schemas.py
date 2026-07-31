@@ -25,9 +25,11 @@ from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, M
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
-from contracts.policy import AuthoringPrior  # noqa: E402
+from contracts.node import CheckpointRecord, NodeOutput  # noqa: E402
+from contracts.policy import AuthoringPrior, Policy  # noqa: E402
 from contracts.review import ReviewDecision  # noqa: E402
 from contracts.run import RunState  # noqa: E402
+from contracts.scope import ScopePromotion  # noqa: E402
 from contracts.skill import SkillVersion  # noqa: E402
 from contracts.stats import SkillStats  # noqa: E402
 from contracts.status import SkillStatus  # noqa: E402
@@ -45,6 +47,10 @@ MODELS: dict[str, type] = {
     "fact.schema.json": Fact,
     "review_decision.schema.json": ReviewDecision,
     "authoring_prior.schema.json": AuthoringPrior,
+    "policy.schema.json": Policy,
+    "node_output.schema.json": NodeOutput,
+    "checkpoint_record.schema.json": CheckpointRecord,
+    "scope_promotion.schema.json": ScopePromotion,
     "causal_lift_result.schema.json": CausalLiftResult,
     "control_baseline.schema.json": ControlBaseline,
     "eval_observation.schema.json": EvalObservation,
