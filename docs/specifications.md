@@ -3,35 +3,63 @@
 Normative contracts for the system described in [`architecture.md`](architecture.md).
 "MUST", "SHOULD", and "MAY" carry their usual RFC 2119 force.
 
+**Structural source of truth.** Per [ADR-0009](adr/0009-contracts-as-code.md), the Pydantic
+models in [`contracts/`](../contracts) are normative for structure; `schema/*.schema.json` is
+generated from them and MUST NOT be hand-edited. This document states the semantics — the MUSTs
+a structural schema cannot express — and is enforced by the profiles in
+[`contracts/profiles.py`](../contracts/profiles.py). Where this document and `contracts/`
+disagree, that is a bug in whichever one is easier to fix; open an issue rather than trusting
+either silently.
+
 ## 1. Core entities
 
-| Entity | Identity | Mutability |
-| --- | --- | --- |
-| `Task` | `task_id` (ULID) | Immutable after intake |
-| `Run` | `run_id` (ULID) | Append-only status transitions |
-| `Attempt` | `(run_id, attempt_no)` | Immutable once closed |
-| `Transcript` | content hash | Immutable |
-| `Skill` | `skill_id` (slug) | Metadata mutable; versions are not |
-| `SkillVersion` | `(skill_id, version)` | **Immutable once written** |
-| `ValidationResult` | `(attempt_id, criterion_id)` | Immutable |
-| `ReviewDecision` | `decision_id` | Immutable |
+Per [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md), a skill version's identity,
+status, and statistics are three records with three different mutability regimes, not one.
+
+| Entity | Identity | Mutability | Contract |
+| --- | --- | --- | --- |
+| `Task` | `task_id` (ULID) | Immutable after intake | [`contracts/run.py:Task`](../contracts/run.py) |
+| `Run` (`RunState`) | `run_id` (ULID) | Append-only status transitions | [`contracts/run.py:RunState`](../contracts/run.py) |
+| `Attempt` | `(run_id, attempt_no)` | Immutable once closed | — |
+| `Transcript` | content hash | Immutable | — |
+| `SkillVersion` | `(skill_id, version)` | **Immutable once written** | [`contracts/skill.py`](../contracts/skill.py) |
+| `SkillStatus` | `(skill_id, version)` | Append-only event log, projected | [`contracts/status.py`](../contracts/status.py) |
+| `SkillStats` | `(skill_id, version)` | Derived, rebuildable (T0) | [`contracts/stats.py`](../contracts/stats.py) |
+| `TaskCriterion` | `(run_id, criterion_id)` | Immutable after `criteria_locked_at` | [`contracts/criteria.py`](../contracts/criteria.py) |
+| `SkillCertificationCriterion` | `(skill_id, version, criterion_id)` | Immutable once written, versioned with the skill | [`contracts/criteria.py`](../contracts/criteria.py) |
+| `ValidationResult` (`CriterionResult`) | `(attempt_id, criterion_id)` | Immutable | [`contracts/criteria.py`](../contracts/criteria.py) |
+| `ReviewDecision` | `decision_id` | Immutable | — |
 
 The immutability of `SkillVersion` is the load-bearing rule. Evolution MUST produce
 version `N+1` with `supersedes: N`; nothing may edit version `N` in place. Rollback is
-therefore always available and always cheap.
+therefore always available and always cheap. That rule now applies to a document that holds
+**only** identity, intent, steps, certification criteria, provenance, and the one-time hygiene
+gate — `lifecycle`, `active`, `trust`, and `contribution` live on `SkillStatus` and `SkillStats`
+instead, which change on their own cadence without violating anything (ADR-0007).
 
-## 2. Skill schema
+## 2. Skill contracts
 
-Canonical form is JSON at `skills/<skill_id>/v<version>.json`, validated against
-[`schema/skill.schema.json`](../schema/skill.schema.json).
+Per [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md), one skill version is three
+records, not one document. All three are generated from
+[`contracts/skill.py`](../contracts/skill.py), [`contracts/status.py`](../contracts/status.py),
+and [`contracts/stats.py`](../contracts/stats.py); the JSON below is the canonical
+`bump-python-dep@3` example, exported by `scripts/export_examples.py` to
+`skills/bump-python-dep/v3/*.json` and asserted by
+[`tests/contracts/test_examples.py`](../tests/contracts/test_examples.py) to pass the
+`approved-skill` profile, not merely to parse. Null-valued optional fields are omitted below for
+readability; the canonical files have them explicitly.
+
+### 2.1 `SkillVersion` (immutable)
+
+Canonical form is JSON at `skills/<skill_id>/v<version>/version.json`, validated against
+[`schema/skill_version.schema.json`](../schema/skill_version.schema.json).
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "skill_id": "bump-python-dep",
   "version": 3,
   "supersedes": 2,
-  "lifecycle": "approved",
   "title": "Bump a pinned Python dependency and repair fallout",
   "intent": "Raise a pinned dependency to a target version, then fix imports, type errors and test failures caused by the bump.",
   "task_class": "repo-chore",
@@ -56,58 +84,119 @@ Canonical form is JSON at `skills/<skill_id>/v<version>.json`, validated against
       "depends_on": ["sync", "changelog"],
       "loop": { "until": "criteria_pass", "max_iterations": 3 } }
   ],
-  "success_criteria": [
-    { "id": "install", "kind": "command", "run": "uv sync --frozen", "expect_exit": 0, "weight": 1.0 },
-    { "id": "types",   "kind": "command", "run": "mypy .",            "expect_exit": 0, "weight": 1.0 },
-    { "id": "tests",   "kind": "command", "run": "pytest -q",         "expect_exit": 0, "weight": 1.0 },
-    { "id": "scope",   "kind": "judge",   "rubric": "Only dependency-related files changed.",
-      "isolation": "fresh_context", "lens": "scope", "weight": 0.3 }
+  "certification_criteria": [
+    { "id": "install", "kind": "command", "run": "uv sync --frozen", "expect_exit": 0, "weight": 1.0,
+      "preregistered": true, "sensitivity_proof": { "criterion_id": "install",
+      "negative_fixture": "pre-bump workspace with a broken lockfile", "rejected": true,
+      "checked_at": "2026-07-30T15:22:11Z" } },
+    { "id": "types", "kind": "command", "run": "mypy .", "expect_exit": 0, "weight": 1.0,
+      "preregistered": true, "sensitivity_proof": { "criterion_id": "types",
+      "negative_fixture": "v2's stale-lockfile regression case", "rejected": true,
+      "checked_at": "2026-07-30T15:22:11Z" } },
+    { "id": "tests", "kind": "command", "run": "pytest -q", "expect_exit": 0, "weight": 1.0,
+      "preregistered": true, "sensitivity_proof": { "criterion_id": "tests",
+      "negative_fixture": "pre-bump workspace, unpatched", "rejected": true,
+      "checked_at": "2026-07-30T15:22:11Z" } },
+    { "id": "scope", "kind": "judge", "rubric": "Only dependency-related files changed.",
+      "isolation": "fresh_context", "lens": "scope", "weight": 0.3, "preregistered": true }
   ],
   "failure_modes": [
     { "symptom": "Transitive pin conflict.", "response": "Relax the narrowest conflicting constraint, then re-run install." }
   ],
   "provenance": {
-    "distilled_from_run": "01JD3K...",
+    "distilled_from_run": "01JD3K0000000000000000RUN3",
     "distilled_at": "2026-07-30T15:22:11Z",
+    "curation": "human_authored",
+    "derivation": "hand_authored",
     "evolved_because": "v2 left the lockfile stale when the bump was a no-op."
   },
-  "trust": { "applications": 14, "successes": 12, "score": 0.81, "last_used_at": "2026-07-29T09:10:00Z" }
+  "hygiene": { "secret_scan": "passed", "scanned_at": "2026-07-30T15:22:11Z" }
 }
 ```
 
-### 2.1 Field rules
+### 2.2 `SkillStatus` (append-only, projected)
 
-- `success_criteria` MUST contain at least one entry whose `kind` is not `judge`. A skill
+Canonical form is JSON at `skills/<skill_id>/v<version>/status.json`, validated against
+[`schema/skill_status.schema.json`](../schema/skill_status.schema.json). This is a projection of
+an append-only lifecycle event log to its current state; the projection is what is stored and
+retrieved, and it is what the diagram in `architecture.md` §7.1 depicts transitions of.
+
+```json
+{
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "lifecycle": "approved",
+  "active": true,
+  "certification": {
+    "model_validated_on": "claude-4.6-sonnet",
+    "tool_fingerprint": { "uv": "0.5.10", "mypy": "1.13.0", "pytest": "8.3.4" },
+    "golden_set_ref": "evals/golden/repo-chore/bump-python-dep.jsonl",
+    "last_recertified_at": "2026-07-30T15:22:11Z",
+    "recert_status": "fresh"
+  }
+}
+```
+
+### 2.3 `SkillStats` (derived, T0)
+
+Canonical form is JSON at `skills/<skill_id>/v<version>/stats.json`, validated against
+[`schema/skill_stats.schema.json`](../schema/skill_stats.schema.json). Never written directly;
+always rebuilt from the run store. Losing this record is a rebuild, not a data-loss incident.
+
+```json
+{
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "trust": { "applications": 14, "successes": 12, "last_used_at": "2026-07-30T15:22:11Z",
+             "lift_estimate": 0.22, "lift_samples": 9 },
+  "contribution": { "applications": 14, "successes": 12, "baseline_success": 0.55,
+                     "interval_low": 0.02, "interval_high": 0.38,
+                     "last_evaluated_at": "2026-07-30T15:22:11Z" }
+}
+```
+
+`trust.score` is not stored: it is derived on read, `(successes + 1) / (applications + 2)`, so a
+single lucky application cannot mint a high-trust skill (`0.8125` for the values above). Trust is
+reported alongside `lift_estimate`, since a ratio is not causal evidence (§19).
+`contribution.estimate` is likewise derived: `successes/applications - baseline_success`, or
+`null` when `applications == 0` or `baseline_success` is unset — see §24.2 for when `null` is the
+only honest answer.
+
+### 2.4 Field rules
+
+- `certification_criteria` MUST contain at least one entry whose `kind` is not `judge`. A skill
   with only model-judged criteria MUST NOT reach `approved`.
 - `steps[].loop.max_iterations` MUST be present when `loop` is present. Unbounded step
   loops are invalid.
 - `steps[].depends_on` MUST reference existing step ids and MUST form a DAG. A dependency is
   valid only when the step consumes the referenced step's output; ordering-only edges are
   invalid (§26.1).
-- `success_criteria[].isolation` MUST be `fresh_context` for `judge` criteria (§26.3).
+- `certification_criteria[].isolation` MUST be `fresh_context` for `judge` criteria (§26.3).
 - `preconditions` are evaluated by `retrieve` **before** a candidate is offered to `plan`.
   A candidate failing any precondition MUST be dropped, not down-ranked.
-- `trust.score` is derived, never authored: it is a smoothed success ratio
-  `(successes + 1) / (applications + 2)`, so a single lucky application cannot mint a
-  high-trust skill. Trust is reported with `lift_estimate`, since a ratio is not causal
-  evidence (§19).
 - `parameters[].name` MUST match every `{{placeholder}}` used in `steps` and
-  `success_criteria`; unbound placeholders are a validation error at store time.
-- Required criteria (`weight >= 1.0`) MUST be `preregistered` and carry a valid
-  `sensitivity_proof`; otherwise they are treated as advisory regardless of weight (§15).
+  `certification_criteria`; unbound placeholders are a validation error at store time.
+- Required certification criteria (`weight >= 1.0`) MUST carry a valid `sensitivity_proof` to
+  count toward promotion; `preregistered` for this type means registered before the
+  *certification runs* that validate it, not before the transcript that produced the draft — see
+  the [ADR-0003 amendment](adr/0003-criteria-preregistration.md#amendment-two-criteria-timelines-2026-07-30)
+  (§15).
 - `uses` entries MUST pin an exact child version, form an acyclic graph, and stay within
   depth 3 (§14).
-- `certification` MUST record the model and tool fingerprint validated against; drift in
-  either marks the version `needs_recert` (§20).
-- `hygiene.secret_scan` MUST be `passed` before a version may be stored.
+- `SkillStatus.certification` MUST record the model and tool fingerprint validated against;
+  drift in either marks the version `needs_recert` (§20).
+- `SkillVersion.hygiene.secret_scan` MUST be `passed` before a version may be stored. This stays
+  on the immutable version, not `SkillStatus`, because it is a one-time gate evaluated once,
+  before the document is ever written.
 - `provenance.curation` MUST be one of `human_authored`, `mined_from_human_artifact`, or
   `self_distilled`, and `self_distilled` versions require the higher evidence bar in §24.
-- `contribution` is derived, never authored, and is the retirement input (§24).
+- `SkillStats.contribution` is derived, never authored, and is the retirement input (§24).
 
-### 2.2 Lifecycle values
+### 2.5 Lifecycle values
 
 `draft` → `candidate` → `shadow` → `approved` → `deprecated`, plus `benched`, `needs_recert`,
-and terminal `quarantined`.
+and terminal `quarantined`. All transitions are `SkillStatus` events, never edits to
+`SkillVersion`.
 
 | State | Retrievable | Notes |
 | --- | --- | --- |
@@ -120,57 +209,64 @@ and terminal `quarantined`.
 
 `benched` is distinct from both `deprecated` (superseded by a newer version) and `quarantined`
 (suspected harmful). It means "not currently earning a retrievable slot", and returning to
-`approved` requires no new version.
+`approved` requires no new version. Marking a version `quarantined` is **not** a task-plane
+decision — no single run has the aggregate evidence (two consecutive field failures, or a recert
+comparison) to make that call. It is a `SkillStatus` transition made by the Recertifier or
+Curator (§20), reading across runs; see [ADR-0008](adr/0008-optional-join-and-failure-signals.md).
 
 ## 3. Graph state
 
-The state object threaded through every node. Nodes return a **delta**, never a mutated
+The state object threaded through every node, generated from
+[`contracts/run.py:RunState`](../contracts/run.py). Nodes return a **delta**, never a mutated
 copy, and the orchestrator applies deltas so that every transition is diffable.
 
 ```python
 class RunState(BaseModel):
     run_id: str
     task: Task
-    manifest: RunManifest                   # model, tools, index snapshot, criteria hash, seed
+    manifest: RunManifest = RunManifest()   # model, tools, index snapshot, criteria hash, seed
     arm: Literal["treatment", "control", "shadow", "practice"] = "treatment"
 
-    # criteria, locked before solving (§15)
-    criteria: list[Criterion] = []          # required set; immutable after intake
+    # criteria, locked before solving (§15). TaskCriterion only — never a chosen skill's
+    # SkillCertificationCriterion; see the ADR-0003 amendment and §15.
+    criteria: list[TaskCriterion] = []      # required set; immutable after intake
     criteria_locked_at: datetime | None = None
-    advisory_criteria: list[Criterion] = []
+    advisory_criteria: list[TaskCriterion] = []
 
     # retrieval — federated bundle across memory planes (§13)
     bundle: MemoryBundle = MemoryBundle()   # skills, facts, cases, dead_ends, tool_cautions
-    chosen: Candidate | None = None
+    chosen: SkillCandidateRef | None = None
     strategy: Literal["apply", "adapt", "scratch", "portfolio", "decomposition", "abstain"] | None = None
     strategy_reason: str | None = None
     predicted_success: float | None = None  # scored for calibration (§23)
 
     # solving
     attempt_no: int = 0
-    branches: list[Branch] = []             # populated under fan-out strategies (§18)
-    artifacts: list[ArtifactRef] = []
+    branches: list[BranchState] = []        # populated under fan-out strategies (§18)
+    artifacts: list[Artifact] = []
     transcript_ref: str | None = None
-    workspace_snapshots: list[SnapshotRef] = []
-    step_waves: list[list[str]] = []         # step ids executed concurrently, in order (§26.1)
+    workspace_snapshots: list[WorkspaceSnapshot] = []
+    step_waves: list[StepWave] = []         # step ids executed concurrently, in order (§26.1)
     resource_conflicts: list[ResourceConflict] = []
 
     # validation
     results: list[CriterionResult] = []     # latest attempt only
     results_history: list[list[CriterionResult]] = []
+    certification_observations: list[CriterionResult] = []  # advisory only; see §15.4
     merge_audits: list[MergeAudit] = []     # one per fan-in, expected vs received (§26.4)
-    failure: FailureVerdict | None = None   # class + evidence (§16)
+    failure_signal: FailureSignal | None = None   # raised explicitly; classify_failure's precondition (§16, ADR-0008)
+    failure: FailureVerdict | None = None   # class + evidence, assigned by classify_failure (§16)
 
     # learning
-    draft: SkillDraft | None = None
-    facts_extracted: list[FactDraft] = []
-    affordance_updates: list[AffordanceDelta] = []
+    draft: dict | None = None
+    facts_extracted: list[dict] = []
+    affordance_updates: list[dict] = []
     reusability: ReusabilityVerdict | None = None
-    written_versions: list[SkillVersionRef] = []
+    written_versions: list[dict] = []
 
     # control
-    budget: Budget
-    spent: Spend
+    budget: Budget = Budget()
+    spent: Spend = Spend()
     route_log: list[RouteEntry] = []        # (node, decision, reason) — the audit trail
     terminal: Literal["solved", "unsolved", "abstained", "rejected", "error"] | None = None
 ```
@@ -182,27 +278,38 @@ vector equals the previous one, `evolve` MUST NOT route back to `solve`.
 runs MUST NOT affect the caller's result, and `practice` runs MUST be excluded from
 user-facing metrics.
 
+`certification_observations` exists because a run's artifact is free to score against the
+applied skill's certification criteria too — but that score is advisory telemetry feeding
+`SkillStats`/`needs_recert` (§20) and MUST NOT gate any route below. It is populated by
+`validate`; nothing reads it before `distill`/`review` except the improvement plane, offline.
+
 ## 4. Node contracts
 
 Every node is `(state, services) -> NodeOutput`, where `NodeOutput` carries a state delta,
 a route, and a reason string. Nodes MUST be side-effect free with respect to state and MUST
-route only to declared successors.
+route only to declared successors. Fifteen nodes — see
+[ADR-0008](adr/0008-optional-join-and-failure-signals.md): `join` is conditional and
+`quarantine` is split into `record_dead_end` and `reject_draft`; marking a *stored skill
+version* harmful is not a task-plane action at all (§2.5, §20). The full route table is data in
+[`contracts/graph.py`](../contracts/graph.py), exhaustively tested by
+[`tests/contracts/test_route_completeness.py`](../tests/contracts/test_route_completeness.py).
 
 | Node | Preconditions | Postconditions | Legal routes |
 | --- | --- | --- | --- |
-| `intake` | Request validated | `task` set, budget + model tier resolved, `manifest` recorded, `criteria` locked with hash | `retrieve` |
+| `intake` | Request validated | `task` set, budget + model tier resolved, `manifest` recorded, `criteria` locked with hash (`TaskCriterion` only) | `retrieve` |
 | `retrieve` | `task` set, criteria locked | `bundle` populated across planes, preconditions evaluated; empty when `arm == "control"` | `plan` |
 | `plan` | `bundle` present (possibly empty) | `strategy`, `strategy_reason`, `predicted_success` set | `solve`, `fan_out`, `finalize` (abstain) |
-| `fan_out` | `strategy` is `portfolio` or `decomposition` | `branches` created with `kind` set, disjoint workspaces, non-overlapping write claims, and divided budget | `solve` |
-| `solve` | `strategy` set, budget not exhausted, clean workspace snapshot taken | Steps executed in `depends_on` order with bounded concurrency (§26.1); `transcript_ref`, `artifacts`, `step_waves` set; `attempt_no` incremented | `validate` |
-| `validate` | `transcript_ref` set | `results` set and appended to history; `judge` criteria scored in fresh contexts (§26.3) | `join` |
-| `join` | Every dispatched branch has terminated (result, error, or timeout) | `merge_audits` appended; portfolio winner selected by result vector then cost, decomposition inputs reduced then synthesised; losers written to episodic memory | `distill`, `classify_failure` |
-| `classify_failure` | Some required criterion failed | `failure` set with class + evidence | `evolve`, `quarantine` |
+| `fan_out` | `strategy` is `portfolio` or `decomposition` | `branches` created with `kind` set, disjoint workspaces, non-overlapping write claims, divided budget, and (decomposition) `owned_criteria` partitioning the locked set | `solve` |
+| `solve` | `strategy` set, budget not exhausted, clean workspace snapshot taken | Steps executed in `depends_on` order with bounded concurrency (§26.1); `transcript_ref`, `artifacts`, `step_waves` set; `attempt_no` incremented; MAY raise a `FailureSignal` directly (environment/tool/budget) without ever reaching `validate` | `validate`, `classify_failure` |
+| `validate` | `transcript_ref` set | `results` set and appended to history; `certification_observations` scored; `judge` criteria scored in fresh contexts (§26.3); a required-criterion failure raises `failure_signal` | `join` (if `branches` non-empty), `distill`, `classify_failure` |
+| `join` | `branches` non-empty; every dispatched branch has terminated (result, error, or timeout) | `merge_audits` appended; portfolio winner selected by result vector then cost, decomposition inputs reduced then synthesised; losers written to episodic memory; a gap raises `failure_signal` | `distill`, `classify_failure` |
+| `classify_failure` | `failure_signal` is set (ADR-0008; not "some required criterion failed" — most classes have no result vector at all) | `failure` set with class + evidence | `evolve`, `record_dead_end` |
 | `evolve` | Budget remains, progress observed, `failure` set | Repair move applied per §16; workspace restored; a budget decremented | `solve` |
 | `distill` | All required criteria passed, `arm != "control"`, task is not an eval fixture | `draft`, `facts_extracted`, `affordance_updates`, `reusability` set | `review`, `finalize` |
-| `review` | `draft` reusable | Decision recorded | `store`, `quarantine` |
+| `review` | `draft` reusable | Decision recorded | `store`, `reject_draft` |
 | `store` | Decision is approve, hygiene scan passed | `written_versions` set; index updated; ledger appended | `finalize` |
-| `quarantine` | `failure` set | Failure and dead ends recorded; implicated versions marked suspect | `finalize` |
+| `record_dead_end` | `failure` set | Failed run recorded to episodic memory with `why_failed`; skill trust untouched unless `failure.counts_against_trust` | `finalize` (`terminal="unsolved"`) |
+| `reject_draft` | Draft rejected by policy or human | Rejection recorded with the diff for the Correction Miner (§20); no version written | `finalize` (`terminal="rejected"`) |
 | `finalize` | — | `terminal` set | — |
 
 ### 4.1 Routing predicates
@@ -210,21 +317,36 @@ route only to declared successors.
 ```text
 plan     → finalize         : strategy == "abstain"                  (terminal="abstained")
 plan     → fan_out          : strategy in {"portfolio", "decomposition"}
-join     → distill          : merge_audit.complete
-                              AND every criterion with weight >= 1.0 passed
+solve    → classify_failure : failure_signal is set AND no result vector yet (ADR-0008)
+solve    → validate         : transcript_ref is set (attempt completed)
+validate → join             : branches is non-empty
+validate → distill          : branches is empty AND every criterion with weight >= 1.0 passed
+                              AND failure_signal is unset
+validate → classify_failure : branches is empty AND (some required criterion failed
+                              OR failure_signal is set)
+join     → distill          : every merge_audit.received >= merge_audit.expected with no
+                              missing ids, AND every criterion with weight >= 1.0 passed
 join     → classify_failure : otherwise (including an incomplete merge)
 classify → evolve           : spent.attempts < budget.max_attempts
                               AND results != previous results
-                              AND failure.class not in {"criteria", "budget"}
-classify → quarantine        : otherwise
+                              AND failure.failure_class not in {"criteria", "budget"}
+classify → record_dead_end  : otherwise
 distill  → review           : reusability.verdict == "reusable"
 distill  → finalize         : reusability.verdict == "one_off"   (recorded as evidence)
 review   → store            : policy auto-approves OR human approved
-review   → quarantine       : human rejected
+review   → reject_draft     : human or policy rejected
 ```
 
-A `criteria` failure class MUST route to `quarantine` with a human escalation flag, never to
-`evolve`: the system does not repair its own scorecard (§15).
+`join` exists only on the fan-out path (`branches` non-empty). The ordinary, single-attempt
+path used exclusively through M0–M5 routes `validate` directly to `distill` or
+`classify_failure` — this is Option 1 from
+[`refactor-plan.md`](refactor-plan.md) B3, chosen definitively; see
+[ADR-0008](adr/0008-optional-join-and-failure-signals.md). `MergeAudit` has no `.complete`
+field; the predicate above is the real one, over `expected`/`received`/`missing`.
+
+A `criteria` failure class MUST route to `record_dead_end` with a human escalation flag, never to
+`evolve`: the system does not repair its own scorecard (§15). Marking the *skill version*
+`quarantined` never happens from this table — see §2.5 and §20.
 
 Criteria with `weight < 1.0` are advisory: they are recorded and surfaced to review, but
 they do not block `distill`. This is what keeps `judge` criteria useful without letting a
@@ -313,6 +435,9 @@ shadow     → approved  : >= 10 shadow applications
 approved   → deprecated: a newer version of the same skill reaches approved
 any        → quarantined: 2 consecutive field failures, or a reviewer rejection
 ```
+
+These are all `SkillStatus` transitions (§2.2, §2.5), made by the Curator or Recertifier reading
+across runs — never by a single run's task-plane graph (§4, ADR-0008).
 
 Regression gate: before any promotion to `approved`, the golden set for the skill's
 `task_class` MUST run green against the candidate. A regression blocks promotion and is
@@ -429,12 +554,12 @@ What `retrieve` returns and `plan`/`solve` consume. Every element carries `plane
 
 ```python
 class MemoryBundle(BaseModel):
-    skills: list[Candidate] = []        # max 3, procedural plane
-    facts: list[FactRef] = []           # max 10, semantic plane
-    cases: list[CaseRef] = []           # max 3 solved analogues, episodic plane
-    dead_ends: list[CaseRef] = []       # max 3 recorded failures with reasons
-    tool_cautions: list[AffordanceRef] = []   # flake rates, error signatures
-    suppressed: bool = False            # true on control-arm runs (§19)
+    skills: list[SkillCandidateRef] = []      # max 3, procedural plane
+    facts: list[MemoryElementRef] = []        # max 10, semantic plane
+    cases: list[MemoryElementRef] = []        # max 3 solved analogues, episodic plane
+    dead_ends: list[MemoryElementRef] = []    # max 3 recorded failures with reasons
+    tool_cautions: list[MemoryElementRef] = []  # flake rates, error signatures
+    suppressed: bool = False                  # true on control-arm runs (§19)
 ```
 
 ### 13.2 Fact record (semantic plane)
@@ -502,7 +627,7 @@ A skill MAY declare `uses: [{skill_id, version}]` and invoke a child as a step.
 | The `uses` graph is acyclic | Cycle detection at store time |
 | Depth ≤ 3 | Store-time validation |
 | A parent's criteria MUST cover the composed outcome | Parent needs ≥1 required criterion of its own, not only inherited ones |
-| Child invalidation propagates | Quarantine or deprecation of a child sets every pinning parent to `needs_recert` |
+| Child invalidation propagates | Marking a child `quarantined` (§2.5, §20) or `deprecated` sets every pinning parent to `needs_recert` |
 | `needs_recert` parents are not retrievable as `approved` | Retrieval lifecycle filter (§5) |
 
 Recertification of a parent re-runs its golden set against the child's current approved
@@ -513,14 +638,18 @@ quarantines the parent.
 
 ### 15.1 Locking
 
-`intake` MUST produce the required criteria set and record `sha256` of its canonical
-serialisation in the manifest. Sources, in precedence order: caller-declared, skill-inherited
-(when a skill is applied), critic-proposed. The critic MUST run in a context that excludes
-solver output.
+`intake` MUST produce the required `TaskCriterion` set and record `sha256` of its canonical
+serialisation in the manifest. Sources, in precedence order: caller-declared,
+task-class-template, critic-proposed. **No skill is a valid source** — `intake` runs before
+`retrieve` and `plan`, so no skill has been chosen yet; `contracts/criteria.py`'s
+`TaskCriterion.source` is typed to exclude it entirely. The critic MUST run in a context that
+excludes solver output.
 
-After `criteria_locked_at`, required criteria are immutable. Criteria discovered mid-run enter
-`advisory_criteria` with `weight < 1.0` and MAY be promoted to required in the *next* skill
-version, never in the current run.
+After `criteria_locked_at`, the `TaskCriterion` set is immutable **and is never modified by
+which skill `plan` subsequently chooses** — see §15.4 and the
+[ADR-0003 amendment](adr/0003-criteria-preregistration.md#amendment-two-criteria-timelines-2026-07-30).
+Criteria discovered mid-run enter `advisory_criteria` with `weight < 1.0` and MAY be promoted to
+required in the *next* skill version, never in the current run.
 
 ### 15.2 Sensitivity proofs
 
@@ -544,17 +673,49 @@ lowers one below `weight 1.0`, MUST be flagged `criteria_weakened` in the review
 run the prior version's criteria as part of the regression gate. This makes weakening possible
 when justified, and impossible to do quietly.
 
+### 15.4 Two criteria timelines (`TaskCriterion` vs. `SkillCertificationCriterion`)
+
+Two different questions, two different types, two different timelines — resolved per
+[the ADR-0003 amendment](adr/0003-criteria-preregistration.md#amendment-two-criteria-timelines-2026-07-30)
+(refactor-plan B2):
+
+| | `TaskCriterion` | `SkillCertificationCriterion` |
+| --- | --- | --- |
+| Answers | Did this run solve what the caller asked for? | Does this skill version reliably do what it claims? |
+| Authored | At `intake`, before a skill is chosen | At `distill`, from the transcript that produced the draft |
+| "Preregistered" means | Locked before `solve` | Locked before the *certification runs* (shadow trials, scheduled recertifications, §8/§20) that validate it — not before the transcript |
+| Lives on | `RunState.criteria` (§3) | `SkillVersion.certification_criteria` (§2.1) |
+| Enters a run's required set? | Yes, always | **Never** |
+
+A skill's certification criteria MAY additionally be scored against the *same run's* artifact —
+the artifact already exists, so this is free — but the result lands in
+`RunState.certification_observations` (§3), which is advisory telemetry for `SkillStats` and
+`needs_recert` triggers and **MUST NOT** gate `join`, `distill`, or the caller's result. This is
+the rule that keeps the reopened Goodhart path closed: a caller cannot be told a task "solved"
+against a bar chosen after the fact by which skill happened to be retrieved.
+
 ## 16. Failure taxonomy
+
+`classify_failure`'s only precondition is `state.failure_signal is not None` (§4, ADR-0008), not
+"some required criterion failed" — most classes below have no result vector to have failed.
+`FailureSignal` is raised by the orchestrator, solver, validator, or join; `classify_failure`
+reads the signal plus evidence (affordance matches, criterion ids, merge audits) to assign a
+class.
 
 ```python
 FailureClass = Literal[
     "environment", "tool", "retrieval", "plan", "execution", "criteria", "budget", "merge"
 ]
 
+class FailureSignal(BaseModel):
+    source: Literal["orchestrator", "solver", "validator", "join"]
+    detail: str
+    at: datetime
+
 class FailureVerdict(BaseModel):
     failure_class: FailureClass
     evidence: list[str]              # criterion ids, tool errors, affordance matches
-    implicated_skill: SkillVersionRef | None
+    implicated_skill: dict | None
     counts_against_trust: bool       # False for environment, tool, budget, merge
     escalate_to_human: bool          # True for criteria
 ```
@@ -566,8 +727,8 @@ class FailureVerdict(BaseModel):
 | `retrieval` | Applied skill's preconditions passed but its steps were inapplicable | Drop candidate, re-retrieve, propose tighter preconditions | Yes, on the skill |
 | `plan` | Required criteria failed with no partial progress | Switch strategy, escalate model tier | Yes, if a skill was applied |
 | `execution` | Partial progress with specific criterion failures | Patch artifacts using criterion output | Yes |
-| `criteria` | Criteria unsatisfiable, mutually contradictory, or sensitivity proof invalid | **None** — halt | None |
-| `budget` | Any budget exhausted | **None** — halt | None |
+| `criteria` | Criteria unsatisfiable, mutually contradictory, or sensitivity proof invalid | **None** — routes to `record_dead_end`, never `evolve` | None |
+| `budget` | Any budget exhausted | **None** — routes to `record_dead_end`, never `evolve` | None |
 | `merge` | A merge audit reported missing inputs, or a resource claim deadlocked (§26.2, §26.4) | Re-dispatch only the missing branches or steps once, from their retained snapshot; a deadlock re-runs the cycle serially | None |
 
 `merge` exists as its own class because the repair is narrow — rerun the piece that never
@@ -596,19 +757,28 @@ implicated steps.
 
 ## 18. Fan-out: portfolio and decomposition
 
+`BranchState`, per `contracts/branch.py`, fixes what the refactor plan flagged as S3: the prior
+`Branch` had no status, spend, transcript, or snapshot reference, so `evolve` had nothing to
+restore and a merge audit had nothing concrete to attribute a missing input to.
+
 ```python
-class Branch(BaseModel):
+class BranchState(BaseModel):
     branch_id: str
     kind: Literal["portfolio", "decomposition"] = "portfolio"
     strategy: Literal["apply", "adapt", "scratch"]
     subtask: str | None = None     # decomposition only: the part of the work owned
-    candidate: Candidate | None
+    candidate: dict | None = None
     workspace_ref: str
+    snapshot_ref: str | None = None
+    transcript_ref: str | None = None
+    status: Literal["dispatched", "running", "succeeded", "failed", "timed_out"] = "dispatched"
     resources: list[ResourceClaim] = []
     budget: Budget                 # a division of the parent budget, never a multiple
+    spent: Spend = Spend()
     results: list[CriterionResult] = []
     selected: bool = False
     margin: float | None = None    # winner score minus runner-up
+    owned_criteria: list[str] = []  # decomposition only: ids this branch is accountable for (§4)
 ```
 
 Two kinds with different join semantics:
@@ -661,7 +831,7 @@ Every job: reads memory and the run store, writes **only** proposals, and is bud
 | `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
 | `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, and **serialise** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
 | `practice` | Scheduled, or ≥3 one-offs in a class | Practice runs marked `arm="practice"` | Excluded from user-facing metrics; separate budget |
-| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes |
+| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008) |
 | `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
 
 Practice task selection targets estimated success probability in `[0.2, 0.8]`, using
@@ -688,7 +858,7 @@ class LedgerEntry(BaseModel):
     prev_hash: str
     entry_hash: str            # sha256 over canonical entry minus entry_hash
     actor: str                 # run id, job name, or human id
-    action: Literal["write", "promote", "quarantine", "deprecate", "policy_change"]
+    action: Literal["write", "promote", "quarantine_version", "deprecate", "policy_change"]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver
     at: datetime
@@ -780,16 +950,25 @@ incumbents, and no new skill could ever accumulate the evidence needed to displa
 
 ### 24.2 Contribution estimate
 
+Lives on `SkillStats.contribution` (§2.3), per [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md):
+derived, rebuildable, T0. `estimate` is a computed property, never a stored field, so it cannot
+drift from the two numbers it is computed from.
+
 ```python
 class Contribution(BaseModel):
-    skill_id: str
-    version: int
-    applications: int                 # trials counted toward the evidence floor
-    successes: int
-    baseline_success: float           # control-arm first-attempt success for the task class
-    estimate: float                   # ĉ(s) = successes/applications - baseline_success
-    interval: tuple[float, float]     # Wilson interval on the difference
-    last_evaluated_at: datetime
+    applications: int = 0              # trials counted toward the evidence floor
+    successes: int = 0
+    baseline_success: float | None = None   # control-arm first-attempt success for the task class
+    interval_low: float | None = None       # Wilson interval on the difference
+    interval_high: float | None = None
+    last_evaluated_at: datetime | None = None
+
+    @property
+    def estimate(self) -> float | None:
+        # ĉ(s) = successes/applications - baseline_success; None when inestimable (see below).
+        if self.applications == 0 or self.baseline_success is None:
+            return None
+        return (self.successes / self.applications) - self.baseline_success
 ```
 
 Rules: only `treatment`-arm applications count toward `applications`; `environment`, `tool`,
@@ -916,7 +1095,7 @@ rate-limited APIs, external systems, shared locks — live outside the workspace
 | No self-grading | The model instance that produced an artifact MUST NOT score it |
 | Distinct lenses | When a skill has multiple `judge` criteria, they MUST use distinct `lens` values; duplicate lenses collapse to one for scoring |
 | Recording | The isolation mode and lens are recorded with each result, so an inherited-context evaluation is auditable after the fact |
-| Standing limit | Judges remain advisory: promotion still requires a non-`judge` criterion (§2.1) |
+| Standing limit | Judges remain advisory: promotion still requires a non-`judge` certification criterion (§2.4) |
 
 The reason for the fresh-context rule is that a judge sharing the worker's context measures
 agreement with the reasoning that produced the artifact, which is the self-grading failure the
@@ -932,6 +1111,11 @@ class MergeAudit(BaseModel):
     missing: list[str] = []
     action: Literal["proceeded", "flagged", "failed"]
     layered: bool = False
+
+    @property
+    def is_complete(self) -> bool:
+        # The real predicate §4.1's routing table needs. There is no stored `.complete` field.
+        return self.received >= self.expected and not self.missing
 ```
 
 | Rule | Detail |

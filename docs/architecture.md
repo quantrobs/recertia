@@ -139,6 +139,14 @@ score floor and precondition filtering in §5.5.
 
 ### 5.1 Node topology
 
+Fifteen nodes. Per [ADR-0008](adr/0008-optional-join-and-failure-signals.md), `join` exists only
+on the fan-out path — the default, single-attempt path (everything through M5, per
+`implementation-plan.md`) routes `validate` straight to `distill` or `classify_failure`, matching
+the simplified loop in [`README.md`](../README.md). The overloaded `quarantine` node is split
+into `record_dead_end` (a run failed) and `reject_draft` (a draft was rejected); marking a
+*stored skill version* harmful is a `SkillStatus` write made by the Recertifier or Curator
+(§7.1, §8.4), not a task-plane route at all.
+
 ```mermaid
 flowchart LR
     IN[intake] --> RET[retrieve]
@@ -146,37 +154,43 @@ flowchart LR
     PLAN -->|single strategy| SOLVE[solve]
     PLAN -->|"portfolio / decomposition"| FAN[fan_out]
     FAN --> SOLVE
-    SOLVE --> VAL[validate]
-    VAL --> JOIN[join]
-    JOIN -->|pass| DIST[distill]
-    JOIN -->|"fail, attempts left"| CLASS[classify_failure]
-    CLASS --> EVO[evolve]
+    SOLVE -->|"attempt completed"| VAL[validate]
+    SOLVE -->|"failure signal, no result vector"| CLASS0[classify_failure]
+    VAL -->|"branches empty, pass"| DIST[distill]
+    VAL -->|"branches non-empty"| JOIN[join]
+    VAL -->|"branches empty, fail"| CLASS[classify_failure]
+    JOIN -->|"merge complete, pass"| DIST
+    JOIN -->|"otherwise"| CLASS
+    CLASS0 --> EVO2[evolve]
+    CLASS -->|"budget left, progress"| EVO[evolve]
     EVO --> SOLVE
-    JOIN -->|"fail, budget spent"| CLASS2[classify_failure]
-    CLASS2 --> QUAR[quarantine]
+    EVO2 --> SOLVE
+    CLASS -->|"exhausted"| DEAD[record_dead_end]
     DIST -->|reusable| REV[review]
     DIST -->|one-off| DONE[finalize]
     REV -->|approve| STORE[store]
-    REV -->|reject| QUAR
+    REV -->|reject| REJ[reject_draft]
     STORE --> DONE
-    QUAR --> DONE
+    DEAD --> DONE
+    REJ --> DONE
 ```
 
 | Node | Responsibility | Must not do |
 | --- | --- | --- |
-| `intake` | Normalise the request into a `Task`; resolve budgets and model tier from the policy store; record the run manifest (§11.3); **lock pre-registered success criteria** (§11.1) | Call a solver model |
+| `intake` | Normalise the request into a `Task`; resolve budgets and model tier from the policy store; record the run manifest (§11.3); **lock pre-registered `TaskCriterion`s** (§11.1) | Call a solver model, or accept a skill as a criteria source |
 | `retrieve` | Federated query across memory planes; evaluate preconditions; apply score floor; honour ablation suppression (§11.4) | Execute anything |
-| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `decomposition` / `abstain`; emit a calibrated `predicted_success`; record the reason | Mutate memory |
+| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `decomposition` / `abstain`; emit a calibrated `predicted_success`; record the reason | Mutate memory, or add to the run's locked criteria |
 | `fan_out` | Split budget across ≤3 branches — racing strategies, or disjoint parts of the work — with disjoint workspaces and non-overlapping write claims | Exceed the parent budget, or fan out work whose criteria cannot be partitioned |
-| `solve` | Execute the skill's step graph in dependency waves with bounded concurrency, producing artifacts plus a structured transcript, inside an isolated attempt workspace (§10.2) | Judge its own success, or run steps whose resource claims collide |
-| `validate` | Execute locked criteria in a sandbox; score model-judged criteria in fresh contexts; emit a per-criterion result vector | Rewrite or relax criteria, or show a judge the solver's reasoning |
-| `join` | Audit expected against received inputs; select a portfolio winner by validator result then cost, or reduce and synthesise decomposition inputs; discard losers to episodic memory | Prefer a branch on model preference alone, or synthesise across a gap |
-| `classify_failure` | Assign a failure class from the taxonomy (§12) with evidence | Retry |
+| `solve` | Execute the skill's step graph in dependency waves with bounded concurrency, producing artifacts plus a structured transcript, inside an isolated attempt workspace (§10.2); MAY raise a failure signal directly, before any result exists | Judge its own success, or run steps whose resource claims collide |
+| `validate` | Execute locked criteria in a sandbox; score model-judged criteria in fresh contexts; score the applied skill's certification criteria as an advisory observation; emit a per-criterion result vector | Rewrite or relax criteria, let a certification observation gate the route, or show a judge the solver's reasoning |
+| `join` | *Only reached when `fan_out` ran.* Audit expected against received inputs; select a portfolio winner by validator result then cost, or reduce and synthesise decomposition inputs; discard losers to episodic memory | Prefer a branch on model preference alone, or synthesise across a gap |
+| `classify_failure` | Assign a failure class from the taxonomy (§12) with evidence, given a raised failure signal | Retry, or require a result vector that may not exist |
 | `evolve` | Choose the repair move dictated by the failure class; decrement a budget; restore the workspace to a clean snapshot | Loop without a class or a budget decrement |
 | `distill` | Extract skill draft **and** facts and affordance updates; apply the reusability filter | Store directly |
-| `review` | Apply promotion policy; request a human when policy requires | Block the caller's answer |
+| `review` | Apply promotion policy; request a human when policy requires | Block the caller's answer, or mark an existing stored version quarantined |
 | `store` | Idempotent, transactional write of new versions with lineage; append to the integrity ledger | Overwrite an existing version |
-| `quarantine` | Record the failure and dead ends; mark implicated versions suspect | Delete history |
+| `record_dead_end` | Record the failed run and its dead end to episodic memory | Touch a stored skill version's lifecycle |
+| `reject_draft` | Record the rejection and the reviewer's diff for the Correction Miner; write no version | Quarantine an already-approved version |
 
 `finalize` returns the caller's answer. It does not wait on review: a run can succeed while
 its distilled skill sits pending.
@@ -246,8 +260,11 @@ breaks ties by cost rather than model preference, and every join audits input co
 
 Canonical representation per plane:
 
-- **Procedural:** one JSON document per version at `skills/<slug>/v<N>.json`, in git.
-  Promotion is a pull request; rollback is a revert.
+- **Procedural:** the immutable `SkillVersion` document at `skills/<slug>/v<N>/version.json`, in
+  git — promotion is a pull request, rollback is a revert. `SkillStatus` (lifecycle, active,
+  certification, retirement) and `SkillStats` (trust, contribution) are separate, non-git
+  runtime records keyed to the same `(skill_id, version)` (ADR-0007); they change on every
+  promotion or application without touching the reviewed document.
 - **Semantic:** `facts/<scope>/<slug>.json`, in git, each with provenance and an optional
   verification check.
 - **Episodic:** content-addressed transcript blobs plus a case index row. Not in git — high
@@ -295,7 +312,7 @@ claims are treated as a dependency edge that forbids concurrency
 
 ### 5.7 Validation Runner
 
-Executes locked `success_criteria` as real, isolated checks with per-criterion pass/fail and
+Executes locked `certification_criteria`/`TaskCriterion`s as real, isolated checks with per-criterion pass/fail and
 captured output. Kinds: `command`, `assertion`, `schema`, `metric`, `judge`. A `judge`
 criterion is never sufficient alone — promotion requires at least one non-`judge` criterion —
 and every criterion must carry a **sensitivity proof** (§11.2).
@@ -416,6 +433,13 @@ Rules that make composition safe rather than a new failure mode:
 ## 7. Promotion, trust, and library capacity
 
 ### 7.1 Lifecycle and earned autonomy
+
+Per [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md), the diagram below is a
+diagram of `SkillStatus` transitions — `lifecycle`, `active`, `certification`, `retirement` — not
+of the immutable `SkillVersion` document. `SkillVersion` never changes after it is written;
+these arrows all mutate the append-only status projection alongside it. `quarantined` is reached
+here, from the Recertifier or Curator reading evidence across runs (§8.2, §8.4) — never from a
+single run's task-plane graph (§5.1, [ADR-0008](adr/0008-optional-join-and-failure-signals.md)).
 
 ```mermaid
 stateDiagram-v2
@@ -566,8 +590,8 @@ is bounded by §14.
 
 | Concern | v1 | Upgrade path | Why |
 | --- | --- | --- | --- |
-| Skills, facts, policy | JSON in git | Same, plus signed tags | Diffable, reviewable, revertible |
-| Metadata, cases, trust | SQLite | Postgres | Zero-ops start, identical SQL surface |
+| `SkillVersion`, facts, policy | JSON in git | Same, plus signed tags | Diffable, reviewable, revertible — this is the immutable half of ADR-0007's split |
+| `SkillStatus`, `SkillStats`, cases | SQLite | Postgres | Runtime state, not reviewed artifacts — append-only event log and derived rows (ADR-0007), zero-ops start, identical SQL surface |
 | Vector index (per plane) | `sqlite-vec` | `pgvector` | Co-located with metadata |
 | Lexical index | SQLite FTS5 | Postgres `tsvector` | Same |
 | Transcripts, snapshots | Content-addressed blobs on disk | Object storage | Large, write-once, dedupable |
@@ -593,7 +617,7 @@ a driver swap rather than a data model change.
 | `claim_timeout_s` | resource claim acquisition | 60 |
 | `max_versions_written` | `store` | 2 |
 
-Exhausting any budget routes to `classify_failure` then `quarantine`, never to another
+Exhausting any budget routes to `classify_failure` then `record_dead_end`, never to another
 `solve`. No-progress detection short-circuits when two consecutive attempts produce an
 identical result vector: the same failure twice means the current strategy is exhausted, not
 unlucky.
@@ -634,6 +658,13 @@ a run only as advisory (`weight < 1.0`); required criteria are immutable once lo
 Where the caller supplies no criteria, a **critic** pass proposes them from the task intent
 before solving, in a separate context from the solver. Same reason: independence.
 
+These are `TaskCriterion`s, and a chosen skill is never a source for them — no skill has been
+selected yet at `intake`. A skill's own certification criteria (`SkillCertificationCriterion`)
+are a separate type on a separate timeline: authored at `distill`, validated on independent
+certification runs before promotion, and never merged into a run's required set. See the
+[ADR-0003 amendment](adr/0003-criteria-preregistration.md#amendment-two-criteria-timelines-2026-07-30)
+and `specifications.md` §15.4.
+
 ### 11.2 Criterion sensitivity proofs
 
 A criterion that never fails is decoration, and a suite of them makes everything look solved.
@@ -664,8 +695,11 @@ measured against (§7.2), so the same sampling serves both measurement and retir
 
 ## 12. Failure taxonomy
 
-Blind retry is a waste of budget. `classify_failure` assigns a class, and the class dictates
-`evolve`'s move:
+Blind retry is a waste of budget. `classify_failure`'s only precondition is that a failure
+signal was raised — by the orchestrator, solver, validator, or join — not that a required
+criterion failed; most classes below have no result vector to have failed at all
+([ADR-0008](adr/0008-optional-join-and-failure-signals.md)). It assigns a class, and the class
+dictates `evolve`'s move:
 
 | Class | Signal | `evolve` move |
 | --- | --- | --- |
@@ -674,8 +708,8 @@ Blind retry is a waste of budget. `classify_failure` assigns a class, and the cl
 | `retrieval` | Applied skill's preconditions held but it was inapplicable | Drop candidate, re-retrieve, tighten the skill's preconditions |
 | `plan` | Strategy was wrong in kind | Switch strategy, escalate model tier |
 | `execution` | Right plan, wrong edit | Patch artifacts using criteria output |
-| `criteria` | Criteria contradictory or unsatisfiable as written | Halt and escalate to human; never relax criteria |
-| `budget` | Ran out of room | Terminate, report the frontier reached |
+| `criteria` | Criteria contradictory or unsatisfiable as written | Route to `record_dead_end`, escalate to human; never relax criteria |
+| `budget` | Ran out of room | Route to `record_dead_end`, report the frontier reached |
 | `merge` | A merge audit found missing inputs, or a resource claim timed out (§5.10, §5.6) | Re-dispatch only what never arrived, once; a claim timeout re-runs the wave serially |
 
 Three consequences matter. Environment and tool failures must not damage a skill's trust
