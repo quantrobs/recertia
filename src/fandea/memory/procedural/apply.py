@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contracts.skill import SkillVersion
+from contracts.skill import SkillVersion, step_dependencies
 
 
 def script_from_skill(version: SkillVersion) -> list[str]:
@@ -14,7 +14,7 @@ def script_from_skill(version: SkillVersion) -> list[str]:
     while remaining:
         progress = False
         for sid, step in list(remaining.items()):
-            if all(d in done for d in step.depends_on):
+            if all(d in done for d in step_dependencies(step)):
                 if step.tool == "shell" and "command" in step.inputs:
                     script.append(str(step.inputs["command"]))
                 else:

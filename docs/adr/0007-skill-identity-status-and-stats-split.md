@@ -7,9 +7,9 @@
 
 ## Context
 
-`specifications.md` §1 states the load-bearing rule plainly: `SkillVersion` is "**Immutable
+`specifications/core-entities.md` §1 states the load-bearing rule plainly: `SkillVersion` is "**Immutable
 once written**." Rollback safety, reproducibility of any historical run, and the git-as-memory
-model in `architecture.md` §5.4 all depend on that sentence being literally true.
+model in `architecture/task-plane.md` §5.4 all depend on that sentence being literally true.
 
 It was not. `schema/skill.schema.json` embedded `lifecycle`, `active`, `trust`, `contribution`,
 `retirement`, and `certification` in the same JSON document as the immutable content —
@@ -45,7 +45,8 @@ Two fields that a first read might expect to stay on `SkillVersion` deliberately
   fact, not a derived statistic, and losing it would make `needs_recert` unrecoverable from
   `SkillStatus` alone.
 
-`active` is derived from the active-set computation (`specifications.md` §24.1), never
+`active` is derived from the active-set computation
+(`specifications/library-authoring-and-concurrency.md` §24.1), never
 authored directly on any record — it lives on `SkillStatus` because the active set is a
 current-membership fact, not raw telemetry, but it is fully recomputed on every Curator pass and
 carries no independent evidentiary weight of its own.
@@ -72,8 +73,9 @@ read steps that never changed.
   **not** git-reviewed artifacts — they are runtime state, rebuildable from the run store and
   the status event log respectively. `implementation-plan.md`'s repository layout is updated to
   reflect this (§ "Repository layout").
-- `architecture.md` §7.1's lifecycle diagram is a diagram of `SkillStatus` transitions, not of
-  the version document; the diagram itself does not need to change, but its caption does.
+- `architecture/library-lifecycle.md` §7.1's lifecycle diagram is a diagram of `SkillStatus`
+  transitions, not of the version document; the diagram itself does not need to change, but its
+  caption does.
 - [ADR-0006](0006-bounded-library-and-retirement.md)'s retirement mechanism now mutates
   `SkillStatus` (`lifecycle`, `retirement`) and reads `SkillStats` (`contribution`) — it was
   already describing this split informally ("retained in full with history"); this ADR makes it

@@ -23,7 +23,6 @@
         "command": "printf 'MIT License\\n\\nCopyright (c) 2026\\n\\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.\\n' > LICENSE"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

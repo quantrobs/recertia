@@ -5,39 +5,60 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from contracts.eval import BinomialSample
-from contracts.stats import Contribution
+from contracts.stats import Contribution, RetrievalAblationEffect
 from fandea.evals.statistics import newcombe_wilson_difference
 
 
 def estimate_contribution(
     *,
-    applications: int,
-    successes: int,
-    control: BinomialSample | None,
+    shadow: BinomialSample,
+    suppression: BinomialSample,
     has_required_non_judge: bool = True,
 ) -> Contribution:
-    """Return contribution from observed treatment and control samples only."""
+    """Estimate one skill's effect from randomized shadow/suppression samples."""
 
     if (
         not has_required_non_judge
-        or applications == 0
-        or control is None
-        or control.trials == 0
+        or shadow.trials == 0
+        or suppression.trials == 0
     ):
         return Contribution(
-            applications=applications,
-            successes=successes,
-            baseline_success=control.rate if control else None,
+            applications=shadow.trials,
+            successes=shadow.successes,
+            suppressed_applications=suppression.trials,
+            suppressed_successes=suppression.successes,
             last_evaluated_at=datetime.now(timezone.utc),
         )
     interval = newcombe_wilson_difference(
-        BinomialSample(successes=successes, trials=applications),
-        control,
+        shadow,
+        suppression,
     )
     return Contribution(
-        applications=applications,
-        successes=successes,
-        baseline_success=control.rate,
+        applications=shadow.trials,
+        successes=shadow.successes,
+        suppressed_applications=suppression.trials,
+        suppressed_successes=suppression.successes,
+        interval_low=interval.low if interval else None,
+        interval_high=interval.high if interval else None,
+        last_evaluated_at=datetime.now(timezone.utc),
+    )
+
+
+def estimate_retrieval_ablation(
+    *,
+    task_class: str,
+    retrieval_enabled: BinomialSample,
+    retrieval_suppressed: BinomialSample,
+) -> RetrievalAblationEffect:
+    """Estimate class-level retrieval availability from randomized arm assignments."""
+
+    interval = newcombe_wilson_difference(retrieval_enabled, retrieval_suppressed)
+    return RetrievalAblationEffect(
+        task_class=task_class,
+        retrieval_enabled=retrieval_enabled.trials,
+        retrieval_enabled_successes=retrieval_enabled.successes,
+        retrieval_suppressed=retrieval_suppressed.trials,
+        retrieval_suppressed_successes=retrieval_suppressed.successes,
         interval_low=interval.low if interval else None,
         interval_high=interval.high if interval else None,
         last_evaluated_at=datetime.now(timezone.utc),

@@ -35,11 +35,15 @@
     {
       "kind": "file_exists",
       "value": "pyproject.toml",
+      "arguments": {},
       "description": null
     },
     {
-      "kind": "command_succeeds",
-      "value": "python -c 'import tomllib'",
+      "kind": "probe",
+      "value": "python_module_available",
+      "arguments": {
+        "module": "tomllib"
+      },
       "description": null
     }
   ],
@@ -49,8 +53,15 @@
       "tool": "grep",
       "intent": "Find the current pin for {{package}}.",
       "inputs": {},
+      "outputs": [
+        {
+          "name": "current_pin",
+          "type": "string",
+          "value_from": "stdout"
+        }
+      ],
+      "input_bindings": [],
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     },
@@ -59,8 +70,15 @@
       "tool": "fetch",
       "intent": "Read the upstream changelog for breaking changes.",
       "inputs": {},
+      "outputs": [
+        {
+          "name": "notes",
+          "type": "string",
+          "value_from": "stdout"
+        }
+      ],
+      "input_bindings": [],
       "optional": false,
-      "depends_on": [],
       "resources": [
         {
           "kind": "rate_limit",
@@ -75,10 +93,21 @@
       "tool": "edit_file",
       "intent": "Raise the pin to {{target_version}}.",
       "inputs": {},
-      "optional": false,
-      "depends_on": [
-        "locate"
+      "outputs": [
+        {
+          "name": "changed",
+          "type": "number",
+          "value_from": "exit_code"
+        }
       ],
+      "input_bindings": [
+        {
+          "input": "current_pin",
+          "source_step": "locate",
+          "output": "current_pin"
+        }
+      ],
+      "optional": false,
       "resources": [
         {
           "kind": "file",
@@ -93,10 +122,21 @@
       "tool": "shell",
       "intent": "Regenerate the lockfile.",
       "inputs": {},
-      "optional": false,
-      "depends_on": [
-        "edit"
+      "outputs": [
+        {
+          "name": "synced",
+          "type": "number",
+          "value_from": "exit_code"
+        }
       ],
+      "input_bindings": [
+        {
+          "input": "changed",
+          "source_step": "edit",
+          "output": "changed"
+        }
+      ],
+      "optional": false,
       "resources": [],
       "loop": null
     },
@@ -105,11 +145,20 @@
       "tool": "agent_subtask",
       "intent": "Fix breakage surfaced by the type checker and tests.",
       "inputs": {},
-      "optional": false,
-      "depends_on": [
-        "sync",
-        "changelog"
+      "outputs": [],
+      "input_bindings": [
+        {
+          "input": "sync_status",
+          "source_step": "sync",
+          "output": "synced"
+        },
+        {
+          "input": "changelog",
+          "source_step": "changelog",
+          "output": "notes"
+        }
       ],
+      "optional": false,
       "resources": [],
       "loop": {
         "until": "criteria_pass",

@@ -128,8 +128,12 @@ class SkillIndex:
                         status.lifecycle,
                         1 if status.active else 0,
                         version.provenance.curation,
-                        stats.trust.applications,
-                        stats.trust.last_used_at.isoformat() if stats.trust.last_used_at else None,
+                        stats.predictive_trust.applications,
+                        (
+                            stats.predictive_trust.last_used_at.isoformat()
+                            if stats.predictive_trust.last_used_at
+                            else None
+                        ),
                         fp,
                         preconditions,
                         doc,

@@ -39,6 +39,7 @@ class RetrievalExplanation:
     lexical_hits: list[tuple[str, int, float]] = field(default_factory=list)
     vector_hits: list[tuple[str, int, float]] = field(default_factory=list)
     merged: list[tuple[str, int, float]] = field(default_factory=list)
+    probe_evidence: dict[tuple[str, int], list[dict[str, object]]] = field(default_factory=dict)
     dropped: list[DropRecord] = field(default_factory=list)
     demoted: list[tuple[str, int, float, str]] = field(default_factory=list)
     returned: list[SkillCandidateRef] = field(default_factory=list)
@@ -96,7 +97,7 @@ class Retriever:
             row = self.index.get_row(sid, ver)
             if row is None:
                 continue
-            drop = self._filter_row(row, workdir, env_fingerprint, readable_scopes)
+            drop = self._filter_row(row, workdir, env_fingerprint, readable_scopes, explanation)
             if drop is not None:
                 explanation.dropped.append(drop)
                 continue
@@ -160,6 +161,7 @@ class Retriever:
         workdir: Path,
         env_fingerprint: dict[str, str],
         readable_scopes: set[str],
+        explanation: RetrievalExplanation,
     ) -> DropRecord | None:
         sid, ver = row["skill_id"], int(row["version"])
         # Shadow evidence is collected by the dedicated shadow runner.  It
@@ -178,9 +180,20 @@ class Retriever:
             return DropRecord(sid, ver, "env_fingerprint", reason)
 
         preconditions = parse_preconditions_json(row["preconditions_json"])
-        ok, reasons = evaluate_all(preconditions, workdir)
+        ok, evidence = evaluate_all(preconditions, workdir, budget_units=self.config.probe_budget_units)
+        explanation.probe_evidence[(sid, ver)] = [
+            {
+                "probe": item.probe,
+                "passed": item.passed,
+                "detail": item.detail,
+                "cost_units": item.cost_units,
+            }
+            for item in evidence
+        ]
         if not ok:
-            return DropRecord(sid, ver, "precondition", reasons[-1] if reasons else "failed")
+            return DropRecord(
+                sid, ver, "precondition", evidence[-1].reason if evidence else "failed"
+            )
         return None
 
     def _demote(self, score: float, row: dict) -> tuple[float, str | None]:

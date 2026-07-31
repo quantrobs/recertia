@@ -7,7 +7,11 @@ from datetime import datetime, timezone
 from contracts.status import Retirement, SkillStatus
 from fandea.evals.store import EvalStore
 from fandea.ledger import HashChainLedger
-from fandea.memory.procedural.contribution import estimate_contribution, trust_score
+from fandea.memory.procedural.contribution import (
+    estimate_contribution,
+    estimate_retrieval_ablation,
+    trust_score,
+)
 from fandea.memory.procedural.store import SkillStore
 from fandea.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
 
@@ -32,17 +36,18 @@ def maybe_auto_promote_from_shadow(
         raise LifecycleError(f"{skill_id}@v{version} is {status.lifecycle}, not shadow")
     stats = store.get_stats(skill_id, version)
     trust = trust_score(
-        applications=stats.trust.applications, successes=stats.trust.successes
+        applications=stats.predictive_trust.applications,
+        successes=stats.predictive_trust.successes,
     )
-    treatment, control = eval_store.contribution_samples(
+    task_class = store.get_version(skill_id, version).task_class
+    shadow, suppression = eval_store.contribution_samples(
         skill_id=skill_id,
         version=version,
-        task_class=store.get_version(skill_id, version).task_class,
+        task_class=task_class,
     )
     contrib = estimate_contribution(
-        applications=treatment.trials,
-        successes=treatment.successes,
-        control=control,
+        shadow=shadow,
+        suppression=suppression,
     )
     # High trust + zero/None lift must NOT auto-promote.
     lift = contrib.estimate
@@ -51,9 +56,9 @@ def maybe_auto_promote_from_shadow(
             f"refusing auto-promote: lift={lift} trust={trust:.3f} "
             f"(need lift>={config.shadow_min_lift})"
         )
-    if treatment.trials < config.shadow_min_applications:
+    if shadow.trials < config.shadow_min_applications:
         raise LifecycleError("insufficient shadow applications")
-    if treatment.successes < config.shadow_min_successes:
+    if shadow.successes < config.shadow_min_successes:
         raise LifecycleError("insufficient shadow successes")
 
     # Curation prior: self_distilled needs higher lift.
@@ -68,11 +73,19 @@ def maybe_auto_promote_from_shadow(
     # promotion service; it is not itself an approval authority.
     candidate = status.model_copy(update={"lifecycle": "candidate", "active": False})
     store.write_status(candidate)
+    enabled, retrieval_suppressed = eval_store.retrieval_ablation_samples(task_class=task_class)
+    eval_store.write_retrieval_ablation(
+        estimate_retrieval_ablation(
+            task_class=task_class,
+            retrieval_enabled=enabled,
+            retrieval_suppressed=retrieval_suppressed,
+        )
+    )
     store.write_stats(
         stats.model_copy(
             update={
-                "trust": stats.trust.model_copy(
-                    update={"lift_estimate": lift, "decayed_score": trust}
+                "predictive_trust": stats.predictive_trust.model_copy(
+                    update={"decayed_score": trust}
                 ),
                 "contribution": contrib,
             }
@@ -127,19 +140,19 @@ def maybe_bench_on_contribution(
 
     status = store.get_status(skill_id, version)
     stats = store.get_stats(skill_id, version)
-    treatment, control = eval_store.contribution_samples(
+    task_class = store.get_version(skill_id, version).task_class
+    shadow, suppression = eval_store.contribution_samples(
         skill_id=skill_id,
         version=version,
-        task_class=store.get_version(skill_id, version).task_class,
+        task_class=task_class,
     )
-    apps = treatment.trials
-    succs = treatment.successes
+    apps = shadow.trials
     if apps < config.evidence_floor:
         raise LifecycleError(
             f"below evidence floor ({apps} < {config.evidence_floor}); never bench"
         )
     contrib = estimate_contribution(
-        applications=apps, successes=succs, control=control
+        shadow=shadow, suppression=suppression
     )
     est = contrib.estimate
     if est is None or est > -config.retirement_threshold:
@@ -156,7 +169,17 @@ def maybe_bench_on_contribution(
         }
     )
     store.write_status(benched)
-    store.write_stats(stats.model_copy(update={"contribution": contrib}))
+    enabled, retrieval_suppressed = eval_store.retrieval_ablation_samples(task_class=task_class)
+    eval_store.write_retrieval_ablation(
+        estimate_retrieval_ablation(
+            task_class=task_class,
+            retrieval_enabled=enabled,
+            retrieval_suppressed=retrieval_suppressed,
+        )
+    )
+    store.write_stats(
+        stats.model_copy(update={"contribution": contrib})
+    )
     if ledger is not None:
         ledger.append(
             actor="m5-retirement",

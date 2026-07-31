@@ -30,7 +30,6 @@
         "command": "printf '[pytest]\\ntestpaths = tests\\n' > pytest.ini"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

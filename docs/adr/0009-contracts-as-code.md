@@ -7,7 +7,7 @@
 
 The refactor plan's B5 finding was the sharpest indictment in the diagnosis: "schemas win on
 conflict" had already been stated as policy, but the canonical skill example in
-`specifications.md` §2 *validated* against `schema/skill.schema.json` while missing several
+`specifications/core-entities.md` §2 *validated* against `schema/skill.schema.json` while missing several
 fields the prose called mandatory (`preregistered`, `sensitivity_proof`, `certification`,
 `hygiene.secret_scan`, `provenance.curation`). The run schema independently omitted `criteria`
 and `advisory_criteria` from `RunState` and required only four top-level fields, so an
@@ -24,7 +24,7 @@ anyone to do.
 Pydantic v2 models under `contracts/` are the single normative source for structure. Nothing
 else hand-maintains a competing structural definition:
 
-1. **`contracts/*.py` defines every entity** named in `specifications.md` (`SkillVersion`,
+1. **`contracts/*.py` defines every entity** named in the specifications topic files (`SkillVersion`,
    `SkillStatus`, `SkillStats`, `TaskCriterion`, `SkillCertificationCriterion`, `RunState`,
    `Branch`, `FailureSignal`, `FailureVerdict`, `MergeAudit`, ...), using Pydantic's own
    validators (`Field` constraints, `model_validator`) to encode every MUST that a structural
@@ -50,8 +50,8 @@ else hand-maintains a competing structural definition:
    canonical example to silently drift below the semantic bar, because the test that would catch
    it runs against the same object the documentation embeds.
 5. **Prose still owns *why*; schema still owns *shape*; profiles own the semantic MUSTs in
-   between.** This ADR does not change the division of labour between `architecture.md` and
-   `specifications.md` (rationale vs. normative contract) — it changes what "normative contract"
+between.** This ADR does not change the division of labour between the architecture and
+specifications topic files (rationale vs. normative contract) — it changes what "normative contract"
    is made *of*.
 
 ## Rationale

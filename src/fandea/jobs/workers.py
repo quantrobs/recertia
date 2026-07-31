@@ -141,7 +141,7 @@ def propose_parallelise(skill_id: str, version: int, *, fake_edge_failures: int)
             skill_id=skill_id,
             version=version + 1,
             rationale=f"remove fake edges after {fake_edge_failures} failures",
-            payload={"remove_depends_on": True},
+            payload={"remove_input_binding": True},
         )
     ]
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from contracts.stats import SkillStats, Trust
+from contracts.stats import PredictiveTrust, SkillStats
 from fandea.memory.procedural.store import SkillStore
 
 
@@ -23,24 +23,20 @@ def record_shadow_outcome(
     *,
     success: bool,
 ) -> ShadowResult:
-    """Update trust/contribution counters for a shadow skill; result is never caller-visible."""
+    """Update predictive trust for an offline slot; result is never caller-visible."""
 
     status = store.get_status(skill_id, version)
-    if status.lifecycle not in ("shadow", "approved"):
-        raise ValueError(f"shadow outcomes only for shadow/approved; got {status.lifecycle}")
+    if status.lifecycle not in ("shadow", "approved", "benched"):
+        raise ValueError(f"shadow outcomes only for shadow/approved/benched; got {status.lifecycle}")
     stats = store.get_stats(skill_id, version)
-    apps = stats.trust.applications + 1
-    succs = stats.trust.successes + (1 if success else 0)
-    contrib_apps = stats.contribution.applications + 1
-    contrib_succs = stats.contribution.successes + (1 if success else 0)
+    apps = stats.predictive_trust.applications + 1
+    succs = stats.predictive_trust.successes + (1 if success else 0)
     store.write_stats(
         SkillStats(
             skill_id=skill_id,
             version=version,
-            trust=Trust(applications=apps, successes=succs),
-            contribution=stats.contribution.model_copy(
-                update={"applications": contrib_apps, "successes": contrib_succs}
-            ),
+            predictive_trust=PredictiveTrust(applications=apps, successes=succs),
+            contribution=stats.contribution,
         )
     )
     return ShadowResult(skill_id=skill_id, version=version, success=success, visible_to_caller=False)

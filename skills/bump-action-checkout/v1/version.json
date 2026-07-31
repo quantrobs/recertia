@@ -38,7 +38,6 @@
         "command": "for f in .github/workflows/*.yml; do sed -i 's|actions/checkout@v[0-9]*|actions/checkout@v4|g' \"$f\"; done"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

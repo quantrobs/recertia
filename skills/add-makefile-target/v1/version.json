@@ -23,7 +23,6 @@
         "command": "if [ ! -f Makefile ] || ! grep -q '^test:' Makefile; then printf 'test:\\n\\tpytest -q\\n' >> Makefile; fi"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

@@ -29,7 +29,6 @@
         "command": "grep -q '^## Installation' README.md || printf '\\n## Installation\\n\\n```\\npip install -e .\\n```\\n' >> README.md"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

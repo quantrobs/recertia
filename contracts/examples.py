@@ -17,14 +17,16 @@ from contracts.resources import ResourceClaim
 from contracts.skill import (
     FailureMode,
     Hygiene,
+    InputBinding,
     Parameter,
     Precondition,
     Provenance,
     SkillVersion,
     Step,
     StepLoop,
+    StepOutput,
 )
-from contracts.stats import Contribution, SkillStats, Trust
+from contracts.stats import Contribution, PredictiveTrust, SkillStats
 from contracts.status import Certification, SkillStatus
 
 _NOW = datetime(2026, 7, 30, 15, 22, 11, tzinfo=timezone.utc)
@@ -53,30 +55,51 @@ def bump_python_dep_version() -> SkillVersion:
         ],
         preconditions=[
             Precondition(kind="file_exists", value="pyproject.toml"),
-            Precondition(kind="command_succeeds", value="python -c 'import tomllib'"),
+            Precondition(
+                kind="probe",
+                value="python_module_available",
+                arguments={"module": "tomllib"},
+            ),
         ],
         steps=[
-            Step(id="locate", tool="grep", intent="Find the current pin for {{package}}.", depends_on=[]),
+            Step(
+                id="locate",
+                tool="grep",
+                intent="Find the current pin for {{package}}.",
+                outputs=[StepOutput(name="current_pin", type="string")],
+            ),
             Step(
                 id="changelog",
                 tool="fetch",
                 intent="Read the upstream changelog for breaking changes.",
-                depends_on=[],
+                outputs=[StepOutput(name="notes", type="string")],
                 resources=[ResourceClaim(kind="rate_limit", id="pypi", mode="write")],
             ),
             Step(
                 id="edit",
                 tool="edit_file",
                 intent="Raise the pin to {{target_version}}.",
-                depends_on=["locate"],
+                input_bindings=[
+                    InputBinding(input="current_pin", source_step="locate", output="current_pin")
+                ],
+                outputs=[StepOutput(name="changed", type="number", value_from="exit_code")],
                 resources=[ResourceClaim(kind="file", id="pyproject.toml", mode="write")],
             ),
-            Step(id="sync", tool="shell", intent="Regenerate the lockfile.", depends_on=["edit"]),
+            Step(
+                id="sync",
+                tool="shell",
+                intent="Regenerate the lockfile.",
+                input_bindings=[InputBinding(input="changed", source_step="edit", output="changed")],
+                outputs=[StepOutput(name="synced", type="number", value_from="exit_code")],
+            ),
             Step(
                 id="repair",
                 tool="agent_subtask",
                 intent="Fix breakage surfaced by the type checker and tests.",
-                depends_on=["sync", "changelog"],
+                input_bindings=[
+                    InputBinding(input="sync_status", source_step="sync", output="synced"),
+                    InputBinding(input="changelog", source_step="changelog", output="notes"),
+                ],
                 loop=StepLoop(until="criteria_pass", max_iterations=3),
             ),
         ],
@@ -173,11 +196,12 @@ def bump_python_dep_stats() -> SkillStats:
     return SkillStats(
         skill_id="bump-python-dep",
         version=3,
-        trust=Trust(applications=14, successes=12, last_used_at=_NOW, lift_estimate=0.22, lift_samples=9),
+        predictive_trust=PredictiveTrust(applications=14, successes=12, last_used_at=_NOW),
         contribution=Contribution(
             applications=14,
             successes=12,
-            baseline_success=0.55,
+            suppressed_applications=9,
+            suppressed_successes=5,
             interval_low=0.02,
             interval_high=0.38,
             last_evaluated_at=_NOW,

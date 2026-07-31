@@ -13,6 +13,29 @@ DOCS = REPO / "docs"
 
 LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.M)
+SPLIT_DOCS: dict[str, tuple[str, ...]] = {
+    "architecture.md": (
+        "architecture/overview.md",
+        "architecture/task-plane.md",
+        "architecture/skill-composition.md",
+        "architecture/library-lifecycle.md",
+        "architecture/improvement-plane.md",
+        "architecture/operations.md",
+        "architecture/measurement-integrity.md",
+        "architecture/risk-and-governance.md",
+        "architecture/measurement-and-scope.md",
+    ),
+    "specifications.md": (
+        "specifications/core-entities.md",
+        "specifications/graph-execution.md",
+        "specifications/retrieval-and-validation.md",
+        "specifications/promotion-api-and-observability.md",
+        "specifications/memory-composition-and-criteria.md",
+        "specifications/failure-isolation-and-fanout.md",
+        "specifications/evaluation-improvement-and-governance.md",
+        "specifications/library-authoring-and-concurrency.md",
+    ),
+}
 
 
 def _slugify(heading: str) -> str:
@@ -75,6 +98,19 @@ def check(docs_root: Path = DOCS) -> list[str]:
                         f"{_rel(path, base)}: dangling fragment #{frag} in {target} "
                         f"(dest={_rel(dest, base)})"
                     )
+
+    for index_name, topics in SPLIT_DOCS.items():
+        index = docs_root / index_name
+        if not index.exists():
+            continue
+        text = index.read_text(encoding="utf-8")
+        for topic in topics:
+            if not (docs_root / topic).exists():
+                errors.append(f"docs/{topic}: missing split-document topic")
+            elif f"]({topic})" not in text:
+                errors.append(
+                    f"docs/{index_name}: missing index link to {topic}"
+                )
     return errors
 
 

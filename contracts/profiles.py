@@ -51,7 +51,7 @@ def validate_approved_skill(
     if version.provenance.curation == "self_distilled":
         # Higher evidence bar for self-distilled skills (ADR-0006 §6): at minimum, some
         # applications must have been observed before promotion can be considered earned.
-        if stats.trust.applications == 0 and status.certification.recert_status == "never":
+        if stats.predictive_trust.applications == 0 and status.certification.recert_status == "never":
             violations.append(
                 "self_distilled skill approved with zero observed applications and no "
                 "certification run; higher evidence bar (ADR-0006) not demonstrated"

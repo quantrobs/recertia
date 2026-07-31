@@ -15,7 +15,9 @@ from fandea.memory.procedural.allocate import allocate_and_write
 from fandea.memory.procedural.store import SkillStore
 
 
-def _state(run_id: str, *, arm: str, chosen: bool = False) -> RunState:
+def _state(
+    run_id: str, *, arm: str, chosen: bool = False, suppressed: bool = False
+) -> RunState:
     criterion = TaskCriterion(
         id="required-file",
         kind="command",
@@ -36,6 +38,11 @@ def _state(run_id: str, *, arm: str, chosen: bool = False) -> RunState:
         criteria_locked_at=datetime.now(timezone.utc),
         chosen=(
             SkillCandidateRef(skill_id="evidence-skill", version=1, score=1.0) if chosen else None
+        ),
+        suppressed_skill=(
+            SkillCandidateRef(skill_id="evidence-skill", version=1, score=1.0)
+            if suppressed
+            else None
         ),
         attempt_no=1,
         results=[CriterionResult(criterion_id="required-file", kind="command", passed=True)],
@@ -74,9 +81,13 @@ def test_run_derived_observations_are_append_only_and_feed_metrics(tmp_path: Pat
     store = EvalStore(tmp_path / "evals.sqlite")
     treatment = _state("treatment-1", arm="treatment", chosen=True)
     control = _state("control-1", arm="control")
+    shadow = _state("shadow-1", arm="shadow", chosen=True)
+    suppression = _state("suppression-1", arm="control", suppressed=True)
 
     observation = store.append_run(treatment)
     store.append_run(control)
+    store.append_run(shadow)
+    store.append_run(suppression)
     assert observation.evidence_hash
     assert observation.valid_non_judge_evidence is True
     with pytest.raises(ObservationError, match="already has an immutable observation"):
@@ -91,11 +102,14 @@ def test_run_derived_observations_are_append_only_and_feed_metrics(tmp_path: Pat
     )
     assert report.first_attempt_success == 1.0
     assert report.causal_lift is not None
-    treatment_sample, control_sample = store.contribution_samples(
+    enabled_sample, suppressed_sample = store.retrieval_ablation_samples(task_class="repo-chore")
+    assert (enabled_sample.successes, enabled_sample.trials) == (1, 1)
+    assert (suppressed_sample.successes, suppressed_sample.trials) == (2, 2)
+    shadow_sample, suppression_sample = store.contribution_samples(
         skill_id="evidence-skill", version=1, task_class="repo-chore"
     )
-    assert (treatment_sample.successes, treatment_sample.trials) == (1, 1)
-    assert (control_sample.successes, control_sample.trials) == (1, 1)
+    assert (shadow_sample.successes, shadow_sample.trials) == (1, 1)
+    assert (suppression_sample.successes, suppression_sample.trials) == (1, 1)
     store.close()
 
 

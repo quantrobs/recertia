@@ -33,7 +33,6 @@
         "command": "echo '3.12' > .python-version"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

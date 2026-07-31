@@ -39,7 +39,6 @@
         "command": "mkdir -p src/demo_pkg && printf '\"\"\"demo package\"\"\"\\n' > src/demo_pkg/__init__.py"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

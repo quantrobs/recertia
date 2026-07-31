@@ -31,13 +31,14 @@ from contracts.review import ReviewDecision  # noqa: E402
 from contracts.run import RunState  # noqa: E402
 from contracts.scope import ScopePromotion  # noqa: E402
 from contracts.skill import SkillVersion  # noqa: E402
-from contracts.stats import SkillStats  # noqa: E402
+from contracts.stats import RetrievalAblationEffect, SkillStats  # noqa: E402
 from contracts.status import SkillStatus  # noqa: E402
 
 MODELS: dict[str, type] = {
     "skill_version.schema.json": SkillVersion,
     "skill_status.schema.json": SkillStatus,
     "skill_stats.schema.json": SkillStats,
+    "retrieval_ablation_effect.schema.json": RetrievalAblationEffect,
     "run.schema.json": RunState,
     "branch.schema.json": BranchState,
     "merge_audit.schema.json": MergeAudit,
