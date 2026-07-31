@@ -190,6 +190,27 @@ def test_control_arm_does_not_write_episodic(tmp_path: Path) -> None:
     assert episodic.list_index() == []
 
 
+def test_shadow_arm_does_not_write_episodic_or_draft(tmp_path: Path) -> None:
+    episodic = EpisodicStore(tmp_path / "epi")
+    state = RunState(
+        run_id="r-shadow",
+        task=Task(
+            task_id="r-shadow",
+            request="do thing",
+            task_class="repo-chore",
+            submitted_at=datetime.now(timezone.utc),
+        ),
+        manifest=RunManifest(),
+        arm="shadow",
+        terminal="solved",
+    )
+    outcome = distill(state, _ctx(tmp_path, node="distill", episodic=episodic))
+    assert episodic.list_index() == []
+    assert outcome.state.draft is None
+    assert outcome.route == "one_off"
+    assert "shadow" in (outcome.note or "")
+
+
 def test_eval_fixture_dead_end_does_not_write_episodic(tmp_path: Path) -> None:
     episodic = EpisodicStore(tmp_path / "epi")
     state = RunState(
