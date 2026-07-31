@@ -3,8 +3,8 @@ T3 module (the eval harness, ablation sampler, promotion thresholds, sandbox pol
 boundary itself). Parses the AST rather than trusting convention, per the ADR's own mandate
 ("enforced by module boundaries and asserted in CI, not by convention").
 
-``fandea.jobs`` and ``fandea.evals.ablation`` do not exist until M2/M4/M7; this test is
-written to cover them automatically once they do, by globbing rather than hardcoding paths.
+``fandea.jobs`` and ``fandea.evals.ablation`` are scanned once present; this test covers
+them by globbing rather than hardcoding paths.
 """
 
 from __future__ import annotations

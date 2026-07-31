@@ -1,23 +1,14 @@
-"""``plan``: choose a strategy (specs §4). M1: ``apply`` / ``adapt`` / ``scratch`` / ``abstain``.
-
-Rules (M1, no model calibration yet — thresholds are explicit and testable):
-
-- Empty bundle → ``scratch`` (novel / no applicable skill).
-- Top candidate score ≥ ``APPLY_THRESHOLD`` → ``apply`` that candidate.
-- Top candidate score ≥ ``ADAPT_THRESHOLD`` → ``adapt`` (close, but needs parameter/step edits;
-  M1 still runs the skill's script, recording the adapt intent for M2's real editor).
-- Otherwise → ``scratch``.
-- ``abstain`` is reserved for an explicit caller flag on the task (``task_class == "abstain"``
-  is not used); M1 exposes it when the request literally starts with ``ABSTAIN:``.
-"""
+"""``plan``: choose apply/adapt/scratch/abstain/portfolio/decomposition (M1+M6)."""
 
 from __future__ import annotations
 
 from contracts.run import RunState
 from fandea.nodes.context import NodeContext, NodeOutcome
+from fandea.nodes.fan_out import _partition_criteria
 
 APPLY_THRESHOLD = 0.48
 ADAPT_THRESHOLD = 0.35
+PORTFOLIO_GAP = 0.08  # top two scores within this → portfolio
 
 
 def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
@@ -30,6 +21,39 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
             }
         )
         return NodeOutcome(state=new_state, route="abstain")
+
+    # Explicit decomposition request.
+    if state.task.request.startswith("DECOMPOSE:") or (
+        state.task.request.startswith("PORTFOLIO:") is False
+        and "DECOMPOSE:" in state.task.request
+    ):
+        if _partition_criteria(state) is None:
+            new_state = state.model_copy(
+                update={
+                    "strategy": "scratch",
+                    "strategy_reason": "decomposition refused: criteria cannot be partitioned",
+                    "predicted_success": 0.4,
+                }
+            )
+            return NodeOutcome(state=new_state, route="single_strategy")
+        new_state = state.model_copy(
+            update={
+                "strategy": "decomposition",
+                "strategy_reason": "caller requested decomposition with partitionable criteria",
+                "predicted_success": 0.55,
+            }
+        )
+        return NodeOutcome(state=new_state, route="fan_out_strategy")
+
+    if state.task.request.startswith("PORTFOLIO:") or state.task.request.startswith("AMBIGUOUS:"):
+        new_state = state.model_copy(
+            update={
+                "strategy": "portfolio",
+                "strategy_reason": "caller marked task ambiguous; portfolio fan-out",
+                "predicted_success": 0.5,
+            }
+        )
+        return NodeOutcome(state=new_state, route="fan_out_strategy")
 
     skills = state.bundle.skills
     if not skills:
@@ -44,6 +68,20 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
         return NodeOutcome(state=new_state, route="single_strategy")
 
     top = skills[0]
+    if len(skills) >= 2 and abs(skills[0].score - skills[1].score) <= PORTFOLIO_GAP:
+        if skills[0].score >= ADAPT_THRESHOLD:
+            new_state = state.model_copy(
+                update={
+                    "strategy": "portfolio",
+                    "strategy_reason": (
+                        f"ambiguous top skills {skills[0].skill_id} vs {skills[1].skill_id}"
+                    ),
+                    "predicted_success": top.score,
+                    "chosen": top,
+                }
+            )
+            return NodeOutcome(state=new_state, route="fan_out_strategy")
+
     if top.score >= APPLY_THRESHOLD:
         new_state = state.model_copy(
             update={
