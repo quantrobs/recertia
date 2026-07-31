@@ -1,4 +1,4 @@
-"""CLI: start/resume runs, inspect route logs, verify the ledger."""
+"""CLI: start/resume runs, inspect route logs, verify the ledger. Goal-aware (Variant B)."""
 
 from __future__ import annotations
 
@@ -12,12 +12,14 @@ import typer
 
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
+from contracts.goal import Goal, compile_goal
 from contracts.run import Task
 from fandea.graph.engine import GraphOrchestrator
 from fandea.ledger import HashChainLedger, LedgerVerificationError
 
 runs_app = typer.Typer(help="Inspect runs.")
 ledger_app = typer.Typer(help="Verify the provenance ledger.")
+goal_app = typer.Typer(help="Goal helpers (Variant B).")
 
 
 def _load_spec(spec_path: Path) -> dict:
@@ -25,40 +27,66 @@ def _load_spec(spec_path: Path) -> dict:
 
 
 def register_run_commands(app: typer.Typer) -> None:
-    """Attach ``run`` / ``resume`` to the root app and nest runs/ledger typers."""
+    """Attach ``run`` / ``resume`` to the root app and nest runs/ledger/goal typers."""
 
     app.add_typer(runs_app, name="runs")
     app.add_typer(ledger_app, name="ledger")
+    app.add_typer(goal_app, name="goal")
     app.command("run")(run_cmd)
     app.command("resume")(resume_cmd)
 
 
 def run_cmd(
-    spec: Path = typer.Option(..., "--spec", exists=True, help="Path to a run spec JSON file."),
+    spec: Optional[Path] = typer.Option(
+        None, "--spec", exists=True, help="Path to a run spec JSON file (legacy or goal-aware)."
+    ),
+    goal: Optional[Path] = typer.Option(
+        None, "--goal", exists=True, help="Path to a Goal JSON file (Variant B preferred)."
+    ),
     runs_root: Path = typer.Option(Path(".fandea"), "--runs-root", help="Where run state is persisted."),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="Defaults to a fresh UUID."),
+    workdir: Optional[Path] = typer.Option(None, "--workdir"),
     ablation: bool = typer.Option(
         False, "--ablation", help="Assign control arm via T3 ablation sampler (outside nodes)."
     ),
 ) -> None:
     """Start a run and drive it to completion (or to the first unrecoverable stop)."""
 
-    data = _load_spec(spec)
+    if goal is None and spec is None:
+        typer.echo("Provide --goal or --spec", err=True)
+        raise typer.Exit(code=2)
+
     rid = run_id or uuid.uuid4().hex[:12]
+    data: dict = {}
+    if spec is not None:
+        data = _load_spec(spec)
+
+    task_goal: Goal | None = None
+    if goal is not None:
+        task_goal = Goal.model_validate_json(goal.read_text())
+    elif "goal" in data:
+        task_goal = Goal.model_validate(data["goal"])
 
     task_data = data.get("task", {})
+    request = task_data.get("request") or data.get("request")
+    if task_goal is not None and task_goal.context and not request:
+        request = task_goal.context
+
     task = Task(
         task_id=task_data.get("task_id", rid),
-        request=task_data["request"],
-        task_class=task_data.get("task_class"),
+        goal=task_goal,
+        request=request,
+        task_class=task_data.get("task_class")
+        or (task_goal.task_class if task_goal else None)
+        or data.get("task_class"),
         submitted_at=datetime.now(timezone.utc),
         is_eval_fixture=bool(task_data.get("is_eval_fixture", False)),
     )
     criteria = [TaskCriterion(**c) for c in data.get("criteria", [])]
     budget = Budget(**data["budget"]) if "budget" in data else Budget()
     script = data.get("script")
-    workdir = Path(data["workdir"]) if "workdir" in data else runs_root / "workspaces" / rid
-    workdir.mkdir(parents=True, exist_ok=True)
+    wd = workdir or (Path(data["workdir"]) if "workdir" in data else runs_root / "workspaces" / rid)
+    wd.mkdir(parents=True, exist_ok=True)
 
     arm = data.get("arm", "treatment")
     if ablation:
@@ -77,7 +105,7 @@ def run_cmd(
     orchestrator = GraphOrchestrator(runs_root)
     try:
         state = orchestrator.start(
-            rid, task, criteria, budget=budget, workdir=workdir, script=script, arm=arm
+            rid, task, criteria, budget=budget, workdir=wd, script=script, arm=arm
         )
     finally:
         orchestrator.close()
@@ -150,3 +178,13 @@ def ledger_verify(
         typer.echo(f"LEDGER INVALID: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(f"ledger OK: {len(ledger.entries())} entries verified")
+
+
+@goal_app.command("compile")
+def goal_compile(
+    goal_path: Path = typer.Argument(..., exists=True, help="Goal JSON file"),
+) -> None:
+    """Compile a Goal to TaskCriterion[] and print JSON."""
+    goal = Goal.model_validate_json(goal_path.read_text())
+    criteria = compile_goal(goal)
+    typer.echo(json.dumps([c.model_dump(mode="json") for c in criteria], indent=2))
