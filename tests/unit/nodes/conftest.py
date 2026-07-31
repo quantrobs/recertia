@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+from contracts.run import RunState, Task
+from fandea.graph.ops import OperationLedger
+from fandea.ledger import HashChainLedger
+from fandea.nodes.context import NodeContext
+from fandea.workspace import WorkspaceManager
+
+
+@pytest.fixture
+def base_state() -> RunState:
+    return RunState(
+        run_id="unit-run",
+        task=Task(task_id="t", request="do a thing", submitted_at=datetime.now(timezone.utc)),
+    )
+
+
+@pytest.fixture
+def ctx(tmp_path: Path) -> NodeContext:
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    return NodeContext(
+        run_id="unit-run",
+        attempt_no=0,
+        node="test",
+        workdir=workdir,
+        workspaces=WorkspaceManager(tmp_path / "snapshots"),
+        ledger=HashChainLedger(tmp_path / "ledger.jsonl"),
+        ops=OperationLedger(tmp_path / "ops.db"),
+        script=None,
+    )
