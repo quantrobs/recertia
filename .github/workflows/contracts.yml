@@ -1,0 +1,49 @@
+name: contracts
+
+# Wires the R3 checks from docs/refactor-plan.md into CI (ADR-0009). This validates
+# contracts/ — the Pydantic models that are the normative structural source of truth — and
+# everything generated from it: schema/*.schema.json and skills/bump-python-dep/v3/*.json.
+#
+# This does not test src/fandea/, which does not exist yet (see docs/implementation-plan.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "scripts/**"
+      - "tests/contracts/**"
+      - "schema/**"
+      - "skills/**"
+      - "pyproject.toml"
+      - "conftest.py"
+      - ".github/workflows/contracts.yml"
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check contracts/ scripts/ tests/ conftest.py
+
+      - name: Type-check (mypy)
+        run: mypy contracts/
+
+      - name: Schema drift (schema/ must equal what contracts/ generates)
+        run: python3 scripts/generate_schemas.py --check
+
+      - name: Example drift (skills/bump-python-dep/v3/*.json must equal contracts/examples.py)
+        run: python3 scripts/export_examples.py --check
+
+      - name: Contract tests (structural validity, semantic profiles, route completeness, criteria timeline)
+        run: pytest tests/contracts/ -v
