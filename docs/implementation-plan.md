@@ -454,11 +454,7 @@ source; and `RunState.criteria` never type-checks a `SkillCertificationCriterion
 
 ## Immediate next actions
 
-1. Scaffold `pyproject.toml`, `ruff`/`mypy` config, and CI running lint, types, schema contract
-   tests, and the import-boundary test.
-2. Implement the graph engine and `RunState` from specs §3, with checkpointing and budgets.
-3. Stub all nodes with the routing predicates from specs §4.1, criteria locking at `intake`, and
-   failure classification.
-4. Implement workspace snapshot/restore, since correct retries are a precondition for every
-   later measurement.
-5. Land the first golden `repo-chore` fixture so M0's done-when is machine-checked.
+M0–M9 engineering done-whens are implemented and covered by the test suite. Remaining work is
+operational hardening called out under M9 (container sandbox, Postgres/`pgvector`, scope model,
+OpenTelemetry dashboards) and ongoing research outcomes tracked in
+[`assumptions.md`](assumptions.md) — not further milestone scaffolding.
