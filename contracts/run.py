@@ -4,6 +4,8 @@ Carries the ADR-0003-amendment and ADR-0008 fixes: ``criteria`` is typed
 ``list[TaskCriterion]`` (a ``SkillCertificationCriterion`` cannot type-check into it), and
 ``failure_signal`` — not a re-derived "some criterion failed" — is what ``classify_failure``
 requires.
+
+Variant B: ``Task.goal`` is the preferred primary input; ``request`` is optional context.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from contracts.budget import Budget, BudgetReservation, Spend
 from contracts.common import Arm, Strategy, Terminal
 from contracts.criteria import CriterionResult, TaskCriterion
 from contracts.failure import FailureSignal, FailureVerdict
+from contracts.goal import Goal
 from contracts.resources import ResourceConflict
 
 
@@ -25,7 +28,17 @@ class Task(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
-    request: str = Field(min_length=1)
+    goal: Goal | None = Field(
+        default=None,
+        description="Preferred primary input (Variant B). Compiles to TaskCriterion[] at intake.",
+    )
+    request: str | None = Field(
+        default=None,
+        description=(
+            "Optional natural-language context / legacy entry point. "
+            "Never the sole success contract when a Goal is present."
+        ),
+    )
     task_class: str | None = None
     workspace: str | None = None
     submitted_by: str | None = None
@@ -38,6 +51,14 @@ class Task(BaseModel):
             "recursively learn from itself."
         ),
     )
+
+    @model_validator(mode="after")
+    def _require_goal_or_request(self) -> "Task":
+        has_goal = self.goal is not None
+        has_request = self.request is not None and bool(self.request.strip())
+        if not has_goal and not has_request:
+            raise ValueError("Task requires either goal or non-empty request")
+        return self
 
 
 class RunManifest(BaseModel):
