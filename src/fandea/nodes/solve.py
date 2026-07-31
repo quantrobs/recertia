@@ -23,6 +23,10 @@ from fandea.solver.transcript import TranscriptWriter
 def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     attempt_no = state.attempt_no + 1
 
+    # M6: when fan_out left dispatched branches, execute each branch workspace once.
+    if state.branches and any(b.status == "dispatched" for b in state.branches):
+        return _solve_branches(state, ctx, attempt_no)
+
     if ctx.applicator is not None and state.strategy in ("apply", "adapt") and state.chosen and ctx.store:
         return _solve_via_applicator(state, ctx, attempt_no)
 
@@ -31,6 +35,80 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
         return _solve_script_via_tools(state, ctx, attempt_no, script)
 
     return _solve_legacy_script(state, ctx, attempt_no, script)
+
+
+def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeOutcome:
+    import subprocess
+
+    from contracts.criteria import CriterionResult
+
+    updated = []
+    total_cost = 0.0
+    for branch in state.branches:
+        if branch.status not in ("dispatched", "running"):
+            updated.append(branch)
+            continue
+        work = ctx.workdir / branch.branch_id
+        work.mkdir(parents=True, exist_ok=True)
+        script = ctx.script or ["true"]
+        ok = True
+        for command in script:
+            proc = subprocess.run(
+                command, shell=True, cwd=work, capture_output=True, text=True, timeout=60
+            )
+            if proc.returncode != 0:
+                ok = False
+                break
+        # Score owned criteria or a default true.
+        results = [
+            CriterionResult(criterion_id="branch-ok", kind="command", passed=ok, weight=1.0)
+        ]
+        cost = 0.01 * (1 + len(script))
+        total_cost += cost
+        updated.append(
+            branch.model_copy(
+                update={
+                    "status": "succeeded" if ok else "failed",
+                    "results": results,
+                    "cost_usd": cost,
+                    "workspace_ref": str(work),
+                }
+            )
+        )
+
+    # Parent budget must not exceed: if sum of child max would exceed, still record spent.
+    spent = state.spent.model_copy(
+        update={
+            "attempts": state.spent.attempts + 1,
+            "cost_usd": state.spent.cost_usd + total_cost,
+        }
+    )
+    if state.budget.max_cost_usd is not None and spent.cost_usd > state.budget.max_cost_usd:
+        from contracts.failure import FailureSignal
+        from fandea.nodes._util import now
+
+        signal = FailureSignal(source="solver", detail="parent budget exceeded by branches", at=now())
+        new_state = state.model_copy(
+            update={
+                "attempt_no": attempt_no,
+                "spent": spent,
+                "branches": updated,
+                "failure_signal": signal,
+                "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
+            }
+        )
+        return NodeOutcome(state=new_state, route="pre_validation_failure_signal", note="budget exceeded")
+
+    new_state = state.model_copy(
+        update={
+            "attempt_no": attempt_no,
+            "spent": spent,
+            "branches": updated,
+            "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
+            "failure_signal": None,
+        }
+    )
+    return NodeOutcome(state=new_state, route="attempt_completed", note=f"ran {len(updated)} branches")
 
 
 def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeOutcome:
