@@ -7,16 +7,16 @@ writes consume the reservation under the same lock family.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-import fcntl
-
 from contracts.skill import SkillVersion
 from fandea.memory.procedural.store import SkillStore
+
 
 def _existing_versions(skills_dir: Path, skill_id: str) -> list[int]:
     skill_dir = skills_dir / skill_id

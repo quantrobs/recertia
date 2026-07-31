@@ -60,9 +60,14 @@ def keys_issue(
     from fandea.api.auth import ApiKeyStore
 
     issued = ApiKeyStore(db).issue(
-        tenant_id=tenant_id, scopes={scope.strip() for scope in scopes.split(",") if scope.strip()}, actor=actor
+        tenant_id=tenant_id,
+        scopes={scope.strip() for scope in scopes.split(",") if scope.strip()},
+        actor=actor,
     )
-    typer.echo(f"key_id={issued.key_id} tenant={issued.tenant_id} scopes={','.join(sorted(issued.scopes))}")
+    typer.echo(
+        f"key_id={issued.key_id} tenant={issued.tenant_id} "
+        f"scopes={','.join(sorted(issued.scopes))}"
+    )
     typer.echo(f"secret={issued.secret}")
 
 

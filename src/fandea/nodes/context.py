@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Protocol, TypeVar
 
+from contracts.ledger import LedgerAction, LedgerEntry
 from contracts.run import RunState
 
 if TYPE_CHECKING:
@@ -40,7 +42,15 @@ class WorkspaceCapability(Protocol):
 class LedgerCapability(Protocol):
     """Append-only audit capability required by terminal nodes."""
 
-    def append(self, **kwargs: object) -> object: ...
+    def append(
+        self,
+        *,
+        actor: str,
+        action: LedgerAction,
+        target: str,
+        evidence: dict[Any, Any] | None = None,
+        at: datetime | None = None,
+    ) -> LedgerEntry: ...
 
 
 @dataclass
