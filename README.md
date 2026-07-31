@@ -47,56 +47,50 @@ from meaning "one long process you have to trust". Detail lives in
 
 ```mermaid
 flowchart TB
-    subgraph clients["Clients"]
-        CLI[CLI]
-        API[FastAPI]
+    subgraph user["User"]
+        GUI[GUI]
+        API[Task / API]
     end
 
-    subgraph task["Task plane — online, bounded, per request"]
-        direction LR
-        IN[intake] --> RET[retrieve]
-        RET --> PLAN[plan]
-        PLAN --> SOLVE[solve]
-        SOLVE --> VAL[validate]
-        VAL -->|fail, budget left| EVO[evolve]
-        EVO --> SOLVE
-        VAL -->|pass| DIST[distill]
-        DIST --> REV[review / store]
+    subgraph exec["Execution plane: bounded, per request"]
+        CHECK[check] --> PR["plan / retrieve"] --> TRAIN[train] --> SOLVE[solve] --> VAL[validate] --> REV["review / store"]
+        SOLVE -->|"fail / adapt self"| SENSE[sense] --> APLAN[plan] --> BUILD[build] --> REV
     end
 
-    subgraph mem["Memory plane — durable, versioned, reviewed"]
-        PROC[(Procedural skills)]
-        SEM[(Semantic facts)]
-        EPI[(Episodic cases)]
-        AFF[(Affordance)]
-        POL[(Policy)]
+    subgraph mem["Memory plane – durable, versioned, reviewed"]
+        PROC[("Procedural skills")]
+        SEM[("Semantic facts")]
+        EPI[("Episodic cases")]
+        UTT[("Utterances")]
+        POL[("Policy")]
     end
 
-    subgraph imp["Improvement plane — offline, scheduled"]
-        MINE[Miner]
-        CUR[Curator]
+    subgraph imp["Improvement plane – offline, scheduled"]
+        REF[Refine]
+        EVO[Evolve]
         PRAC[Practice]
-        RECERT[Recertifier]
-        GATE{{Golden gate}}
+        DIST["Distill / Run"]
+        GATE{{Quality gate}}
+        REF --> GATE
+        EVO --> GATE
+        PRAC --> GATE
+        DIST --> GATE
     end
 
-    CLI --> task
-    API --> task
-    mem --> RET
-    REV --> mem
-    mem <--> imp
-    MINE --> GATE
-    CUR --> GATE
-    PRAC --> GATE
-    RECERT --> GATE
-    GATE -->|candidate → approved| PROC
-    task --> EVAL[Eval / causal lift]
-    imp --> EVAL
+    EVAL["Eval / causal IR"]
+
+    GUI --> SOLVE
+    API --> TRAIN
+    mem <--> exec
+    mem --> EVAL
+    exec <--> EVAL
+    imp <--> EVAL
+    GATE -->|"if candidate approved"| REV
 ```
 
-- **Task plane** — one bounded graph walk per request; emits candidate memory, never learns in place.
-- **Memory plane** — plural stores (skills, facts, cases, affordances, policy); diffable and revertible.
-- **Improvement plane** — scheduled jobs that propose library changes; promotion always goes through the golden gate.
+- **Execution plane** — one bounded graph walk per request; fails into sense → plan → build; emits candidate memory, never learns in place.
+- **Memory plane** — plural stores (skills, facts, cases, utterances, policy); diffable and revertible.
+- **Improvement plane** — scheduled Refine / Evolve / Practice / Distill jobs; promotion always goes through the quality gate.
 
 ### The loop in one picture
 
