@@ -11,6 +11,7 @@ from contracts.stats import SkillStats
 from contracts.status import SkillStatus
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.allocate import allocate_and_write
+from fandea.memory.procedural.hygiene import scan_skill
 from fandea.memory.procedural.store import SkillStore
 from fandea.memory.semantic import FactStore
 
@@ -109,6 +110,10 @@ def promote_skill_scope(
         raise ScopeError("cross-scope promotion requires a recorded reviewer")
     if not is_upscope(version.scope, to_scope):
         raise ScopeError(f"refusing non-upscope {version.scope} → {to_scope}")
+    # Scope lifting must inspect the *entire* immutable payload, not merely
+    # intent.  Executable step inputs and criteria are common secret carriers.
+    if scan_skill(version).secret_scan != "passed":
+        raise ScopeError("refusing scope promotion: full skill payload contains a secret pattern")
     new_intent, report = redact_skill_text(version.intent)
     draft = version.model_copy(update={"scope": to_scope, "intent": new_intent, "version": 1})
     stamped = allocate_and_write(store, draft)

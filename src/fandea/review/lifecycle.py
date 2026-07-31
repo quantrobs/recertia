@@ -58,13 +58,10 @@ def maybe_auto_promote_from_shadow(
     if lift < required_lift:
         raise LifecycleError(f"self_distilled bar not met: lift={lift} need>={required_lift}")
 
-    approved = status.model_copy(
-        update={"lifecycle": "approved", "active": False}
-    )
-    from fandea.memory.procedural.active_set import assign_active_on_approval
-
-    approved = assign_active_on_approval(approved)
-    store.write_status(approved)
+    # Shadow evidence makes this version eligible for the golden-gated
+    # promotion service; it is not itself an approval authority.
+    candidate = status.model_copy(update={"lifecycle": "candidate", "active": False})
+    store.write_status(candidate)
     store.write_stats(
         stats.model_copy(
             update={
@@ -83,7 +80,7 @@ def maybe_auto_promote_from_shadow(
             evidence={"lift": lift, "trust": trust, "path": "shadow"},
             at=datetime.now(timezone.utc),
         )
-    return approved
+    return candidate
 
 
 def quarantine_on_failures(
@@ -172,10 +169,13 @@ def restore_benched(
     status = store.get_status(skill_id, version)
     if status.lifecycle != "benched":
         raise LifecycleError("only benched skills can be restored")
+    # Restoring availability requires fresh independent regression evidence.
+    # The golden promotion service is the only authority that may transition
+    # this candidate to approved.
     restored = status.model_copy(
         update={
-            "lifecycle": "approved",
-            "active": True,
+            "lifecycle": "candidate",
+            "active": False,
             "retirement": status.retirement.model_copy(
                 update={"restored_at": datetime.now(timezone.utc)}
             ),

@@ -162,11 +162,12 @@ class Retriever:
         readable_scopes: set[str],
     ) -> DropRecord | None:
         sid, ver = row["skill_id"], int(row["version"])
-        if row["lifecycle"] not in ("approved", "shadow"):
+        # Shadow evidence is collected by the dedicated shadow runner.  It
+        # must never be offered as an online caller-visible candidate.
+        if row["lifecycle"] != "approved":
             return DropRecord(sid, ver, "lifecycle", f"lifecycle={row['lifecycle']}")
-        # Active-set filter: approved skills must be active to apply. Shadow may pass for
-        # comparison (specs §2.2) even when active=False.
-        if row["lifecycle"] == "approved" and not row["active"]:
+        # Approved skills must be in the bounded active set to apply.
+        if not row["active"]:
             return DropRecord(sid, ver, "active_set", "approved but active=False")
         if row["scope"] not in readable_scopes:
             return DropRecord(sid, ver, "scope", f"scope={row['scope']} not readable")

@@ -14,6 +14,7 @@ changing this interface.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from contracts.skill import SkillVersion
@@ -38,13 +39,17 @@ class SkillStore:
 
         dest_dir = self.version_dir(version.skill_id, version.version)
         dest = dest_dir / "version.json"
-        if dest.exists():
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        payload = version.model_dump_json(indent=2) + "\n"
+        try:
+            fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError as exc:
             raise ImmutabilityError(
                 f"SkillVersion {version.skill_id}@v{version.version} already exists at {dest}; "
                 "evolution produces version N+1, never a rewrite (ADR-0007)"
-            )
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest.write_text(version.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            ) from exc
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
         return dest
 
     def write_status(self, status: SkillStatus) -> Path:

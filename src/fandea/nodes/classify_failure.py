@@ -13,7 +13,7 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if signal is None:
         raise ValueError("classify_failure requires a FailureSignal on the run state (ADR-0008)")
 
-    if state.spent.attempts >= state.budget.max_attempts:
+    if state.spent.attempts >= state.budget.max_attempts or "budget exhausted" in signal.detail:
         evidence = (
             f"spent.attempts={state.spent.attempts} >= "
             f"budget.max_attempts={state.budget.max_attempts}"
@@ -21,6 +21,13 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
         failure = FailureVerdict(
             failure_class="budget",
             evidence=[evidence],
+            counts_against_trust=False,
+            escalate_to_human=False,
+        )
+    elif signal.source == "join":
+        failure = FailureVerdict(
+            failure_class="merge",
+            evidence=[signal.detail],
             counts_against_trust=False,
             escalate_to_human=False,
         )
@@ -97,10 +104,10 @@ def _is_tool_failure(state: RunState, ctx: NodeContext, detail: str) -> bool:
         return True  # M0/M1 path: solver-raised ⇒ tool
     # Known flaky tool or matching error signature → tool class (no trust impact).
     if ctx.tools is not None:
-        for name in ctx.tools.registry.names():
-            if ctx.tools.registry.is_flaky(name) and name in detail:
+        for name in ctx.tools.names():
+            if ctx.tools.is_flaky(name) and name in detail:
                 return True
-            sig = ctx.tools.registry.match_error_signature(name, detail)
+            sig = ctx.tools.match_error_signature(name, detail)
             if sig:
                 return True
     if ctx.affordances is not None:

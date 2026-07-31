@@ -76,22 +76,31 @@ class ReviewService:
                 note="hygiene scan failed; draft contains a secret pattern",
             )
 
-        golden_ref: str | None = None
-        if self.golden_root is not None:
-            report = self._run_gate(version)
-            golden_ref = str(
-                self.decisions_dir / f"{version.skill_id}-v{version.version}-golden.json"
+        # A review decision may not approve when no applicable golden suite is
+        # configured.  This is deliberately fail-closed: policy is advisory
+        # without independently executable regression evidence.
+        if self.golden_root is None:
+            return self._write_decision(
+                version,
+                run_id=run_id,
+                outcome="rejected",
+                reviewer=reviewer,
+                note="golden regression gate is required for approval",
             )
-            report.write(Path(golden_ref))
-            if report.results and not report.all_passed:
-                return self._write_decision(
-                    version,
-                    run_id=run_id,
-                    outcome="rejected",
-                    reviewer=reviewer,
-                    note="golden regression gate failed",
-                    golden_report_ref=golden_ref,
-                )
+        report = self._run_gate(version)
+        golden_ref = str(
+            self.decisions_dir / f"{version.skill_id}-v{version.version}-golden.json"
+        )
+        report.write(Path(golden_ref))
+        if not report.results or not report.all_passed:
+            return self._write_decision(
+                version,
+                run_id=run_id,
+                outcome="rejected",
+                reviewer=reviewer,
+                note="golden regression gate failed or had no applicable fixture",
+                golden_report_ref=golden_ref,
+            )
 
         outcome = self.policy(version, run_id)
         return self._write_decision(

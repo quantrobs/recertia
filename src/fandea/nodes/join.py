@@ -32,7 +32,7 @@ def join(state: RunState, ctx: NodeContext) -> NodeOutcome:
             update={
                 "merge_audits": [*state.merge_audits, audit],
                 "failure_signal": FailureSignal(
-                    source="solver", detail=f"merge gap: missing={missing}", at=now()
+                    source="join", detail=f"merge gap: missing={missing}", at=now()
                 ),
                 "failure": FailureVerdict(
                     failure_class="merge",

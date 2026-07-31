@@ -53,6 +53,8 @@ class NodeContext:
     # M2 services
     tools: "ToolRuntime | None" = None
     model: "ModelClient | None" = None
+    # Independent verifier identity; a solver model must never judge its own artifact.
+    verifier_model: "ModelClient | None" = None
     transcripts: "TranscriptStore | None" = None
     applicator: "SkillApplicator | None" = None
     episodic: "EpisodicStore | None" = None

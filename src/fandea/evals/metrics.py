@@ -29,9 +29,15 @@ def build_metric_report(
     judge_isolation_violations: int = 0,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
-    treatment = [r for r in rows if r.get("arm", "treatment") == "treatment"]
-    control = [r for r in rows if r.get("arm") == "control"]
-    non_eval = [r for r in rows if not r.get("is_eval_fixture")]
+    # User-facing metrics and lift exclude fixtures and synthetic practice
+    # traffic before arms are formed; filtering afterwards contaminates CIs.
+    non_eval = [
+        r
+        for r in rows
+        if not r.get("is_eval_fixture") and r.get("arm") != "practice"
+    ]
+    treatment = [r for r in non_eval if r.get("arm", "treatment") == "treatment"]
+    control = [r for r in non_eval if r.get("arm") == "control"]
 
     fas = first_attempt_success_sample(non_eval)
     reuse_num = sum(1 for r in non_eval if r.get("strategy") in ("apply", "adapt"))
