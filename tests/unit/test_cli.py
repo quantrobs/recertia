@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from fandea.cli.main import app
+
+runner = CliRunner()
+
+
+def _spec(workdir: Path) -> dict:
+    return {
+        "task": {"request": "write output.txt"},
+        "criteria": [
+            {
+                "id": "output-exists",
+                "kind": "command",
+                "run": "test -f output.txt",
+                "source": "caller",
+                "weight": 1.0,
+                "sensitivity_proof": {
+                    "criterion_id": "output-exists",
+                    "negative_fixture": "empty workspace",
+                    "rejected": True,
+                    "checked_at": "2026-01-01T00:00:00Z",
+                },
+            }
+        ],
+        "script": ["python3 -c \"open('output.txt','w').write('done')\""],
+        "workdir": str(workdir),
+    }
+
+
+def test_run_and_show_and_ledger_verify(tmp_path: Path) -> None:
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_text(json.dumps(_spec(workdir)))
+    runs_root = tmp_path / "runs"
+
+    result = runner.invoke(
+        app, ["run", "--spec", str(spec_path), "--runs-root", str(runs_root), "--run-id", "cli-run-1"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "terminal=solved" in result.output
+
+    show_result = runner.invoke(
+        app, ["runs", "show", "cli-run-1", "--runs-root", str(runs_root), "--route-log"]
+    )
+    assert show_result.exit_code == 0, show_result.output
+    assert "terminal=solved" in show_result.output
+    assert "distill" in show_result.output
+
+    verify_result = runner.invoke(app, ["ledger", "verify", "--runs-root", str(runs_root)])
+    assert verify_result.exit_code == 0, verify_result.output
+    assert "ledger OK" in verify_result.output
+
+
+def test_ledger_verify_on_empty_runs_root(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["ledger", "verify", "--runs-root", str(tmp_path / "nothing-here")])
+    assert result.exit_code == 0
+    assert "0 entries" in result.output

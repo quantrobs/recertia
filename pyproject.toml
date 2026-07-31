@@ -1,10 +1,11 @@
 [project]
-name = "fandea-contracts"
+name = "fandea"
 version = "0.1.0"
-description = "Contracts-as-code layer for Fandea (ADR-0009). Not the runtime; see docs/implementation-plan.md."
+description = "Fandea: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/fandea/ is the M0 walking skeleton (docs/implementation-plan.md)."
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9,<3",
+    "typer>=0.12",
 ]
 
 [project.optional-dependencies]
@@ -14,6 +15,9 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+
+[project.scripts]
+fandea = "fandea.cli.main:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -27,12 +31,13 @@ select = ["E", "F", "I", "W"]
 
 [tool.mypy]
 python_version = "3.11"
-packages = ["contracts"]
+files = ["contracts", "src/fandea"]
 ignore_missing_imports = true
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["contracts"]
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["contracts", "contracts.*", "fandea", "fandea.*"]

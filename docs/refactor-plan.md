@@ -29,14 +29,15 @@ done-whens (split engineering gate from research outcome). **B7 is resolved**: t
 written into M4/M5/M9's done-whens, and [`docs/assumptions.md`](assumptions.md) now exists,
 migrating [`references.md` §8](references.md#8-open-questions-the-literature-does-not-settle-for-us).
 
-**R2 (skeleton and generated contracts) is substantially done** — `contracts/`,
-`scripts/generate_schemas.py`, `scripts/export_examples.py`, and semantic profiles in
-`contracts/profiles.py` all exist and are tested. What remains of R2 is the `src/fandea/`
-runtime skeleton itself, which M0 builds against these contracts. **R3 is partially done**:
-route completeness, schema-drift, and semantic-profile checks run as
-[`.github/workflows/contracts.yml`](../.github/workflows/contracts.yml) on every push and PR;
-cross-refs, milestone-dependency, and assumptions-hygiene checks remain open. R0, R4, and R5
-are untouched by this pass — they were never blockers.
+**R2 is done** — `contracts/`, `scripts/generate_schemas.py`, `scripts/export_examples.py`,
+semantic profiles in `contracts/profiles.py`, and now the `src/fandea/` M0 walking-skeleton
+runtime (graph engine, all fifteen nodes, hash-chain ledger, workspace snapshotting, the
+operation ledger, the T0–T3 import-boundary test, and the CLI) all exist and are tested — see
+`docs/implementation-plan.md` M0. **R3 is partially done**: route completeness, schema-drift,
+semantic-profile checks, and the full `src/fandea/`/`contracts/` test suite run as
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every push and PR; cross-refs,
+milestone-dependency, and assumptions-hygiene checks remain open. R0, R4, and R5 are untouched
+by this pass — they were never blockers.
 
 | Blocker | ADR | Contracts | Tests | Docs updated |
 | --- | --- | --- | --- | --- |
@@ -48,9 +49,9 @@ are untouched by this pass — they were never blockers.
 | B6 — milestone dependency order | — (prose fix, no new decision) | — | — (see R3 remaining work below) | implementation-plan M0–M3 |
 | B7 — research vs. engineering gates | — (prose fix, no new decision) | — | — (see R3 remaining work below) | implementation-plan M4 M5 M9; `assumptions.md` (new) |
 
-This section can be deleted once R2's `src/fandea/` skeleton lands and R3's checks are wired
-into CI, at which point this document's only remaining content is the review notes below and
-the secondary debt in §1, which have not yet been picked up.
+This section can be deleted once R3's remaining checks (cross-refs, milestone dependency,
+assumptions hygiene) are wired into CI, at which point this document's only remaining content
+is the review notes below and the secondary debt in §1, which have not yet been picked up.
 
 ---
 

@@ -22,6 +22,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
+from contracts.ledger import LedgerEntry  # noqa: E402
 from contracts.run import RunState  # noqa: E402
 from contracts.skill import SkillVersion  # noqa: E402
 from contracts.stats import SkillStats  # noqa: E402
@@ -36,6 +37,7 @@ MODELS: dict[str, type] = {
     "merge_audit.schema.json": MergeAudit,
     "failure_signal.schema.json": FailureSignal,
     "failure_verdict.schema.json": FailureVerdict,
+    "ledger_entry.schema.json": LedgerEntry,
 }
 
 
