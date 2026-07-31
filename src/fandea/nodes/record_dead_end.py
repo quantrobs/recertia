@@ -16,6 +16,14 @@ def record_dead_end(state: RunState, ctx: NodeContext) -> NodeOutcome:
     )
     note = f"dead end recorded: failure_class={failure_class!r}"
 
+    # Eval firewall: fixture failures must not poison episodic retrieval memory.
+    if state.task.is_eval_fixture:
+        return NodeOutcome(
+            state=state,
+            route="always",
+            note=f"{note}; eval firewall: episodic write suppressed",
+        )
+
     if ctx.episodic is not None:
         case = CaseRecord(
             case_id=f"{ctx.run_id}-a{state.attempt_no}",

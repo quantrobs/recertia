@@ -108,10 +108,25 @@ def allocate_and_write(store: SkillStore, version: SkillVersion) -> SkillVersion
     """Atomically allocate the next version and persist ``version``."""
 
     with _skill_lock(store, version.skill_id):
-        # Direct write while holding the same lock cannot race another process.  Do not create
-        # a durable reservation here: a failed write must not leave an artificial version gap.
-        n = max([0, *_existing_versions(store.root, version.skill_id)]) + 1
-        stamped = version.model_copy(update={"version": n})
-        path = store.write_version(stamped)
-        _ = path
-        return stamped
+        conn = _init_db(_allocation_db(store))
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            reserved = [
+                int(row[0])
+                for row in conn.execute(
+                    "SELECT version FROM reservations WHERE skill_id = ?", (version.skill_id,)
+                )
+            ]
+            # Honour outstanding reservations so mixed allocate_next_version /
+            # allocate_and_write callers cannot collide on the same version.
+            n = max([0, *_existing_versions(store.root, version.skill_id), *reserved]) + 1
+            stamped = version.model_copy(update={"version": n})
+            path = store.write_version(stamped)
+            _ = path
+            conn.execute("COMMIT")
+            return stamped
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()

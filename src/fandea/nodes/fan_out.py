@@ -142,20 +142,19 @@ def fan_out(state: RunState, ctx: NodeContext) -> NodeOutcome:
 def _partition_criteria(
     state: RunState, *, max_parts: int | None = None
 ) -> list[tuple[str, list[str]]] | None:
-    """Return subtask partitions or None when criteria cannot be cleanly split."""
+    """Return subtask partitions or None when criteria cannot be cleanly split.
 
-    crits = list(state.criteria)
-    if len(crits) < 2:
+    Required judge criteria stay at join and are not owned by branches.
+    """
+
+    local = [c for c in state.criteria if c.kind != "judge"]
+    if len(local) < 2:
         return None
-    # Simple even split; refuse if any criterion lacks an id (impossible) or odd join-only flag.
-    if any(getattr(c, "kind", None) == "judge" and c.weight >= 1.0 for c in crits):
-        # Required judges stay at join — still partitionable if ≥2 non-join criteria.
-        pass
-    part_count = min(max_parts or 2, len(crits))
+    part_count = min(max_parts or 2, len(local))
     if part_count < 2:
         return None
     parts: list[list] = [[] for _ in range(part_count)]
-    for index, criterion in enumerate(crits):
+    for index, criterion in enumerate(local):
         parts[index % part_count].append(criterion)
     return [
         (f"part-{index + 1}", [criterion.id for criterion in part])

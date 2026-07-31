@@ -74,11 +74,37 @@ class OperationLedger:
         resumed run skip re-executing the side effect.
         """
 
-        applied, cached = self.get(run_id, attempt_no, node, op_seq)
-        if applied:
-            return cached  # type: ignore[return-value]
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._conn.execute(
+                    "SELECT result_json FROM operations "
+                    "WHERE run_id=? AND attempt_no=? AND node=? AND op_seq=?",
+                    (run_id, attempt_no, node, op_seq),
+                ).fetchone()
+                if row is not None:
+                    self._conn.execute("COMMIT")
+                    return json.loads(row[0])
+                # Claim the key before the side effect so concurrent callers block on the
+                # lock / unique constraint instead of double-applying ``fn``.
+                self._conn.execute(
+                    "INSERT INTO operations (run_id, attempt_no, node, op_seq, result_json) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (run_id, attempt_no, node, op_seq, json.dumps({"__pending__": True})),
+                )
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+
         result = fn()
-        self.put(run_id, attempt_no, node, op_seq, result)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE operations SET result_json=? "
+                "WHERE run_id=? AND attempt_no=? AND node=? AND op_seq=?",
+                (json.dumps(result), run_id, attempt_no, node, op_seq),
+            )
+            self._conn.commit()
         return result
 
     def count_for_node(self, run_id: str, attempt_no: int, node: str) -> int:

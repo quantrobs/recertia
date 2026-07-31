@@ -78,6 +78,11 @@ class Retriever:
 
         return self._index.rebuild(entries)  # type: ignore[arg-type]
 
+    def snapshot_id(self) -> str:
+        """Current library index snapshot id without exposing the backing index."""
+
+        return self._index.snapshot_id()
+
     def search(
         self,
         query: str,

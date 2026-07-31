@@ -305,10 +305,26 @@ def run_seed_library_gate(
 
 def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCriterion]:
     if "criteria" in task_spec:
-        return [TaskCriterion(**c) for c in task_spec["criteria"]]
+        out = [TaskCriterion(**c) for c in task_spec["criteria"]]
+        proven = [
+            c
+            for c in out
+            if c.is_required
+            and c.kind != "judge"
+            and c.sensitivity_proof is not None
+            and c.sensitivity_proof.rejected
+            and c.sensitivity_proof.evidence_hash
+        ]
+        if not proven:
+            raise ValueError(
+                f"golden task cannot promote {version.skill_id}@v{version.version}: "
+                "task criteria lack a required non-judge criterion with hashed rejecting "
+                "sensitivity evidence"
+            )
+        return out
     # A golden task may adapt an already-proven non-judge certification criterion, but may
     # never fabricate a proof or a trivially passing task criterion.
-    out: list[TaskCriterion] = []
+    adapted: list[TaskCriterion] = []
     for c in version.certification_criteria:
         if c.kind == "judge" or not c.is_required:
             continue
@@ -318,7 +334,7 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
                 f"golden task cannot promote {version.skill_id}@v{version.version}: "
                 f"criterion {c.id!r} lacks hashed rejecting sensitivity evidence"
             )
-        out.append(
+        adapted.append(
             TaskCriterion(
                 id=c.id,
                 kind=c.kind,  # type: ignore[arg-type]
@@ -329,9 +345,9 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
                 sensitivity_proof=proof,
             )
         )
-    if not out:
+    if not adapted:
         raise ValueError(
             f"golden task cannot promote {version.skill_id}@v{version.version}: "
             "no required non-judge criterion with hashed sensitivity evidence"
         )
-    return out
+    return adapted

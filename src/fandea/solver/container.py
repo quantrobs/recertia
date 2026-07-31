@@ -78,7 +78,7 @@ def run_in_container(
     if not workdir.is_dir():
         raise SandboxError(f"workdir does not exist: {workdir}")
     limits = limits or SandboxLimits(allow_network=False)
-    spec = spec or ContainerSpec()
+    spec = _enforce_container_policy(spec or ContainerSpec())
     if limits.allow_network:
         raise SandboxError("container backend refuses allow_network=True")
 
@@ -86,6 +86,25 @@ def run_in_container(
     if runtime is None:
         raise SandboxError("no approved container runtime available (Docker or Podman required)")
     return _container_run(runtime, command, workdir=workdir, spec=spec, timeout_s=timeout_s)
+
+
+_ALLOWED_IMAGES = frozenset({"python:3.12-slim", "python:3.11-slim", "python:3.12", "python:3.11"})
+
+
+def _enforce_container_policy(spec: ContainerSpec) -> ContainerSpec:
+    """Normalize caller-supplied specs to the immutable sandbox policy."""
+
+    if spec.network != "none":
+        raise SandboxError(f"container network {spec.network!r} is not allowed")
+    if spec.user in {"0", "0:0", "root", "root:root"}:
+        raise SandboxError("container root user is not allowed")
+    if not spec.read_only_root:
+        raise SandboxError("writable container root filesystem is not allowed")
+    if not spec.workdir_mount.startswith("/"):
+        raise SandboxError("workdir_mount must be an absolute container path")
+    if spec.image not in _ALLOWED_IMAGES and not os.environ.get("FANDEA_ALLOW_CUSTOM_IMAGE"):
+        raise SandboxError(f"container image {spec.image!r} is not on the allowlist")
+    return spec
 
 
 def _container_run(

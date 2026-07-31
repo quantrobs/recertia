@@ -12,9 +12,23 @@ from fandea.nodes.context import NodeContext, NodeOutcome
 
 def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if state.arm == "control":
+        # Still pin the library snapshot so control observations compare against the
+        # same index the treatment arm would have queried.
+        snapshot_id = None
+        if ctx.retriever is not None:
+            snapshot_id = ctx.retriever.snapshot_id()
         bundle = MemoryBundle(suppressed=True)
-        new_state = state.model_copy(update={"bundle": bundle})
-        return NodeOutcome(state=new_state, route="always", note="control arm: retrieval suppressed")
+        updates: dict = {"bundle": bundle}
+        if snapshot_id is not None:
+            updates["manifest"] = state.manifest.model_copy(
+                update={"index_snapshot_id": snapshot_id}
+            )
+        new_state = state.model_copy(update=updates)
+        return NodeOutcome(
+            state=new_state,
+            route="always",
+            note=f"control arm: retrieval suppressed snapshot={snapshot_id}",
+        )
 
     skills = []
     snapshot_id = None
@@ -84,10 +98,12 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
         dead_ends=dead_ends,
         tool_cautions=tool_cautions,
     )
-    updates: dict = {"bundle": bundle}
+    state_updates: dict = {"bundle": bundle}
     if snapshot_id is not None:
-        updates["manifest"] = state.manifest.model_copy(update={"index_snapshot_id": snapshot_id})
-    new_state = state.model_copy(update=updates)
+        state_updates["manifest"] = state.manifest.model_copy(
+            update={"index_snapshot_id": snapshot_id}
+        )
+    new_state = state.model_copy(update=state_updates)
     note = (
         f"snapshot={snapshot_id} skills={len(skills)} dead_ends={len(dead_ends)} "
         f"cautions={len(tool_cautions)} dropped={dropped}"

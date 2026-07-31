@@ -73,6 +73,8 @@ class RetrieverCapability(Protocol):
         entries: list[tuple[SkillVersion, SkillStatus, SkillStats]],
     ) -> str: ...
 
+    def snapshot_id(self) -> str: ...
+
 
 class SkillStoreCapability(Protocol):
     """T0-facing skill library writes: candidates only (approved lifecycle is gated elsewhere)."""
