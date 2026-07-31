@@ -1,14 +1,23 @@
-"""``reject_draft``: record a review rejection (specs §4, ADR-0008). M0 stub.
-
-Unreachable on M0's default path (``review`` always approves — see ``review.py``). No
-Correction Miner exists yet (M7) to consume the rejection diff; recorded as a note only.
-"""
+"""``reject_draft``: record a rejected distillation with curation provenance."""
 
 from __future__ import annotations
 
 from contracts.run import RunState
+from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
 
 
 def reject_draft(state: RunState, ctx: NodeContext) -> NodeOutcome:
-    return NodeOutcome(state=state, route="always", note="draft rejected (M0 stub: no Correction Miner yet)")
+    skill_id = (state.draft or {}).get("skill_id", "unknown")
+    entry = ctx.ledger.append(
+        actor=ctx.run_id,
+        action="policy_change",
+        target=str(skill_id),
+        evidence={"run_id": ctx.run_id, "draft": bool(state.draft), "decision": "reject_draft"},
+        at=now(),
+    )
+    return NodeOutcome(
+        state=state,
+        route="always",
+        note=f"rejected draft {skill_id}; ledger seq={entry.seq}",
+    )

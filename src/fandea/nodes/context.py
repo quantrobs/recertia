@@ -15,7 +15,9 @@ if TYPE_CHECKING:
     from fandea.memory.affordance import AffordanceStore
     from fandea.memory.episodic import EpisodicStore
     from fandea.memory.procedural.store import SkillStore
+    from fandea.memory.semantic import FactStore
     from fandea.retrieval.pipeline import Retriever
+    from fandea.review import ReviewService
     from fandea.solver.apply import SkillApplicator
     from fandea.solver.model import ModelClient
     from fandea.solver.tools import ToolRuntime
@@ -55,6 +57,10 @@ class NodeContext:
     applicator: "SkillApplicator | None" = None
     episodic: "EpisodicStore | None" = None
     affordances: "AffordanceStore | None" = None
+    # M3 services
+    facts: "FactStore | None" = None
+    reviewer: "ReviewService | None" = None
+    one_off_log: Path | None = None
 
     def op_once(self, op_seq: int, fn: Callable[[], T]) -> T:
         return self.ops.run_once(self.run_id, self.attempt_no, self.node, op_seq, fn)

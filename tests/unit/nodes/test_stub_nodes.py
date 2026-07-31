@@ -63,19 +63,63 @@ def test_join_passes_when_all_branches_settled_and_criteria_pass(
     assert outcome.route == "merge_complete_and_passing"
 
 
-def test_review_auto_approves_in_m0(base_state: RunState, ctx: NodeContext) -> None:
+def test_review_rejects_missing_draft(base_state: RunState, ctx: NodeContext) -> None:
     outcome = review(base_state, ctx)
-    assert outcome.route == "approved"
+    assert outcome.route == "rejected"
 
 
-def test_store_appends_a_ledger_entry(base_state: RunState, ctx: NodeContext) -> None:
-    state = base_state.model_copy(update={"draft": {"skill_id": "demo-skill"}})
+def test_store_writes_skill_and_ledger(base_state: RunState, ctx: NodeContext, tmp_path) -> None:
+    from datetime import datetime, timezone
+
+    from contracts.criteria import SensitivityProof, SkillCertificationCriterion
+    from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+    from fandea.memory.procedural.store import SkillStore
+
+    proof = SensitivityProof(
+        criterion_id="ok",
+        negative_fixture="empty",
+        rejected=True,
+        checked_at=datetime.now(timezone.utc),
+    )
+    version = SkillVersion(
+        skill_id="unit-demo-skill",
+        version=1,
+        title="Unit demo skill title",
+        intent="Intent long enough for the skill version contract minimum.",
+        task_class="repo-chore",
+        steps=[
+            Step(
+                id="step_1",
+                tool="shell",
+                intent="Write a trivial marker file into the workspace",
+                inputs={"command": "echo hi > output.txt"},
+            )
+        ],
+        certification_criteria=[
+            SkillCertificationCriterion(
+                id="ok",
+                kind="command",
+                run="test -f output.txt",
+                sensitivity_proof=proof,
+                preregistered=True,
+            )
+        ],
+        provenance=Provenance(
+            distilled_from_run="unit-run",
+            distilled_at=datetime.now(timezone.utc),
+            curation="self_distilled",
+            authoring_prior_version="ap-test",
+        ),
+        hygiene=Hygiene(secret_scan="skipped"),
+    )
+    ctx.store = SkillStore(tmp_path / "skills")
+    state = base_state.model_copy(update={"draft": version.model_dump(mode="json")})
     outcome = store(state, ctx)
     assert outcome.route == "always"
+    assert ctx.store.get_status("unit-demo-skill", 1).lifecycle == "approved"
     entries = ctx.ledger.entries()
-    assert len(entries) == 1
-    assert entries[0].target == "demo-skill"
-    assert entries[0].action == "write"
+    assert entries[-1].action == "write"
+    assert "unit-demo-skill" in entries[-1].target
 
 
 def test_record_dead_end_surfaces_the_failure_class(base_state: RunState, ctx: NodeContext) -> None:
@@ -91,10 +135,12 @@ def test_record_dead_end_surfaces_the_failure_class(base_state: RunState, ctx: N
     assert "execution" in outcome.note
 
 
-def test_reject_draft_is_a_pure_identity_stub(base_state: RunState, ctx: NodeContext) -> None:
-    outcome = reject_draft(base_state, ctx)
-    assert outcome.state == base_state
+def test_reject_draft_records_ledger(base_state: RunState, ctx: NodeContext) -> None:
+    state = base_state.model_copy(update={"draft": {"skill_id": "demo-skill"}})
+    outcome = reject_draft(state, ctx)
+    assert outcome.state == state
     assert outcome.route == "always"
+    assert ctx.ledger.entries()[-1].action == "policy_change"
 
 
 def test_finalize_maps_predecessor_to_terminal(base_state: RunState, ctx: NodeContext) -> None:

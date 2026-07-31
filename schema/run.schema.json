@@ -1213,6 +1213,12 @@
           "format": "date-time",
           "title": "Submitted At",
           "type": "string"
+        },
+        "is_eval_fixture": {
+          "default": false,
+          "description": "When true, distill must not author library memory (M3 firewall ahead of M4's full eval firewall). Golden / promotion runs set this so the regression gate cannot recursively learn from itself.",
+          "title": "Is Eval Fixture",
+          "type": "boolean"
         }
       },
       "required": [

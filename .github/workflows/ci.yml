@@ -44,5 +44,5 @@ jobs:
       - name: Example drift (skills/bump-python-dep/v3/*.json must equal contracts/examples.py)
         run: python3 scripts/export_examples.py --check
 
-      - name: Test suite (contracts, M0 walking skeleton, import boundary)
+      - name: Test suite (contracts, M0–M3, import boundary)
         run: pytest -v
