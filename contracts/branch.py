@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from contracts.budget import Budget, Spend
+from contracts.budget import Budget, BudgetReservation, Spend
 from contracts.criteria import CriterionResult
 from contracts.resources import ResourceClaim
 
@@ -39,6 +39,7 @@ class BranchState(BaseModel):
     resources: list[ResourceClaim] = Field(default_factory=list)
     budget: Budget
     spent: Spend = Spend()
+    reserved: BudgetReservation = BudgetReservation()
     results: list[CriterionResult] = Field(default_factory=list)
     selected: bool = False
     margin: float | None = Field(default=None, description="Winner score minus runner-up.")
@@ -64,6 +65,10 @@ class MergeAudit(BaseModel):
     missing: list[str] = Field(default_factory=list)
     action: Literal["proceeded", "flagged", "failed"]
     layered: bool = False
+    batches: list[list[str]] = Field(
+        default_factory=list,
+        description="Actual fan-in batches in execution order; empty for a direct merge.",
+    )
 
     @property
     def is_complete(self) -> bool:

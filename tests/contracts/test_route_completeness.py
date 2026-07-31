@@ -84,6 +84,18 @@ def test_solve_can_reach_classify_failure_before_any_result_exists():
     assert {r.target for r in routes} == {"classify_failure"}
 
 
+def test_solve_failure_after_retry_routes_to_classify_not_stale_validation():
+    """A retry keeps diagnostic results, but its pre-validation signal remains authoritative."""
+
+    state = _base_state(
+        transcript_ref="sha256:prior-attempt",
+        results=[CriterionResult(criterion_id="tests", passed=False)],
+        failure_signal=FailureSignal(source="solver", detail="budget exhausted", at=_NOW),
+    )
+    routes = legal_routes("solve", state)
+    assert [route.predicate_name for route in routes] == ["pre_validation_failure_signal"]
+
+
 def test_branched_run_routes_through_join():
     branch = BranchState(
         branch_id="b1",

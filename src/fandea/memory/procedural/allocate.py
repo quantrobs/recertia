@@ -7,22 +7,15 @@ writes consume the reservation under the same lock family.
 
 from __future__ import annotations
 
-import threading
+import fcntl
+import hashlib
+import os
+import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 from contracts.skill import SkillVersion
 from fandea.memory.procedural.store import SkillStore
-
-_locks: dict[str, threading.Lock] = {}
-_locks_guard = threading.Lock()
-_reserved: dict[str, set[int]] = {}
-
-
-def _lock_for(skill_id: str) -> threading.Lock:
-    with _locks_guard:
-        if skill_id not in _locks:
-            _locks[skill_id] = threading.Lock()
-        return _locks[skill_id]
 
 
 def _existing_versions(skills_dir: Path, skill_id: str) -> list[int]:
@@ -36,38 +29,89 @@ def _existing_versions(skills_dir: Path, skill_id: str) -> list[int]:
     ]
 
 
-def allocate_next_version(store: SkillStore, skill_id: str) -> int:
-    """Reserve the next free version number for ``skill_id`` (gap/dupe-free under concurrency)."""
+def _allocation_db(store: SkillStore) -> Path:
+    return store.root / ".version-allocations.sqlite3"
 
-    with _lock_for(skill_id):
-        existing = _existing_versions(store.root, skill_id)
-        reserved = _reserved.setdefault(skill_id, set())
-        n = max([0, *existing, *reserved]) + 1
-        reserved.add(n)
-        return n
+
+def _init_db(path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, timeout=30, isolation_level=None)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reservations (
+            skill_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            PRIMARY KEY (skill_id, version)
+        )
+        """
+    )
+    return conn
+
+
+@contextmanager
+def _skill_lock(store: SkillStore, skill_id: str):
+    lock_dir = store.root / ".version-locks"
+    lock_dir.mkdir(exist_ok=True)
+    digest = hashlib.sha256(skill_id.encode()).hexdigest()
+    fd = os.open(lock_dir / f"{digest}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def allocate_next_version(store: SkillStore, skill_id: str) -> int:
+    """Durably reserve the next free version across processes."""
+
+    with _skill_lock(store, skill_id):
+        conn = _init_db(_allocation_db(store))
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            reserved = [
+                int(row[0])
+                for row in conn.execute(
+                    "SELECT version FROM reservations WHERE skill_id = ?", (skill_id,)
+                )
+            ]
+            existing = _existing_versions(store.root, skill_id)
+            n = max([0, *existing, *reserved]) + 1
+            conn.execute(
+                "INSERT INTO reservations (skill_id, version) VALUES (?, ?)", (skill_id, n)
+            )
+            conn.execute("COMMIT")
+            return n
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
 
 
 def write_version_exclusive(store: SkillStore, version: SkillVersion) -> Path:
-    """Write a skill version under the per-skill exclusive lock."""
+    """Write a reserved skill version under an inter-process exclusive lock."""
 
-    with _lock_for(version.skill_id):
+    with _skill_lock(store, version.skill_id):
         path = store.write_version(version)
-        reserved = _reserved.get(version.skill_id)
-        if reserved is not None:
-            reserved.discard(version.version)
+        conn = _init_db(_allocation_db(store))
+        try:
+            conn.execute(
+                "DELETE FROM reservations WHERE skill_id = ? AND version = ?",
+                (version.skill_id, version.version),
+            )
+        finally:
+            conn.close()
         return path
 
 
 def allocate_and_write(store: SkillStore, version: SkillVersion) -> SkillVersion:
     """Atomically allocate the next version and persist ``version``."""
 
-    with _lock_for(version.skill_id):
-        existing = _existing_versions(store.root, version.skill_id)
-        reserved = _reserved.setdefault(version.skill_id, set())
-        n = max([0, *existing, *reserved]) + 1
-        reserved.add(n)
+    with _skill_lock(store, version.skill_id):
+        # Direct write while holding the same lock cannot race another process.  Do not create
+        # a durable reservation here: a failed write must not leave an artificial version gap.
+        n = max([0, *_existing_versions(store.root, version.skill_id)]) + 1
         stamped = version.model_copy(update={"version": n})
         path = store.write_version(stamped)
-        reserved.discard(n)
         _ = path
         return stamped

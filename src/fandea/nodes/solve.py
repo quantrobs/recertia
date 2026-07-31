@@ -10,8 +10,11 @@ Fallback order:
 from __future__ import annotations
 
 import functools
-import subprocess
+import time
+from dataclasses import replace
+from pathlib import Path
 
+from contracts.budget import BudgetReservation, Spend, budget_excess
 from contracts.failure import FailureSignal
 from contracts.run import Artifact, RunState
 from fandea.memory.procedural.apply import script_from_skill
@@ -38,12 +41,11 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
 
 
 def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeOutcome:
-    import subprocess
-
     from contracts.criteria import CriterionResult
+    from fandea.nodes.validate import _score_criterion_dict
 
     updated = []
-    total_cost = 0.0
+    added = Spend()
     for branch in state.branches:
         if branch.status not in ("dispatched", "running"):
             updated.append(branch)
@@ -52,19 +54,41 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
         work.mkdir(parents=True, exist_ok=True)
         script = ctx.script or ["true"]
         ok = True
+        started = time.monotonic()
         for command in script:
-            proc = subprocess.run(
-                command, shell=True, cwd=work, capture_output=True, text=True, timeout=60
-            )
-            if proc.returncode != 0:
+            result = _run_container_command(command, work)
+            if result["returncode"] != 0:
                 ok = False
                 break
-        # Score owned criteria or a default true.
-        results = [
-            CriterionResult(criterion_id="branch-ok", kind="command", passed=ok, weight=1.0)
-        ]
+        # Decomposition branches own and score only their assigned criteria. Portfolio
+        # branches retain their lightweight comparable score; the selected artifact is
+        # subsequently validated as a whole by join.
+        if branch.kind == "decomposition":
+            owned = [c for c in state.criteria if c.id in branch.owned_criteria]
+            branch_ctx = replace(ctx, workdir=work, node="validate")
+            results = [
+                CriterionResult.model_validate(_score_criterion_dict(criterion, branch_ctx))
+                for criterion in owned
+            ]
+            ok = ok and all(result.passed for result in results if result.weight >= 1.0)
+        else:
+            results = [
+                CriterionResult(criterion_id="branch-ok", kind="command", passed=ok, weight=1.0)
+            ]
         cost = 0.01 * (1 + len(script))
-        total_cost += cost
+        elapsed = time.monotonic() - started
+        branch_spent = Spend(
+            attempts=1,
+            tool_calls=len(script),
+            wall_clock_s=elapsed,
+            cost_usd=cost,
+        )
+        added = Spend(
+            attempts=added.attempts + branch_spent.attempts,
+            tool_calls=added.tool_calls + branch_spent.tool_calls,
+            wall_clock_s=added.wall_clock_s + branch_spent.wall_clock_s,
+            cost_usd=added.cost_usd + branch_spent.cost_usd,
+        )
         updated.append(
             branch.model_copy(
                 update={
@@ -72,37 +96,49 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
                     "results": results,
                     "cost_usd": cost,
                     "workspace_ref": str(work),
+                    "spent": branch_spent,
+                    "reserved": BudgetReservation(),
                 }
             )
         )
 
-    # Parent budget must not exceed: if sum of child max would exceed, still record spent.
+    # Reconcile each lease into parent spend. This catches a runtime measurement that was
+    # larger than its conservative admission estimate without hiding the actual spend.
     spent = state.spent.model_copy(
         update={
-            "attempts": state.spent.attempts + 1,
-            "cost_usd": state.spent.cost_usd + total_cost,
+            "attempts": state.spent.attempts + added.attempts,
+            "tool_calls": state.spent.tool_calls + added.tool_calls,
+            "tokens": state.spent.tokens + added.tokens,
+            "wall_clock_s": state.spent.wall_clock_s + added.wall_clock_s,
+            "cost_usd": state.spent.cost_usd + added.cost_usd,
         }
     )
-    if state.budget.max_cost_usd is not None and spent.cost_usd > state.budget.max_cost_usd:
-        from contracts.failure import FailureSignal
-        from fandea.nodes._util import now
-
-        signal = FailureSignal(source="solver", detail="parent budget exceeded by branches", at=now())
+    exhausted = budget_excess(state.budget, spent, BudgetReservation(), BudgetReservation())
+    if exhausted is not None:
+        signal = FailureSignal(
+            source="solver", detail=f"parent budget exceeded by branches: {exhausted}", at=now()
+        )
         new_state = state.model_copy(
             update={
                 "attempt_no": attempt_no,
                 "spent": spent,
+                "reserved": BudgetReservation(),
                 "branches": updated,
                 "failure_signal": signal,
                 "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
             }
         )
-        return NodeOutcome(state=new_state, route="pre_validation_failure_signal", note="budget exceeded")
+        return NodeOutcome(
+            state=new_state,
+            route="pre_validation_failure_signal",
+            note=f"budget exceeded: {exhausted}",
+        )
 
     new_state = state.model_copy(
         update={
             "attempt_no": attempt_no,
             "spent": spent,
+            "reserved": BudgetReservation(),
             "branches": updated,
             "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
             "failure_signal": None,
@@ -368,12 +404,21 @@ def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
 
 
 def _run_command(command: str, ctx: NodeContext) -> dict:
-    proc = subprocess.run(
-        command,
-        shell=True,
-        cwd=ctx.workdir,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    return {"returncode": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-4000:]}
+    return _run_container_command(command, ctx.workdir)
+
+
+def _run_container_command(command: str, workdir: Path) -> dict:
+    """Execute solver commands only through the approved OCI sandbox."""
+
+    from fandea.solver.container import run_configured_command
+    from fandea.solver.sandbox import SandboxError
+
+    try:
+        proc = run_configured_command(command, workdir=workdir, timeout_s=60)
+    except SandboxError as exc:
+        return {"returncode": 126, "stdout": "", "stderr": str(exc)}
+    return {
+        "returncode": proc.returncode,
+        "stdout": proc.stdout[-4000:],
+        "stderr": proc.stderr[-4000:],
+    }

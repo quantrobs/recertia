@@ -140,7 +140,8 @@
         "negative_fixture": "pre-bump workspace with a broken lockfile",
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
-        "checked_against": "sha256:env-fingerprint-v3"
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": null
       },
       "authored_by": "distiller",
       "preregistered": true
@@ -166,7 +167,8 @@
         "negative_fixture": "v2's stale-lockfile regression case",
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
-        "checked_against": "sha256:env-fingerprint-v3"
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": null
       },
       "authored_by": "distiller",
       "preregistered": true
@@ -192,7 +194,8 @@
         "negative_fixture": "pre-bump workspace, unpatched",
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
-        "checked_against": "sha256:env-fingerprint-v3"
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": null
       },
       "authored_by": "distiller",
       "preregistered": true

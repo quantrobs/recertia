@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/quantrobs/fandea/schema/EvalObservation",
   "additionalProperties": false,
-  "description": "One run observation keyed for aggregation under a library snapshot.",
+  "description": "One immutable, run-derived observation keyed for aggregation.",
   "properties": {
     "run_id": {
       "title": "Run Id",
@@ -88,6 +88,98 @@
       "format": "date-time",
       "title": "Recorded At",
       "type": "string"
+    },
+    "strategy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Strategy"
+    },
+    "attempt_no": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attempt No"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Usd"
+    },
+    "abstention_confirmed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Confirmed"
+    },
+    "skill_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skill Id"
+    },
+    "skill_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skill Version"
+    },
+    "valid_non_judge_evidence": {
+      "default": false,
+      "title": "Valid Non Judge Evidence",
+      "type": "boolean"
+    },
+    "evidence_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Hash"
     }
   },
   "required": [
