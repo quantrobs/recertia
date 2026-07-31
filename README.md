@@ -39,7 +39,66 @@ Machine-readable contracts are generated from [`contracts/`](contracts) (Pydanti
 ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and
 `scripts/export_examples.py`.
 
-## The loop in one picture
+## Architecture
+
+Three planes with different lifetimes. Keeping them separate is what stops "self-improving"
+from meaning "one long process you have to trust". Detail lives in
+[`docs/architecture/`](docs/architecture/overview.md).
+
+```mermaid
+flowchart TB
+    subgraph clients["Clients"]
+        CLI[CLI]
+        API[FastAPI]
+    end
+
+    subgraph task["Task plane — online, bounded, per request"]
+        direction LR
+        IN[intake] --> RET[retrieve]
+        RET --> PLAN[plan]
+        PLAN --> SOLVE[solve]
+        SOLVE --> VAL[validate]
+        VAL -->|fail, budget left| EVO[evolve]
+        EVO --> SOLVE
+        VAL -->|pass| DIST[distill]
+        DIST --> REV[review / store]
+    end
+
+    subgraph mem["Memory plane — durable, versioned, reviewed"]
+        PROC[(Procedural skills)]
+        SEM[(Semantic facts)]
+        EPI[(Episodic cases)]
+        AFF[(Affordance)]
+        POL[(Policy)]
+    end
+
+    subgraph imp["Improvement plane — offline, scheduled"]
+        MINE[Miner]
+        CUR[Curator]
+        PRAC[Practice]
+        RECERT[Recertifier]
+        GATE{{Golden gate}}
+    end
+
+    CLI --> task
+    API --> task
+    mem --> RET
+    REV --> mem
+    mem <--> imp
+    MINE --> GATE
+    CUR --> GATE
+    PRAC --> GATE
+    RECERT --> GATE
+    GATE -->|candidate → approved| PROC
+    task --> EVAL[Eval / causal lift]
+    imp --> EVAL
+```
+
+- **Task plane** — one bounded graph walk per request; emits candidate memory, never learns in place.
+- **Memory plane** — plural stores (skills, facts, cases, affordances, policy); diffable and revertible.
+- **Improvement plane** — scheduled jobs that propose library changes; promotion always goes through the golden gate.
+
+### The loop in one picture
 
 ```mermaid
 flowchart LR
