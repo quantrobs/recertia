@@ -16,6 +16,7 @@ practise, and re-certify what has been learned.
 | [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
 | [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
+| [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 | [`docs/preprints-self-improving-agents.xlsx`](docs/preprints-self-improving-agents.xlsx) | Scored survey of ~117 preprints against Fandea's non-negotiables |
 | [`docs/score10-references/`](docs/score10-references/) | Bibliographies extracted from the four score-10 papers |
@@ -30,8 +31,13 @@ Decision records:
 | [0004](docs/adr/0004-offline-improvement-plane.md) | A separate offline improvement plane |
 | [0005](docs/adr/0005-self-modification-boundary.md) | Tiered self-modification boundary |
 | [0006](docs/adr/0006-bounded-library-and-retirement.md) | Bounded active library with contribution-score retirement |
+| [0007](docs/adr/0007-skill-identity-status-and-stats-split.md) | Split `SkillVersion` (immutable) from `SkillStatus` (lifecycle) and `SkillStats` (derived) |
+| [0008](docs/adr/0008-optional-join-and-failure-signals.md) | `join` is conditional on fan-out; failures are explicit signals, not inferred |
+| [0009](docs/adr/0009-contracts-as-code.md) | Pydantic models in `contracts/` are the structural source of truth |
 
-Machine-readable contracts live in [`schema/`](schema).
+Machine-readable contracts are generated from [`contracts/`](contracts) (Pydantic models,
+ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and
+`scripts/export_examples.py`.
 
 ## The loop in one picture
 
@@ -41,17 +47,25 @@ flowchart LR
     R --> P[Plan]
     P --> S[Solve]
     S --> V[Validate]
-    V -->|pass| D[Distill]
+    V -->|pass, no branches| D[Distill]
     V -->|fail| C[Classify failure]
     C -->|budget left| E[Evolve] --> S
-    C -->|budget spent| Q[Quarantine]
+    C -->|budget spent| X[Record dead end]
     D --> RV[Review]
     RV -->|approve| M[(Memory)]
-    RV -->|reject| Q
-    Q --> M
+    RV -->|reject| Z[Reject draft]
+    X --> F[Finalize]
+    Z --> F
+    M --> F
     M -.->|next task starts here| R
     J[Offline jobs: mine, curate, practise, recertify] --> M
 ```
+
+`join` is not on this default path at all — it only exists when a run fan-out produces
+branches to reduce (see [ADR-0008](docs/adr/0008-optional-join-and-failure-signals.md)). A
+failed run's outcome (`record_dead_end`) and a rejected draft (`reject_draft`) are distinct
+terminals from marking a *stored skill version* harmful, which is a memory-plane status
+transition, never a step in this loop.
 
 ## Non-negotiables
 
@@ -78,10 +92,12 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design intent is complete; several load-bearing contracts are not yet implementable as
-written. [`docs/refactor-plan.md`](docs/refactor-plan.md) lists the blockers that must land
-before M0; [`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order
-after that.
+Design intent is complete, and the structural blockers that made it unimplementable as
+written are resolved: [`contracts/`](contracts) is now the normative structural source
+(ADR-0009), enforced by tests and CI (`.github/workflows/contracts.yml`).
+[`docs/refactor-plan.md`](docs/refactor-plan.md) tracks what remains before M0 — mainly
+scaffolding `src/fandea/` against these contracts and three cross-doc CI checks — and
+[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order after that.
 
 ## License
 

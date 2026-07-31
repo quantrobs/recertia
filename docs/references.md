@@ -231,12 +231,11 @@ Reference lists extracted from the four score-10 papers are in
 
 ## 8. Open questions the literature does not settle for us
 
-- SkillsBench's null result was measured on general agent-skill tasks, not on repository chores
-  with tool-defined success. Whether machine-checkable domains change the result is exactly what
-  our M4 ablation arm will answer, and we should expect the possibility that it does not.
-- Ratchet's evidence floor (100 trials per skill) assumes throughput we will not have early.
-  Our lower-volume setting means most skills sit below the floor for a long time, so the
-  cold-start regime is under-evidenced by this literature.
-- No surveyed system reports a self-modification boundary of the kind in ADR-0005. The survey
-  notes safety surfaces are under-reported, so we are ahead of the reported practice here and
-  correspondingly without external validation.
+This section has moved to [`docs/assumptions.md`](assumptions.md), which turns each open
+question below into a tracked claim (`a1`, `a2`, `a3`) with an explicit status and an explicit
+split between the engineering gate that can be checked today and the research outcome that
+cannot (refactor-plan B7). Kept here only as a pointer:
+
+- SkillsBench's null result → [`assumptions.md#a1`](assumptions.md#a1-machine-checkable-domains-show-a-positive-causal-lift-from-skill-retrieval).
+- Ratchet's evidence floor at our throughput → [`assumptions.md#a2`](assumptions.md#a2-ratchets-evidence-floor-is-reachable-at-our-traffic-volume).
+- No external precedent for the ADR-0005 self-modification boundary → [`assumptions.md#a3`](assumptions.md#a3-a-tiered-self-modification-boundary-is-sufficient-without-an-externally-reported-precedent).
