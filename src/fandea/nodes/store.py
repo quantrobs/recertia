@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from contracts.fact import Fact
 from contracts.run import RunState
 from contracts.skill import SkillVersion
 from contracts.stats import SkillStats
-from contracts.status import Certification, SkillStatus
-from fandea.memory.procedural.active_set import assign_active_on_approval
+from contracts.status import SkillStatus
 from fandea.memory.procedural.hygiene import require_clean
 from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
@@ -26,18 +23,15 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
             raise ValueError("store node requires SkillStore on NodeContext")
 
         ctx.store.write_version(version)
+        # Task-plane code is allowed to persist a reviewable candidate only.
+        # `promote_to_approved` is the sole state transition to approved and
+        # runs the golden regression gate before writing that lifecycle.
         status = SkillStatus(
             skill_id=version.skill_id,
             version=version.version,
-            lifecycle="approved",
+            lifecycle="candidate",
             active=False,
-            certification=Certification(
-                model_validated_on=state.manifest.model or "m3",
-                last_recertified_at=datetime.now(timezone.utc),
-                recert_status="fresh",
-            ),
         )
-        status = assign_active_on_approval(status)
         ctx.store.write_status(status)
         ctx.store.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
 

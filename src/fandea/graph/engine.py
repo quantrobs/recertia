@@ -55,6 +55,7 @@ class GraphOrchestrator:
         env_fingerprint: dict[str, str] | None = None,
         tools: "ToolRuntime | None" = None,
         model: "ModelClient | None" = None,
+        verifier_model: "ModelClient | None" = None,
         transcripts: "TranscriptStore | None" = None,
         applicator: "SkillApplicator | None" = None,
         episodic: "EpisodicStore | None" = None,
@@ -74,6 +75,7 @@ class GraphOrchestrator:
         self.env_fingerprint = env_fingerprint or {}
         self.tools = tools
         self.model = model
+        self.verifier_model = verifier_model
         self.transcripts = transcripts
         self.applicator = applicator
         self.episodic = episodic
@@ -171,6 +173,7 @@ class GraphOrchestrator:
                 env_fingerprint=self.env_fingerprint,
                 tools=self.tools,
                 model=self.model,
+                verifier_model=self.verifier_model,
                 transcripts=self.transcripts,
                 applicator=self.applicator,
                 episodic=self.episodic,

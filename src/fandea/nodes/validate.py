@@ -85,11 +85,13 @@ def _score_criterion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionRes
     if criterion.kind == "assertion":
         return _run_assertion(criterion, ctx)
     if criterion.kind == "judge":
-        if ctx.model is None:
+        if ctx.verifier_model is None:
             raise ValueError(
-                f"judge criterion {criterion.id!r} requires a model client on NodeContext"
+                f"judge criterion {criterion.id!r} requires an independent verifier model"
             )
-        return evaluate_judge(criterion, workdir=ctx.workdir, model=ctx.model)
+        if ctx.verifier_model is ctx.model:
+            raise ValueError("solver model cannot judge its own artifact")
+        return evaluate_judge(criterion, workdir=ctx.workdir, model=ctx.verifier_model)
     raise ValueError(
         f"validate does not yet support kind={criterion.kind!r} for criterion {criterion.id!r}"
     )

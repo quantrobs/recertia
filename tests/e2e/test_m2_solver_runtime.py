@@ -13,6 +13,7 @@ from contracts.run import Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import SkillStats
 from contracts.status import Certification, SkillStatus
+from fandea.governance.sandbox import ApprovalGate
 from fandea.graph.engine import GraphOrchestrator
 from fandea.memory.affordance import AffordanceStore
 from fandea.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
@@ -22,6 +23,14 @@ from fandea.solver.apply import SkillApplicator
 from fandea.solver.tools import ClaimScheduler, Tool, ToolRegistry, ToolRuntime, default_registry
 from fandea.solver.transcript import TranscriptStore, TranscriptWriter
 from fandea.workspace import WorkspaceManager
+
+
+def _approved_runtime(registry: ToolRegistry, scheduler: ClaimScheduler | None = None) -> ToolRuntime:
+    """Explicit operator grant for tests that exercise write-capable tools."""
+    gate = ApprovalGate()
+    for tool in registry.names():
+        gate.approve(tool, actor="test-operator")
+    return ToolRuntime(registry, scheduler, approval_gate=gate)
 
 _NOW = datetime(2026, 7, 31, tzinfo=timezone.utc)
 
@@ -100,7 +109,7 @@ def _approve(store: SkillStore, version: SkillVersion) -> None:
 def _m2_stack(tmp_path: Path, store: SkillStore | None = None):
     workspaces = WorkspaceManager(tmp_path / "snaps")
     registry = default_registry()
-    tools = ToolRuntime(registry, ClaimScheduler(claim_timeout_s=0.5))
+    tools = _approved_runtime(registry, ClaimScheduler(claim_timeout_s=0.5))
     transcripts = TranscriptStore(tmp_path / "transcripts")
     applicator = SkillApplicator(tools, workspaces, max_parallel_steps=4, claim_timeout_s=0.5)
     episodic = EpisodicStore(tmp_path / "episodic")
@@ -259,7 +268,7 @@ def test_flaky_tool_classifies_as_tool_without_trust_impact(tmp_path: Path) -> N
         ),
         flaky_handler,
     )
-    tools = ToolRuntime(registry)
+    tools = _approved_runtime(registry)
     affordances = AffordanceStore(tmp_path / "aff.json")
     # Seed affordance history so flake_rate is observable.
     from fandea.solver.tools import ToolResult
@@ -318,7 +327,7 @@ def test_independent_steps_run_concurrently_conflicting_serialise(tmp_path: Path
         return original(inputs, workdir)
 
     registry._handlers["shell"] = slow_shell  # type: ignore[attr-defined]
-    tools = ToolRuntime(registry)
+    tools = _approved_runtime(registry)
     applicator = SkillApplicator(tools, workspaces, max_parallel_steps=4)
 
     independent = _skill(
@@ -400,7 +409,7 @@ def test_failed_wave_restores_whole_not_half(tmp_path: Path) -> None:
     """A wave that fails mid-flight restores whole rather than leaving a half-applied state."""
 
     workspaces = WorkspaceManager(tmp_path / "snaps")
-    tools = ToolRuntime(default_registry())
+    tools = _approved_runtime(default_registry())
     applicator = SkillApplicator(tools, workspaces)
 
     version = _skill(
@@ -442,7 +451,7 @@ def test_replay_reconstructs_wave_composition_without_model_calls(tmp_path: Path
     """Replay tests reconstruct node decisions, including wave composition, with no model calls."""
 
     workspaces = WorkspaceManager(tmp_path / "snaps")
-    tools = ToolRuntime(default_registry())
+    tools = _approved_runtime(default_registry())
     applicator = SkillApplicator(tools, workspaces)
     store = TranscriptStore(tmp_path / "t")
 
