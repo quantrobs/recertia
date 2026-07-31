@@ -1,4 +1,4 @@
-"""What every node function receives besides the state (injected services for tests, too)."""
+"""What every node function receives besides the state (injected services)."""
 
 from __future__ import annotations
 
@@ -12,22 +12,21 @@ from fandea.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
     from fandea.graph.ops import OperationLedger
+    from fandea.memory.affordance import AffordanceStore
+    from fandea.memory.episodic import EpisodicStore
     from fandea.memory.procedural.store import SkillStore
     from fandea.retrieval.pipeline import Retriever
+    from fandea.solver.apply import SkillApplicator
+    from fandea.solver.model import ModelClient
+    from fandea.solver.tools import ToolRuntime
+    from fandea.solver.transcript import TranscriptStore
 
 T = TypeVar("T")
 
 
 @dataclass
 class NodeOutcome:
-    """What a node function returns: the updated state, the chosen route, and why.
-
-    ``route`` MUST name a ``predicate_name`` legal for this node's current state per
-    ``contracts.graph.legal_routes`` — the orchestrator checks this before advancing, so a node
-    cannot route somewhere the normative table forbids even though the node itself decides
-    *which* legal route to take (e.g. ``review``'s approve/reject choice, which the route table
-    intentionally leaves exogenous — specs §4.1).
-    """
+    """Updated state + chosen route predicate name (must be legal per contracts.graph)."""
 
     state: RunState
     route: str | None
@@ -46,14 +45,16 @@ class NodeContext:
     ledger: HashChainLedger
     ops: "OperationLedger"
     script: list[str] | None = None
-    """Explicit scripted tool sequence. When None and strategy is ``apply``, ``solve`` derives
-    a script from the chosen skill's shell steps (M1)."""
-
     retriever: "Retriever | None" = None
     store: "SkillStore | None" = None
     env_fingerprint: dict[str, str] = field(default_factory=dict)
+    # M2 services
+    tools: "ToolRuntime | None" = None
+    model: "ModelClient | None" = None
+    transcripts: "TranscriptStore | None" = None
+    applicator: "SkillApplicator | None" = None
+    episodic: "EpisodicStore | None" = None
+    affordances: "AffordanceStore | None" = None
 
     def op_once(self, op_seq: int, fn: Callable[[], T]) -> T:
-        """At-least-once execution keyed by ``(run_id, attempt_no, node, op_seq)`` (ADR per B6)."""
-
         return self.ops.run_once(self.run_id, self.attempt_no, self.node, op_seq, fn)

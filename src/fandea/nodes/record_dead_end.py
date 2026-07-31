@@ -1,20 +1,49 @@
-"""``record_dead_end``: record a failed run's outcome (specs §4, ADR-0008). M0 stub.
-
-No episodic store exists yet (M2); M0 records the dead end onto the run state itself (via a
-route-log note) so the done-when — "a run whose criteria always fail terminates here with a
-failure class rather than looping" — is directly observable without a memory plane to query.
-"""
+"""``record_dead_end``: write a failed attempt to episodic memory (specs §4, §13.3)."""
 
 from __future__ import annotations
 
 from contracts.run import RunState
+from fandea.memory.episodic import CaseRecord, DeadEnd
 from fandea.nodes.context import NodeContext, NodeOutcome
 
 
 def record_dead_end(state: RunState, ctx: NodeContext) -> NodeOutcome:
     failure_class = state.failure.failure_class if state.failure else "unknown"
-    return NodeOutcome(
-        state=state,
-        route="always",
-        note=f"dead end recorded: failure_class={failure_class!r} (M0 stub: episodic store lands in M2)",
+    approach = (
+        f"skill:{state.chosen.skill_id}@v{state.chosen.version}"
+        if state.chosen
+        else f"strategy:{state.strategy or 'scratch'}"
     )
+    note = f"dead end recorded: failure_class={failure_class!r}"
+
+    if ctx.episodic is not None:
+        case = CaseRecord(
+            case_id=f"{ctx.run_id}-a{state.attempt_no}",
+            run_id=ctx.run_id,
+            attempt_no=state.attempt_no,
+            task_class=state.task.task_class,
+            request_excerpt=state.task.request[:200],
+            outcome="failed",
+            failure_class=failure_class if failure_class != "unknown" else None,
+            dead_end=DeadEnd(
+                approach=approach,
+                why_failed=_why_failed(state, failure_class),
+                evidence_ref=state.transcript_ref,
+            ),
+            transcript_ref=state.transcript_ref,
+            approach=approach,
+            skill_id=state.chosen.skill_id if state.chosen else None,
+            skill_version=state.chosen.version if state.chosen else None,
+        )
+        ref = ctx.episodic.write(case)
+        note = f"{note} case_hash={ref}"
+
+    return NodeOutcome(state=state, route="always", note=note)
+
+
+def _why_failed(state: RunState, failure_class: str) -> str:
+    if state.failure_signal:
+        return state.failure_signal.detail
+    if state.failure and state.failure.evidence:
+        return state.failure.evidence[0]
+    return failure_class
