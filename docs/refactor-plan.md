@@ -3,22 +3,62 @@
 The previous version of this plan moved files. That is necessary and is still R0 below.
 It is not the problem.
 
-The problem is that the design, as written, **cannot be implemented without inventing
-answers the docs pretend to have already given**. Several load-bearing contracts are
-internally contradictory; the milestone order asks M0–M3 to satisfy MUSTs that only exist
-in M4–M6; and "the schema is the source of truth" is false today — the canonical skill
-example validates against the schema while missing half the fields the prose requires for
-an `approved` skill.
+The problem was that the design, as written, **could not be implemented without inventing
+answers the docs pretended to have already given**. Several load-bearing contracts were
+internally contradictory; the milestone order asked M0–M3 to satisfy MUSTs that only existed
+in M4–M6; and "the schema is the source of truth" was false — the canonical skill example
+validated against the schema while missing half the fields the prose required for an
+`approved` skill.
 
 This plan is the work that has to happen **before M0 writes a line of runtime code**. It
 is a design refactor with a small amount of repo hygiene attached, not the reverse.
 
-Verified against `main` at the time of writing. Claims below cite concrete fields and
-routing predicates, not vibes.
+Originally verified against `main`. Claims below cite concrete fields and routing
+predicates, not vibes.
+
+## Resolution status
+
+**B1–B5 are resolved.** They were data-model and routing contradictions, fixed together
+because R1's own ordering rule (§3) says B3/B4 (routing) and B1/B5 (data model) have to land
+before B2 (criteria timeline) can be stated meaningfully. All five are now: an ADR, a
+Pydantic model in [`contracts/`](../contracts), a generated schema, and a passing test in
+[`tests/contracts/`](../tests/contracts) that would fail if the contradiction came back.
+
+**B6 is resolved** in `implementation-plan.md`'s M0–M3 (pulled-forward mechanisms) and M4/M5
+done-whens (split engineering gate from research outcome). **B7 is resolved**: the split is
+written into M4/M5/M9's done-whens, and [`docs/assumptions.md`](assumptions.md) now exists,
+migrating [`references.md` §8](references.md#8-open-questions-the-literature-does-not-settle-for-us).
+
+**R2 (skeleton and generated contracts) is substantially done** — `contracts/`,
+`scripts/generate_schemas.py`, `scripts/export_examples.py`, and semantic profiles in
+`contracts/profiles.py` all exist and are tested. What remains of R2 is the `src/fandea/`
+runtime skeleton itself, which M0 builds against these contracts. **R3 is partially done**:
+route completeness, schema-drift, and semantic-profile checks run as
+[`.github/workflows/contracts.yml`](../.github/workflows/contracts.yml) on every push and PR;
+cross-refs, milestone-dependency, and assumptions-hygiene checks remain open. R0, R4, and R5
+are untouched by this pass — they were never blockers.
+
+| Blocker | ADR | Contracts | Tests | Docs updated |
+| --- | --- | --- | --- | --- |
+| B1 — SkillVersion split | [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md) | `contracts/skill.py`, `contracts/status.py`, `contracts/stats.py` | `test_semantic_profiles.py`, `test_structural_validity.py` | specs §1–§2, architecture §5.4 §7.1 §9 |
+| B2 — criteria timeline | [ADR-0003 amendment](adr/0003-criteria-preregistration.md) | `contracts/criteria.py` | `test_criteria_timeline.py` | specs §15.1 §15.4, architecture §11.1 |
+| B3 — conditional join | [ADR-0008](adr/0008-optional-join-and-failure-signals.md) | `contracts/graph.py`, `contracts/branch.py` | `test_route_completeness.py` | specs §4 §4.1, architecture §5.1, README diagram |
+| B4 — FailureSignal + quarantine split | [ADR-0008](adr/0008-optional-join-and-failure-signals.md) | `contracts/failure.py` | `test_route_completeness.py` | specs §4 §16 §21, architecture §5.1 |
+| B5 — contracts as code | [ADR-0009](adr/0009-contracts-as-code.md) | all of `contracts/`; `contracts/profiles.py`, `contracts/examples.py` | `test_examples.py`, `test_schema_generation.py`, `test_structural_validity.py` | specs (intro + throughout), implementation-plan (repo layout, CI invariants) |
+| B6 — milestone dependency order | — (prose fix, no new decision) | — | — (see R3 remaining work below) | implementation-plan M0–M3 |
+| B7 — research vs. engineering gates | — (prose fix, no new decision) | — | — (see R3 remaining work below) | implementation-plan M4 M5 M9; `assumptions.md` (new) |
+
+This section can be deleted once R2's `src/fandea/` skeleton lands and R3's checks are wired
+into CI, at which point this document's only remaining content is the review notes below and
+the secondary debt in §1, which have not yet been picked up.
 
 ---
 
-## 0. Diagnosis: seven blockers
+## 0. Diagnosis: seven blockers (historical — resolved above)
+
+(Numbering starts at 0 deliberately, unlike `specifications.md`/`architecture.md`'s 1-index:
+"0" marks diagnosis-before-any-fix. If a cross-reference checker is ever generalised to this
+document, treat that as intentional, not a bug to "fix" by renumbering.)
 
 ### B1. `SkillVersion` is immutable and continuously rewritten
 
@@ -73,14 +113,14 @@ tests `merge_audit.complete`, but `MergeAudit` has no `complete` field — it ha
 M0–M5 therefore have no specified route from a successful single-attempt validation to
 `distill`.
 
-**Fix (pick one, write it down, delete the other):**
-
-1. **Preferred for M0:** ordinary runs route `validate → distill | classify_failure`.
-   `join` exists only when `branches` is non-empty.
-2. Or: every attempt is an `ExecutionGroup` of size 1 from M0, and `join` is the universal
-   reducer with trivial singleton behaviour.
-
-Do not leave a node on the critical path whose contract assumes M6.
+**Fix — resolved as Option 1, not left open:** ordinary runs route
+`validate → distill | classify_failure`; `join` exists only when `branches` is non-empty
+([ADR-0008](adr/0008-optional-join-and-failure-signals.md)). This was not a coin flip between
+two equally-good options — [`README.md`](../README.md)'s simplified loop diagram already drew
+`V -->|pass| D` with no `join` on the default path, before this plan was written. Option 2
+(universal singleton `ExecutionGroup`) would have required rewriting the one diagram every
+other document treats as ground truth, for a M6 mechanism M0–M5 never exercise. `architecture.md`
+§5.1 and `specifications.md` §4/§4.1 were the documents that were wrong; README was not.
 
 ### B4. Most failure classes cannot legally reach `classify_failure`
 
@@ -165,16 +205,16 @@ because traffic is too thin to estimate lift. That is not an engineering gate.
 These hurt, but they do not strand M0 by themselves. Schedule after the blockers, or fold
 into the same PR when touching that surface.
 
-| ID | Debt | Sharper fix than "document it" |
-| --- | --- | --- |
-| S1 | Step DAG has `depends_on` but no declared outputs / bindings; fake-edge test is unenforceable | Derive edges from typed `input_bindings` → `step.output`; drop free-floating `depends_on` as authoring input |
-| S2 | `retrieve` "must not execute" but preconditions include `command_succeeds` | Registered read-only probes with budget and evidence, not arbitrary commands |
-| S3 | `Branch` has no status, spend, transcript, snapshot; schema omits `budget` | `BranchState` + `BudgetLease` against a parent ledger; reserve join overhead |
-| S4 | `skill_contribution` subtracts a class baseline from a non-randomly selected skill | Three quantities, stored once: predictive trust, class-level retrieval effect (ablation), per-skill effect (shadow/suppression) |
-| S5 | Benched skills cannot gather restoration evidence (not retrievable) | Bounded exploration/shadow slots for benched and newly approved versions |
-| S6 | T3 "unreachable from run code" forbids importing the tool registry the runtime must use | Capability interfaces: read/use vs mutate; test forbidden writes, not blanket imports |
-| S7 | Only skill/run schemas exist; M0 needs Policy, Criterion, NodeOutput, checkpoint, FailureSignal | Milestone-scoped contract backlog; add schemas before the milestone that consumes them |
-| S8 | Research binaries and `.xls` duplicates live in `docs/` | Move to `research/`; xlsx+JSON only (was the entirety of the old plan) |
+| ID | Debt | Sharper fix than "document it" | Status |
+| --- | --- | --- | --- |
+| S1 | Step DAG has `depends_on` but no declared outputs / bindings; fake-edge test is unenforceable | Derive edges from typed `input_bindings` → `step.output`; drop free-floating `depends_on` as authoring input | Open — `contracts/skill.py`'s `Step` still only enforces the structural half (ids exist, no cycles); the semantic fake-edge test needs a run transcript and remains unbuilt |
+| S2 | `retrieve` "must not execute" but preconditions include `command_succeeds` | Registered read-only probes with budget and evidence, not arbitrary commands | Open |
+| S3 | `Branch` has no status, spend, transcript, snapshot; schema omits `budget` | `BranchState` + `BudgetLease` against a parent ledger; reserve join overhead | **Done, as a side effect of B3** — `contracts/branch.py`'s `BranchState` has all of status/spend/transcript/snapshot/budget; `schema/branch.schema.json` generated |
+| S4 | `skill_contribution` subtracts a class baseline from a non-randomly selected skill | Three quantities, stored once: predictive trust, class-level retrieval effect (ablation), per-skill effect (shadow/suppression) | Open — `contracts/stats.py`'s `Contribution` model exists but stores one `estimate`, not the three separated quantities this fix calls for |
+| S5 | Benched skills cannot gather restoration evidence (not retrievable) | Bounded exploration/shadow slots for benched and newly approved versions | Open |
+| S6 | T3 "unreachable from run code" forbids importing the tool registry the runtime must use | Capability interfaces: read/use vs mutate; test forbidden writes, not blanket imports | Open — `src/fandea/`-shaped, waits for the runtime skeleton |
+| S7 | Only skill/run schemas exist; M0 needs Policy, Criterion, NodeOutput, checkpoint, FailureSignal | Milestone-scoped contract backlog; add schemas before the milestone that consumes them | Partially done — `FailureSignal`/`FailureVerdict`/`MergeAudit`/`BranchState` schemas now exist (B3–B5); `TaskCriterion`/`SkillCertificationCriterion` exist as `contracts/criteria.py` types embedded in `run.schema.json` but have no standalone schema file; Policy, NodeOutput, and checkpoint schemas remain open |
+| S8 | Research binaries and `.xls` duplicates live in `docs/` | Move to `research/`; xlsx+JSON only (was the entirety of the old plan) | Open — this is R0, unstarted |
 
 ---
 
@@ -185,16 +225,18 @@ Not a prettier folder tree — a clearer ownership model.
 ```text
 Authority
 ├── docs/adr/                   decisions and their evidence status
-├── docs/architecture/          intent, topology, rationale (split in R4)
-├── docs/specifications/        normative MUSTs; owns semantics
-├── schema/                     structural contracts; generated or checked against Pydantic
-│   └── profiles/               approved-skill, candidate-skill, checkpointed-run, …
-├── docs/assumptions.md         research claims vs engineering gates (new)
-├── docs/implementation-plan.md build order, revised against B6
-└── research/                   evidence dumps; never normative
+├── docs/architecture.md        intent, topology, rationale (split in R4)
+├── docs/specifications.md      normative MUSTs; owns semantics
+├── contracts/                  Pydantic models — normative structural source (ADR-0009) [done]
+│   ├── profiles.py             approved-skill, candidate-skill, checkpointed-run, …
+│   └── examples.py             canonical examples, code-generated, not hand-written JSON
+├── schema/                     JSON Schema, generated from contracts/, never hand-edited [done]
+├── docs/assumptions.md         research claims vs engineering gates [done]
+├── docs/implementation-plan.md build order, revised against B6/B7 [done]
+└── research/                   evidence dumps; never normative [not moved yet — R0]
 
 Runtime (scaffolded empty until M0 fills it)
-├── src/fandea/…
+├── src/fandea/…                imports types from contracts/, does not redefine them
 └── tests/{unit,property,contract,boundary,semantic}/
 ```
 
@@ -219,48 +261,88 @@ Document roles, fixed:
 Move research artifacts out of `docs/` into `research/`. Delete every `.xls`. Export
 `scored.json` beside the workbook. Update links.
 
-This is a half-day PR. It does not unblock M0 by itself. Do it first only because every
+This is a small, mechanical PR (move files, delete `.xls`, export `scored.json`, fix links) —
+not an architectural change. It does not unblock M0 by itself. Do it first only because every
 later docs PR is noisier while binaries sit in the same tree.
 
-### R1 — Resolve the seven blockers in the design docs
+### R1 — Resolve the seven blockers in the design docs — done
 
-One PR per blocker, or one PR with seven commits — but each blocker gets its own commit
-message and its own contract tests.
+Landed as **one PR per blocker's worth of change**, not seven separate PRs and not one PR
+with seven commits: B3+B4 (routing) and B1+B5 (data model / contracts-as-code) touch the same
+`contracts/graph.py` and `RunState` surface and were genuinely one coherent change each; B2
+and B6/B7 are independent and could have shipped separately. If this recurs, default to one
+PR per blocker and only combine two blockers when a single test file would otherwise have to
+import both halves to be meaningful — state that reason in the PR body, don't combine
+silently. Every blocker got its own commit and its own contract test regardless of PR
+grouping. Each PR was based on `main` directly (R5's stacked-PR ban), which is why this could
+land without repeating the graph-execution branch's fate.
 
-| Commit | Edits | Acceptance |
+| Commit | Edits | ADR touchpoint | Files touched | Proven by (R3 check) | Acceptance |
+| --- | --- | --- | --- | --- | --- |
+| B1 | Split SkillVersion / Status / Stats | New: [ADR-0007](adr/0007-skill-identity-status-and-stats-split.md) | `contracts/skill.py`, `status.py`, `stats.py`; `schema/skill_version.schema.json` + 2 more; specs §1–§2; architecture §5.4 §7.1 §9; implementation-plan repo layout | `test_semantic_profiles.py` (approved-skill profile), `test_structural_validity.py` | No mutable field remains on the immutable version document; example updated |
+| B2 | TaskCriterion vs SkillCertificationCriterion | Amend: [ADR-0003](adr/0003-criteria-preregistration.md) | `contracts/criteria.py`; specs §15.1 §15.4; architecture §11.1 | `test_criteria_timeline.py` | Scratch→candidate path states when certification criteria are authored and how they get preregistered relative to certification runs |
+| B3 | Conditional join; real `MergeAudit` predicate | New: [ADR-0008](adr/0008-optional-join-and-failure-signals.md) | `contracts/graph.py`, `branch.py`; specs §4 §4.1; architecture §5.1; `README.md` diagram (no change needed — see fix above) | `test_route_completeness.py` | A single-branch run has a fully specified path to distill in M0 |
+| B4 | FailureSignal + error edges; split quarantine | Same: [ADR-0008](adr/0008-optional-join-and-failure-signals.md) | `contracts/failure.py`; specs §4 §16 §21; architecture §5.1 | `test_route_completeness.py` | Every failure class in §16 has a legal producer; review rejection ≠ skill quarantine |
+| B5 | Ownership rule; semantic profiles; contracts as code | New: [ADR-0009](adr/0009-contracts-as-code.md) | all of `contracts/`; `scripts/generate_schemas.py`, `export_examples.py`; specs (throughout); implementation-plan (repo layout, CI invariants) | `test_examples.py`, `test_schema_generation.py`, `test_structural_validity.py` | The canonical example passes `approved-skill`/`candidate-skill`, not merely parses; regenerating schema from contracts is a CI-checked no-op |
+| B6 | Rewrite M0–M3 done-whens; pull forward mechanisms | — (prose fix, no ADR) | implementation-plan M0 M1 M3 | *(open — see below)* | No M0–M3 done-when cites a mechanism whose first landing is M4+ |
+| B7 | `docs/assumptions.md`; split engineering gate from research outcome | — (prose fix, no ADR) | implementation-plan M4 M5 M9; new `docs/assumptions.md`; `references.md` §8 → pointer | *(open — see below)* | A harness that correctly reports null lift can pass M4 |
+
+**Order used:** B3 and B4 first (graph is unrunnable without them), then B1 and B5 (data
+model — the same PR, since `contracts/graph.py`'s route table and `RunState`'s field types
+are one surface), then B2 (criteria timeline, which only became statable once B1's
+`SkillCertificationCriterion` had somewhere to live), then B6 (milestones against the
+repaired contracts), then B7 (gates).
+
+**B6/B7 have no "proven by" R3 check yet.** They are prose-sequencing fixes, not data-model
+fixes, so there is nothing in `contracts/` to test against. The gap this leaves: a future
+edit could reintroduce a done-when that cites a not-yet-landed mechanism, or a done-when that
+requires a research outcome, and nothing would catch it. Closing this is the "Milestone
+dependency" and "Assumptions hygiene" checks in R3 below — they remain unbuilt.
+
+### R2 — Skeleton and generated contracts — the contracts half is done
+
+- ~~`pyproject.toml`~~ — done, but scoped to `contracts/` as a specification-tooling package,
+  not yet `src/fandea/`. Empty `src/fandea/` packages per the implementation plan's repository
+  layout remain **open**: they should not be scaffolded until whoever picks this up has read
+  `contracts/` and `docs/adr/0007-0009`, for the reason below.
+- ~~Pydantic models as the working hand; JSON Schema emitted or checked in CI.~~ — done:
+  `contracts/*.py` are the models; `scripts/generate_schemas.py --check` and
+  `scripts/export_examples.py --check` run as CI steps in `.github/workflows/contracts.yml`.
+- ~~Semantic profile validators as first-class Python, not prose.~~ — done: `contracts/profiles.py`.
+- Import-boundary / capability tests per S6 (use interfaces, not "cannot import registry") —
+  **open**. This is `src/fandea/`-shaped work (governance module boundary), not a `contracts/`
+  concern, so it waits for the `src/` skeleton.
+
+**The "do not scaffold Pydantic models before B1 lands" warning from the original plan
+applied, transitively, to B2–B5 as well** — a hand-written `RunState` or routing table
+written before B2 (criteria timeline) or B3/B4 (routing, failure signals) landed would have
+encoded exactly the bugs this pass fixed, the same way a pre-B1 `SkillVersion` model would
+have. That risk is now retired for `contracts/`, since B1–B5 landed together. **The same
+warning now applies to `src/fandea/`**: do not hand-write runtime types for `RunState`,
+routing, or skill records — import them from `contracts/`. B6/B7 (milestone prose, research
+gates) never carried this risk; they do not shape a data model.
+
+### R3 — Contract CI that would have caught this — partially done
+
+| Check | Fails when | Status |
 | --- | --- | --- |
-| B1 | Split SkillVersion / Status / Stats in specs §1–§2, schema, ADR-0006 touchpoints | No mutable field remains on the immutable version document; example updated |
-| B2 | Introduce TaskCriterion vs SkillCertificationCriterion; rewrite §15 and distill path | Scratch→candidate path states when certification criteria are authored and how they get preregistered relative to certification runs |
-| B3 | Fix validate routing; define singleton join or remove join from the default path; replace `merge_audit.complete` with a real predicate on `action` | A single-branch run has a fully specified path to distill in M0 |
-| B4 | FailureSignal + error edges; split quarantine meanings | Every failure class in §16 has a legal producer; review rejection ≠ skill quarantine |
-| B5 | Ownership rule; semantic profiles; repair run schema (`criteria`, branch budget, …); make the canonical example pass `approved-skill` | `pytest tests/semantic` fails if the example regresses; structural-only CI is not enough |
-| B6 | Rewrite M0–M3 done-whens and pull forward seed approval, sensitivity execution, active assignment, golden runner stub, checkpoint idempotency | No M0–M3 done-when cites a mechanism whose first landing is M4+ |
-| B7 | Add `docs/assumptions.md`; demote empirical thresholds to T2 defaults; rewrite M4/M5 done-whens to accept "not established" | A harness that correctly reports null lift can pass M4 |
+| Structural schema validity | Schema itself is invalid | Done — `test_structural_validity.py` |
+| Lifecycle profiles | Canonical examples miss required semantic fields | Done — `test_examples.py`, `test_semantic_profiles.py` |
+| Schema/example drift | Generated schema or exported example disagrees with `contracts/` | Done — `test_schema_generation.py` |
+| Criteria timeline | `RunState.criteria` type-checks a `SkillCertificationCriterion` | Done — `test_criteria_timeline.py` |
+| Route completeness | A strategy × outcome pair has no legal next node (route table in `contracts/graph.py`) | Done — `test_route_completeness.py` |
+| Cross-refs | Dangling `§n` or cross-doc target | **Open** |
+| Milestone dependency | A done-when names a symbol whose `introduced_in` milestone is later | **Open** |
+| Assumptions hygiene | A milestone done-when references an `assumptions.md` claim marked unverified as if it were a pass/fail gate | **Open** |
 
-**Order inside R1:** B3 and B4 first (graph is unrunnable without them), then B1 and B5
-(data model), then B2 (criteria timeline), then B6 (milestones against the repaired
-contracts), then B7 (gates).
-
-### R2 — Skeleton and generated contracts
-
-- `pyproject.toml`, empty `src/fandea/` packages per the implementation plan.
-- Pydantic models as the working hand; JSON Schema emitted or checked in CI.
-- Semantic profile validators as first-class Python, not prose.
-- Import-boundary / capability tests per S6 (use interfaces, not "cannot import registry").
-
-### R3 — Contract CI that would have caught this
-
-| Check | Fails when |
-| --- | --- |
-| Structural schema validity | Schema itself is invalid |
-| Lifecycle profiles | Canonical examples miss required semantic fields |
-| Cross-refs | Dangling `§n` or cross-doc target |
-| Route completeness | A strategy × outcome pair has no legal next node (machine-readable route table extracted from specs §4.1) |
-| Milestone dependency | A done-when names a symbol whose `introduced_in` milestone is later |
-| Assumptions hygiene | A milestone done-when references an assumptions-register claim marked unverified as if it were a pass/fail gate |
-
-The route-completeness and milestone-dependency checks are the ones that would have blocked
-B3 and B6 from landing. Build them before the next design accretion.
+The five "Done" checks run as `pytest tests/contracts/` inside
+[`.github/workflows/contracts.yml`](../.github/workflows/contracts.yml), alongside `ruff` and
+`mypy` on `contracts/`, on every push to `main` and every PR touching `contracts/`, `scripts/`,
+`schema/`, `skills/`, or `tests/contracts/`. They would have blocked B1–B5 from regressing;
+they say nothing about B6/B7, which is exactly why those two still have no "proven by" entry
+above. Cross-refs, milestone dependency, and assumptions hygiene are the three checks nothing
+today enforces — build them before the next design accretion, and before trusting this
+document's own "Resolution status" table to stay true without re-checking it by hand.
 
 ### R4 — Split the long docs
 
@@ -278,15 +360,21 @@ last cycle lost graph-execution work on `main` for exactly that reason.
 ## 4. Sequencing
 
 ```text
-R0  hygiene                         // parallel, cheap
-R1  B3 → B4 → B1 → B5 → B2 → B6 → B7   // the actual refactor
-R2  skeleton + generated contracts  // after B1/B5 shape is stable
-R3  contract CI                     // after R2; encodes R1 invariants
-R4  split docs                      // after R1, optionally after first M0 spike
-R5  branch cleanup                  // anytime
+R0  hygiene                         // still open, parallel, cheap
+R1  B3 → B4 → B1 → B5 → B2 → B6 → B7   // done — see Resolution status
+R2  skeleton + generated contracts  // contracts/ done; src/fandea/ open
+R3  contract CI                     // 5 of 8 checks wired into CI; 3 checks still open
+R4  split docs                      // after R1 (satisfied); not started
+R5  branch cleanup                  // anytime; not tracked here
 ```
 
-M0 starts after **R1 + R2 + R3**. Not after R0. Not after R4.
+M0 starts after **R1 + R2 + R3**. R1 is done. R2 is half done (contracts, not the runtime
+skeleton). R3's five existing checks are wired into CI (`.github/workflows/contracts.yml`);
+three checks (cross-refs, milestone dependency, assumptions hygiene) are still unwritten.
+**M0 should not start yet** — not because the design is blocked again, but because writing
+those three checks now is cheap and mechanical, and exactly the kind of thing that is annoying
+to retrofit once `src/` exists and node code starts depending on contracts informally. Do it
+first anyway.
 
 ---
 
@@ -302,9 +390,18 @@ M0 starts after **R1 + R2 + R3**. Not after R0. Not after R4.
 
 ## 6. Immediate next actions
 
-1. Open the R1.B3 PR: repair `validate` routing and the `merge_audit.complete` phantom
-   predicate. Smallest change that makes a single-attempt run expressible.
-2. Open R1.B4 behind it: `FailureSignal` and the quarantine split.
-3. Land R0 in parallel so research binaries stop hitchhiking on design PRs.
-4. Do not scaffold `src/` until B1's SkillVersion split is written — otherwise the first
-   Pydantic models will encode the contradiction.
+R1 is done. Item 1 below is done. What is left, in order:
+
+1. ~~Wire the five existing `tests/contracts/*` checks into an actual CI job, plus
+   `ruff`/`mypy` on `contracts/` itself.~~ — done: `.github/workflows/contracts.yml`.
+2. Write the three missing R3 checks: cross-refs (dangling `§n` / cross-doc targets),
+   milestone dependency (a done-when citing a symbol whose `introduced_in` is later), and
+   assumptions hygiene (a done-when treating an unverified `assumptions.md` claim as a gate).
+   These need their own script under `scripts/` and a job step alongside the existing ones.
+3. Land R0 (move research binaries out of `docs/`) in parallel — it never depended on R1 and
+   nothing above depends on it either.
+4. Only then scaffold `src/fandea/` per the implementation plan's repository layout, importing
+   types from `contracts/` rather than redefining them (§R2 above) — this is what M0 actually
+   builds.
+5. Pick up the secondary debt in §1 (S1–S8) opportunistically while touching the relevant
+   surface in M0–M2; none of it blocks M0 by itself, same as before this pass.
