@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/MetricReport",
+  "$defs": {
+    "BinomialSample": {
+      "additionalProperties": false,
+      "properties": {
+        "successes": {
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "trials": {
+          "minimum": 0,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "successes",
+        "trials"
+      ],
+      "title": "BinomialSample",
+      "type": "object"
+    },
+    "CausalLiftResult": {
+      "additionalProperties": false,
+      "description": "Treatment \u2212 control first-attempt success with a difference CI (specs \u00a719).",
+      "properties": {
+        "task_class": {
+          "title": "Task Class",
+          "type": "string"
+        },
+        "treatment": {
+          "$ref": "#/$defs/BinomialSample"
+        },
+        "control": {
+          "$ref": "#/$defs/BinomialSample"
+        },
+        "estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Estimate"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConfidenceInterval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "established_positive",
+            "established_negative",
+            "not_established",
+            "insufficient_data"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        }
+      },
+      "required": [
+        "task_class",
+        "treatment",
+        "control",
+        "estimate",
+        "interval",
+        "status"
+      ],
+      "title": "CausalLiftResult",
+      "type": "object"
+    },
+    "ConfidenceInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "title": "Low",
+          "type": "number"
+        },
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "level": {
+          "default": 0.95,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Level",
+          "type": "number"
+        },
+        "method": {
+          "default": "newcombe_wilson",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "high"
+      ],
+      "title": "ConfidenceInterval",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Aggregate \u00a711 / \u00a723 metrics for one snapshot window.",
+  "properties": {
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "task_class": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Class"
+    },
+    "reuse_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reuse Rate"
+    },
+    "first_attempt_success": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "First Attempt Success"
+    },
+    "attempts_to_success": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attempts To Success"
+    },
+    "cost_per_solved_task": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Per Solved Task"
+    },
+    "regression_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Regression Rate"
+    },
+    "causal_lift": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CausalLiftResult"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "calibration_error": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Calibration Error"
+    },
+    "abstention_precision": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Precision"
+    },
+    "merge_gap_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Merge Gap Rate"
+    },
+    "parallel_speedup": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parallel Speedup"
+    },
+    "fake_edge_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fake Edge Rate"
+    },
+    "judge_isolation_violations": {
+      "default": 0,
+      "title": "Judge Isolation Violations",
+      "type": "integer"
+    },
+    "unavailable": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Unavailable",
+      "type": "object"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "at"
+  ],
+  "title": "MetricReport",
+  "type": "object"
+}
