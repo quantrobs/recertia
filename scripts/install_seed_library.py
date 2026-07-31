@@ -156,6 +156,7 @@ def promote_all(store: SkillStore, golden_root: Path, runs_root: Path, log_dir: 
                 runs_root=runs_root,
                 log_dir=log_dir,
                 tool_fingerprint={"python": "3.12", "pytest": "8.3.4"},
+                repo_root=ROOT,
             )
             print(f"approved {version.skill_id}@v{version.version} active={status.active} "
                   f"golden_ref={status.certification.golden_set_ref}")
