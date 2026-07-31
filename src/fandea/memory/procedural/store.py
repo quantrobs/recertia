@@ -30,6 +30,10 @@ class ApprovedLifecycleError(Exception):
     """Raised when a caller attempts to write ``lifecycle=approved`` outside the promote path."""
 
 
+class LifecycleConflictError(Exception):
+    """Raised when a compare-and-swap status write finds an unexpected lifecycle."""
+
+
 class SkillStore:
     def __init__(self, skills_root: Path | str) -> None:
         self.root = Path(skills_root)
@@ -78,10 +82,17 @@ class SkillStore:
         self.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
         return version
 
-    def write_status(self, status: SkillStatus) -> Path:
+    def write_status(
+        self,
+        status: SkillStatus,
+        *,
+        expected_lifecycle: str | None = None,
+    ) -> Path:
         """Write status. Transitions *into* ``approved`` are rejected (use promote path).
 
         Updates to an already-approved record (e.g. active-set toggles) are allowed.
+        When ``expected_lifecycle`` is set, refuse the write if the on-disk lifecycle
+        does not match — a compare-and-swap guard against lost quarantine/bench races.
         """
 
         dest_dir = self.version_dir(status.skill_id, status.version)
@@ -89,8 +100,15 @@ class SkillStore:
             raise FileNotFoundError(
                 f"cannot write status for {status.skill_id}@v{status.version}: version.json missing"
             )
+        existing = self._read_status_if_present(status.skill_id, status.version)
+        if expected_lifecycle is not None:
+            current = existing.lifecycle if existing is not None else None
+            if current != expected_lifecycle:
+                raise LifecycleConflictError(
+                    f"status CAS failed for {status.skill_id}@v{status.version}: "
+                    f"expected lifecycle={expected_lifecycle!r}, found {current!r}"
+                )
         if status.lifecycle == "approved":
-            existing = self._read_status_if_present(status.skill_id, status.version)
             if existing is None or existing.lifecycle != "approved":
                 raise ApprovedLifecycleError(
                     f"refusing to write lifecycle=approved for "

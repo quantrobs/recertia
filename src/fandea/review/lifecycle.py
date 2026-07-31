@@ -75,7 +75,7 @@ def maybe_advance_shadow_to_candidate(
     # Shadow evidence makes this version eligible for the golden-gated
     # promotion service; it is not itself an approval authority.
     candidate = status.model_copy(update={"lifecycle": "candidate", "active": False})
-    store.write_status(candidate)
+    store.write_status(candidate, expected_lifecycle=status.lifecycle)
     enabled, retrieval_suppressed = eval_store.retrieval_ablation_samples(task_class=task_class)
     eval_store.write_retrieval_ablation(
         estimate_retrieval_ablation(
@@ -139,7 +139,7 @@ def quarantine_on_failures(
     if consecutive_failures < config.quarantine_consecutive_failures:
         return status
     quarantined = status.model_copy(update={"lifecycle": "quarantined", "active": False})
-    store.write_status(quarantined)
+    store.write_status(quarantined, expected_lifecycle=status.lifecycle)
     if ledger is not None:
         ledger.append(
             actor="m5-quarantine",
@@ -192,7 +192,7 @@ def maybe_bench_on_contribution(
             ),
         }
     )
-    store.write_status(benched)
+    store.write_status(benched, expected_lifecycle=status.lifecycle)
     enabled, retrieval_suppressed = eval_store.retrieval_ablation_samples(task_class=task_class)
     eval_store.write_retrieval_ablation(
         estimate_retrieval_ablation(
@@ -239,7 +239,7 @@ def restore_benched(
             ),
         }
     )
-    store.write_status(restored)
+    store.write_status(restored, expected_lifecycle="benched")
     if ledger is not None:
         ledger.append(
             actor="m5-retirement",
@@ -262,7 +262,8 @@ def _mark_parents_needs_recert(
         if any(u.skill_id == child_id and u.version == child_version for u in version.uses):
             if status.lifecycle in ("approved", "shadow"):
                 store.write_status(
-                    status.model_copy(update={"lifecycle": "needs_recert", "active": False})
+                    status.model_copy(update={"lifecycle": "needs_recert", "active": False}),
+                    expected_lifecycle=status.lifecycle,
                 )
                 if ledger is not None:
                     ledger.append(

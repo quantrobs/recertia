@@ -96,6 +96,12 @@ def promote_to_approved(
     violations = lint_skill(ver, approved, stats, store=store)
     if violations:
         raise PromotionError(f"approved profile violations: {violations}")
+    # Refuse promotion if a concurrent quarantine/bench landed during the golden gate.
+    current = store.get_status(skill_id, version)
+    if current.lifecycle in ("quarantined", "retired", "benched", "needs_recert"):
+        raise PromotionError(
+            f"promotion aborted: lifecycle moved to {current.lifecycle!r} during golden gate"
+        )
     store._write_status_unchecked(approved)
     return approved
 
