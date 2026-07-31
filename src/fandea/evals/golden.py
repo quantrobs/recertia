@@ -20,6 +20,7 @@ the evidence of the regression gate — not a note in a PR description.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import uuid
 from dataclasses import dataclass, field
@@ -139,6 +140,12 @@ def run_golden_for_skill(
         library_commit=snapshot_id,
     )
     orch = GraphOrchestrator(runs_root / "golden-runs")
+    previous_backend = os.environ.get("FANDEA_EXECUTION_BACKEND")
+    # Golden fixtures are an in-process test harness.  Opt into the guarded local executor
+    # only for this harness when no backend was explicitly configured; production executions
+    # retain the container-only default.
+    if previous_backend is None:
+        os.environ["FANDEA_EXECUTION_BACKEND"] = "local"
     try:
         state = orch.start(
             run_id,
@@ -158,6 +165,8 @@ def run_golden_for_skill(
         )
     finally:
         orch.close()
+        if previous_backend is None:
+            os.environ.pop("FANDEA_EXECUTION_BACKEND", None)
         # Deterministic teardown so the next run starts from a pristine fixture.
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
