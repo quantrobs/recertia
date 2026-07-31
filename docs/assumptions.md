@@ -40,7 +40,8 @@ suppressed (ADR-0003, [`references.md` §1.1](references.md#11-self-authored-ski
   done-when).
 - **Research outcome (this claim):** whether real `repo-chore` traffic actually shows a
   positive `causal_lift` with an interval excluding zero.
-- **Status:** `untested` — M4 has not run against real traffic yet.
+- **Status:** `under evaluation` — M4 harness exists and synthetic nulls are tested; real
+  `repo-chore` traffic has not yet produced a stable interval.
 - **Why it might be false anyway:** SkillsBench's null result may generalise if our curation
   bottleneck (§1.1) is not actually fixed by the review gate; machine-checkability narrows but
   does not eliminate that risk.
@@ -60,9 +61,8 @@ reasonable time window at our expected task volume.
 - **Research outcome (this claim):** whether real + practised trial volume actually clears the
   floor for most active skills within a reasonable time window, or whether the majority of the
   library sits permanently below it.
-- **Status:** `untested` — no skill has accumulated certification trials yet; this becomes
-  `under evaluation` once M5 lands and the Recertifier's drift-check job has run at least once
-  against real skill trial counts.
+- **Status:** `under evaluation` — M5 autonomy / active-set / Practice mechanisms exist; no
+  production skill has yet accumulated certification trials against the floor.
 - **Why it might be false anyway:** Ratchet's own cold-start regime is admitted to be
   under-evidenced for traffic at our scale (`references.md` §1.1, §8 original note); our
   lower-volume setting may mean most skills sit below the floor indefinitely, which is itself a

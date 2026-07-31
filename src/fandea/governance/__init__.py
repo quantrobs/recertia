@@ -3,3 +3,5 @@
 from fandea.governance.tiers import T3_FORBIDDEN_FOR_RUNS_AND_JOBS, Tier, tier_of
 
 __all__ = ["Tier", "tier_of", "T3_FORBIDDEN_FOR_RUNS_AND_JOBS"]
+
+# Re-export sandbox types for operators; runs/jobs must not import this package.

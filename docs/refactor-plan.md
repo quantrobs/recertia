@@ -33,11 +33,11 @@ migrating [`references.md` §8](references.md#8-open-questions-the-literature-do
 semantic profiles in `contracts/profiles.py`, and now the `src/fandea/` M0 walking-skeleton
 runtime (graph engine, all fifteen nodes, hash-chain ledger, workspace snapshotting, the
 operation ledger, the T0–T3 import-boundary test, and the CLI) all exist and are tested — see
-`docs/implementation-plan.md` M0. **R3 is partially done**: route completeness, schema-drift,
-semantic-profile checks, and the full `src/fandea/`/`contracts/` test suite run as
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every push and PR; cross-refs,
-milestone-dependency, and assumptions-hygiene checks remain open. R0, R4, and R5 are untouched
-by this pass — they were never blockers.
+`docs/implementation-plan.md` M0. **R3 is done**: route completeness, schema-drift, semantic-profile checks, cross-refs,
+milestone-dependency, assumptions-hygiene, and the full `src/fandea/`/`contracts/` test suite
+run as [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every push and PR. R4
+(doc split) and R5 (branch cleanup) remain optional hygiene, not blockers. R0 (research/
+binaries) is done.
 
 | Blocker | ADR | Contracts | Tests | Docs updated |
 | --- | --- | --- | --- | --- |
@@ -213,9 +213,9 @@ into the same PR when touching that surface.
 | S3 | `Branch` has no status, spend, transcript, snapshot; schema omits `budget` | `BranchState` + `BudgetLease` against a parent ledger; reserve join overhead | **Done, as a side effect of B3** — `contracts/branch.py`'s `BranchState` has all of status/spend/transcript/snapshot/budget; `schema/branch.schema.json` generated |
 | S4 | `skill_contribution` subtracts a class baseline from a non-randomly selected skill | Three quantities, stored once: predictive trust, class-level retrieval effect (ablation), per-skill effect (shadow/suppression) | Open — `contracts/stats.py`'s `Contribution` model exists but stores one `estimate`, not the three separated quantities this fix calls for |
 | S5 | Benched skills cannot gather restoration evidence (not retrievable) | Bounded exploration/shadow slots for benched and newly approved versions | Open |
-| S6 | T3 "unreachable from run code" forbids importing the tool registry the runtime must use | Capability interfaces: read/use vs mutate; test forbidden writes, not blanket imports | Open — `src/fandea/`-shaped, waits for the runtime skeleton |
-| S7 | Only skill/run schemas exist; M0 needs Policy, Criterion, NodeOutput, checkpoint, FailureSignal | Milestone-scoped contract backlog; add schemas before the milestone that consumes them | Partially done — `FailureSignal`/`FailureVerdict`/`MergeAudit`/`BranchState` schemas now exist (B3–B5); `TaskCriterion`/`SkillCertificationCriterion` exist as `contracts/criteria.py` types embedded in `run.schema.json` but have no standalone schema file; Policy, NodeOutput, and checkpoint schemas remain open |
-| S8 | Research binaries and `.xls` duplicates live in `docs/` | Move to `research/`; xlsx+JSON only (was the entirety of the old plan) | Open — this is R0, unstarted |
+| S6 | T3 "unreachable from run code" forbids importing the tool registry the runtime must use | Capability interfaces: read/use vs mutate; test forbidden writes, not blanket imports | **Done** — `ToolRuntime` invokes; `ToolRegistry.register` stays off `NodeContext`; import-boundary test guards T3 |
+| S7 | Only skill/run schemas exist; M0 needs Policy, Criterion, NodeOutput, checkpoint, FailureSignal | Milestone-scoped contract backlog; add schemas before the milestone that consumes them | **Done** — Policy / NodeOutput / CheckpointRecord / ScopePromotion schemas generated; criteria remain embedded in `run.schema.json` |
+| S8 | Research binaries and `.xls` duplicates live in `docs/` | Move to `research/`; xlsx+JSON only (was the entirety of the old plan) | **Done** — spreadsheets live under `research/` |
 
 ---
 
@@ -234,7 +234,7 @@ Authority
 ├── schema/                     JSON Schema, generated from contracts/, never hand-edited [done]
 ├── docs/assumptions.md         research claims vs engineering gates [done]
 ├── docs/implementation-plan.md build order, revised against B6/B7 [done]
-└── research/                   evidence dumps; never normative [not moved yet — R0]
+└── research/                   evidence dumps; never normative
 
 Runtime (scaffolded empty until M0 fills it)
 ├── src/fandea/…                imports types from contracts/, does not redefine them
@@ -308,7 +308,7 @@ dependency" and "Assumptions hygiene" checks in R3 below — they remain unbuilt
   `contracts/` and `docs/adr/0007-0009`, for the reason below.
 - ~~Pydantic models as the working hand; JSON Schema emitted or checked in CI.~~ — done:
   `contracts/*.py` are the models; `scripts/generate_schemas.py --check` and
-  `scripts/export_examples.py --check` run as CI steps in `.github/workflows/contracts.yml`.
+  `scripts/export_examples.py --check` run as CI steps in `.github/workflows/ci.yml`.
 - ~~Semantic profile validators as first-class Python, not prose.~~ — done: `contracts/profiles.py`.
 - Import-boundary / capability tests per S6 (use interfaces, not "cannot import registry") —
   **open**. This is `src/fandea/`-shaped work (governance module boundary), not a `contracts/`
@@ -332,18 +332,16 @@ gates) never carried this risk; they do not shape a data model.
 | Schema/example drift | Generated schema or exported example disagrees with `contracts/` | Done — `test_schema_generation.py` |
 | Criteria timeline | `RunState.criteria` type-checks a `SkillCertificationCriterion` | Done — `test_criteria_timeline.py` |
 | Route completeness | A strategy × outcome pair has no legal next node (route table in `contracts/graph.py`) | Done — `test_route_completeness.py` |
-| Cross-refs | Dangling `§n` or cross-doc target | **Open** |
-| Milestone dependency | A done-when names a symbol whose `introduced_in` milestone is later | **Open** |
-| Assumptions hygiene | A milestone done-when references an `assumptions.md` claim marked unverified as if it were a pass/fail gate | **Open** |
+| Cross-refs | Dangling `§n` or cross-doc target | Done — `scripts/check_cross_refs.py` |
+| Milestone dependency | A done-when names a symbol whose `introduced_in` milestone is later | Done — `scripts/check_milestone_deps.py` + `contracts/introduced_in.py` |
+| Assumptions hygiene | A milestone done-when references an `assumptions.md` claim marked unverified as if it were a pass/fail gate | Done — `scripts/check_assumptions_hygiene.py` |
 
 The five "Done" checks run as `pytest tests/contracts/` inside
-[`.github/workflows/contracts.yml`](../.github/workflows/contracts.yml), alongside `ruff` and
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml), alongside `ruff` and
 `mypy` on `contracts/`, on every push to `main` and every PR touching `contracts/`, `scripts/`,
 `schema/`, `skills/`, or `tests/contracts/`. They would have blocked B1–B5 from regressing;
-they say nothing about B6/B7, which is exactly why those two still have no "proven by" entry
-above. Cross-refs, milestone dependency, and assumptions hygiene are the three checks nothing
-today enforces — build them before the next design accretion, and before trusting this
-document's own "Resolution status" table to stay true without re-checking it by hand.
+they historically said nothing about B6/B7; assumptions-hygiene and milestone-dependency
+CI now cover those. All eight R3 checks are enforced.
 
 ### R4 — Split the long docs
 
@@ -361,21 +359,16 @@ last cycle lost graph-execution work on `main` for exactly that reason.
 ## 4. Sequencing
 
 ```text
-R0  hygiene                         // still open, parallel, cheap
+R0  hygiene                         // done — research/ holds survey binaries
 R1  B3 → B4 → B1 → B5 → B2 → B6 → B7   // done — see Resolution status
-R2  skeleton + generated contracts  // contracts/ done; src/fandea/ open
-R3  contract CI                     // 5 of 8 checks wired into CI; 3 checks still open
-R4  split docs                      // after R1 (satisfied); not started
-R5  branch cleanup                  // anytime; not tracked here
+R2  skeleton + generated contracts  // done
+R3  contract CI                     // done (8/8 checks)
+R4  split docs                      // optional; not started
+R5  branch cleanup                  // anytime
 ```
 
-M0 starts after **R1 + R2 + R3**. R1 is done. R2 is half done (contracts, not the runtime
-skeleton). R3's five existing checks are wired into CI (`.github/workflows/contracts.yml`);
-three checks (cross-refs, milestone dependency, assumptions hygiene) are still unwritten.
-**M0 should not start yet** — not because the design is blocked again, but because writing
-those three checks now is cheap and mechanical, and exactly the kind of thing that is annoying
-to retrofit once `src/` exists and node code starts depending on contracts informally. Do it
-first anyway.
+M0–M9 engineering done-whens are on `main`. Remaining work is optional hygiene (R4/R5),
+secondary debt in §1 (S1/S2/S4/S5), and research outcomes in `assumptions.md`.
 
 ---
 
@@ -391,18 +384,11 @@ first anyway.
 
 ## 6. Immediate next actions
 
-R1 is done. Item 1 below is done. What is left, in order:
+R0–R3 and M0–M9 are done. Remaining optional work:
 
-1. ~~Wire the five existing `tests/contracts/*` checks into an actual CI job, plus
-   `ruff`/`mypy` on `contracts/` itself.~~ — done: `.github/workflows/contracts.yml`.
-2. Write the three missing R3 checks: cross-refs (dangling `§n` / cross-doc targets),
-   milestone dependency (a done-when citing a symbol whose `introduced_in` is later), and
-   assumptions hygiene (a done-when treating an unverified `assumptions.md` claim as a gate).
-   These need their own script under `scripts/` and a job step alongside the existing ones.
-3. Land R0 (move research binaries out of `docs/`) in parallel — it never depended on R1 and
-   nothing above depends on it either.
-4. Only then scaffold `src/fandea/` per the implementation plan's repository layout, importing
-   types from `contracts/` rather than redefining them (§R2 above) — this is what M0 actually
-   builds.
-5. Pick up the secondary debt in §1 (S1–S8) opportunistically while touching the relevant
-   surface in M0–M2; none of it blocks M0 by itself, same as before this pass.
+1. ~~Wire contracts CI + the three R3 hygiene scripts.~~ — done in `.github/workflows/ci.yml`.
+2. ~~Land R0 (move research binaries out of `docs/`).~~ — done under `research/`.
+3. Optionally split long docs (R4) and delete stale merged agent branches (R5).
+4. Pick up remaining secondary debt in §1 (S1, S2, S4, S5) opportunistically.
+5. Research outcomes in [`assumptions.md`](assumptions.md) stay under evaluation until real
+   traffic yields intervals.
