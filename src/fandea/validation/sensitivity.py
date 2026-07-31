@@ -3,27 +3,29 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from contracts.criteria import (
+    SensitivityProof,
+    SkillCertificationCriterion,
+    TaskCriterion,
+    sensitivity_evidence_hash,
+    sensitivity_proof_binds,
+)
 from fandea.validation.assertions import UnsafeAssertionError, evaluate_assertion
 
-
-def sensitivity_evidence_hash(
-    criterion: TaskCriterion | SkillCertificationCriterion, negative_fingerprint: str
-) -> str:
-    """Hash exactly the executable criterion and immutable negative-fixture fingerprint."""
-
-    criterion_payload = criterion.model_dump(
-        mode="json", exclude={"sensitivity_proof"}, exclude_none=False
-    )
-    encoded = json.dumps(criterion_payload, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded + b"\0" + negative_fingerprint.encode()).hexdigest()
+__all__ = [
+    "author_sensitivity_proof",
+    "empty_negative_fixture",
+    "mutate_workspace",
+    "sensitivity_evidence_hash",
+    "sensitivity_proof_binds",
+    "workspace_fingerprint",
+]
 
 
 def workspace_fingerprint(workdir: Path) -> str:

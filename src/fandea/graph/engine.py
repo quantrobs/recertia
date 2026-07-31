@@ -21,6 +21,7 @@ from contracts.run import RouteEntry, RunManifest, RunState, Task, WorkspaceSnap
 from fandea.graph.ops import OperationLedger
 from fandea.graph.store import CheckpointStore
 from fandea.ledger import HashChainLedger
+from fandea.memory.procedural.capability import CandidateSkillStoreAdapter
 from fandea.nodes import NODE_FUNCS, NodeContext
 from fandea.workspace import WorkspaceManager
 
@@ -169,7 +170,9 @@ class GraphOrchestrator:
                 ops=self.ops,
                 script=script,
                 retriever=self.retriever,
-                store=self.store,
+                store=(
+                    CandidateSkillStoreAdapter(self.store) if self.store is not None else None
+                ),
                 env_fingerprint=self.env_fingerprint,
                 tools=self.tools,
                 model=self.model,

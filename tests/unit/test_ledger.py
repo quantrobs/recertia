@@ -17,7 +17,12 @@ def test_append_and_verify_empty_ledger(tmp_path: Path) -> None:
 def test_append_chains_hashes(tmp_path: Path) -> None:
     ledger = HashChainLedger(tmp_path / "ledger.jsonl")
     e1 = ledger.append(actor="a", action="write", target="skill-1", at=datetime.now(timezone.utc))
-    e2 = ledger.append(actor="a", action="promote", target="skill-1", at=datetime.now(timezone.utc))
+    e2 = ledger.append(
+        actor="a",
+        action="advance_to_candidate",
+        target="skill-1",
+        at=datetime.now(timezone.utc),
+    )
 
     assert e1.seq == 0
     assert e2.seq == 1
@@ -29,7 +34,12 @@ def test_tampering_an_entry_is_detected(tmp_path: Path) -> None:
     path = tmp_path / "ledger.jsonl"
     ledger = HashChainLedger(path)
     ledger.append(actor="a", action="write", target="skill-1", at=datetime.now(timezone.utc))
-    ledger.append(actor="a", action="promote", target="skill-1", at=datetime.now(timezone.utc))
+    ledger.append(
+        actor="a",
+        action="advance_to_candidate",
+        target="skill-1",
+        at=datetime.now(timezone.utc),
+    )
 
     lines = path.read_text().splitlines()
     tampered = json.loads(lines[0])

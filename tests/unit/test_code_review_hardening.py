@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from contracts.criteria import SkillCertificationCriterion, TaskCriterion, mint_rejecting_proof
 from contracts.run import RunManifest, RunState, Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import Contribution, PredictiveTrust, SkillStats
@@ -51,12 +51,11 @@ def _ctx(tmp_path: Path, *, node: str, episodic: EpisodicStore | None = None) ->
 
 
 def _version(skill_id: str) -> SkillVersion:
-    proof = SensitivityProof(
-        criterion_id="ok",
-        negative_fixture="empty",
-        rejected=True,
-        checked_at=datetime.now(timezone.utc),
-        evidence_hash="abc",
+    base = SkillCertificationCriterion(
+        id="ok",
+        kind="command",
+        run="true",
+        preregistered=True,
     )
     return SkillVersion(
         skill_id=skill_id,
@@ -73,12 +72,10 @@ def _version(skill_id: str) -> SkillVersion:
             )
         ],
         certification_criteria=[
-            SkillCertificationCriterion(
-                id="ok",
-                kind="command",
-                run="true",
-                sensitivity_proof=proof,
-                preregistered=True,
+            base.model_copy(
+                update={
+                    "sensitivity_proof": mint_rejecting_proof(base, fingerprint="review-ok")
+                }
             )
         ],
         provenance=Provenance(
@@ -98,6 +95,22 @@ def test_assertion_cannot_escape_workdir(tmp_path: Path) -> None:
         evaluate_assertion("Path('/tmp/pwn').write_text('x')", workdir=tmp_path)
     with pytest.raises(UnsafeAssertionError):
         evaluate_assertion("(workdir / '..' / 'etc' / 'passwd').read_text()", workdir=tmp_path)
+
+
+def test_bare_path_method_attribute_is_not_truthy(tmp_path: Path) -> None:
+    """``.exists`` without ``()`` must not evaluate as a truthy bound method."""
+
+    missing = tmp_path / "nope.txt"
+    assert not missing.exists()
+    with pytest.raises(UnsafeAssertionError, match="must be called"):
+        evaluate_assertion("(workdir / 'nope.txt').exists", workdir=tmp_path)
+    with pytest.raises(UnsafeAssertionError, match="must be called"):
+        evaluate_assertion("(workdir / 'nope.txt').is_file", workdir=tmp_path)
+    assert evaluate_assertion("not (workdir / 'nope.txt').exists()", workdir=tmp_path)
+    (tmp_path / "ok.txt").write_text("x")
+    assert evaluate_assertion("(workdir / 'ok.txt').exists()", workdir=tmp_path)
+    # Non-callable path properties remain usable without a call.
+    assert evaluate_assertion("(workdir / 'ok.txt').name == 'ok.txt'", workdir=tmp_path)
 
 
 def test_grep_skips_symlinks_outside_workspace(tmp_path: Path) -> None:
@@ -122,6 +135,26 @@ def test_container_spec_policy_rejects_host_network_and_root(tmp_path: Path, mon
         run_in_container("true", workdir=tmp_path, spec=ContainerSpec(user="0:0"))
     with pytest.raises(SandboxError, match="writable"):
         run_in_container("true", workdir=tmp_path, spec=ContainerSpec(read_only_root=False))
+
+
+def test_container_run_drops_capabilities_and_blocks_privilege_escalation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(args, **kwargs):  # type: ignore[no-untyped-def]
+        captured.append(list(args))
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: "docker")
+    monkeypatch.setattr("fandea.solver.container.subprocess.run", fake_run)
+    run_in_container("true", workdir=tmp_path)
+    assert captured
+    args = captured[0]
+    assert "--cap-drop=ALL" in args
+    assert args[args.index("--security-opt") + 1] == "no-new-privileges"
 
 
 def test_api_key_issue_rejects_path_tenant_ids(tmp_path: Path) -> None:

@@ -309,11 +309,7 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
         proven = [
             c
             for c in out
-            if c.is_required
-            and c.kind != "judge"
-            and c.sensitivity_proof is not None
-            and c.sensitivity_proof.rejected
-            and c.sensitivity_proof.evidence_hash
+            if c.is_required and c.kind != "judge" and c.is_preregistered_and_proven
         ]
         if not proven:
             raise ValueError(
@@ -328,12 +324,12 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
     for c in version.certification_criteria:
         if c.kind == "judge" or not c.is_required:
             continue
-        proof = c.sensitivity_proof
-        if proof is None or not proof.rejected or not proof.evidence_hash:
+        if not c.is_preregistered_and_proven:
             raise ValueError(
                 f"golden task cannot promote {version.skill_id}@v{version.version}: "
                 f"criterion {c.id!r} lacks hashed rejecting sensitivity evidence"
             )
+        proof = c.sensitivity_proof
         adapted.append(
             TaskCriterion(
                 id=c.id,
@@ -349,5 +345,11 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
         raise ValueError(
             f"golden task cannot promote {version.skill_id}@v{version.version}: "
             "no required non-judge criterion with hashed sensitivity evidence"
+        )
+    # Re-check after adaptation: TaskCriterion must still bind the same evidence hash.
+    if not any(c.is_preregistered_and_proven for c in adapted):
+        raise ValueError(
+            f"golden task cannot promote {version.skill_id}@v{version.version}: "
+            "adapted task criteria failed sensitivity evidence verification"
         )
     return adapted

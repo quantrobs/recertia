@@ -111,19 +111,13 @@ def _score_criterion(criterion: CriterionLike, ctx: NodeContext) -> CriterionRes
         return _run_metric(criterion, ctx)
     if criterion.kind == "judge":
         if not isinstance(criterion, TaskCriterion):
-            raise ValueError(
-                f"judge criterion {criterion.id!r} can only be scored as a TaskCriterion"
-            )
+            raise ValueError(f"judge criterion {criterion.id!r} can only be scored as a TaskCriterion")
         if ctx.verifier_model is None:
-            raise ValueError(
-                f"judge criterion {criterion.id!r} requires an independent verifier model"
-            )
+            raise ValueError(f"judge criterion {criterion.id!r} requires an independent verifier model")
         if ctx.model is not None and ctx.verifier_model.shares_identity_with(ctx.model):
             raise ValueError("solver model cannot judge its own artifact")
         return evaluate_judge(criterion, workdir=ctx.workdir, model=ctx.verifier_model)
-    raise ValueError(
-        f"validate does not support kind={criterion.kind!r} for criterion {criterion.id!r}"
-    )
+    raise ValueError(f"validate does not support kind={criterion.kind!r} for criterion {criterion.id!r}")
 
 
 def _run_command(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
@@ -173,11 +167,23 @@ def _run_assertion(criterion: CriterionLike, ctx: NodeContext) -> CriterionResul
     )
 
 
+class PathEscapeError(ValueError):
+    """Raised when a criterion path escapes ``workdir``."""
+
+
 def _resolve_path(workdir: Path, ref: str) -> Path:
+    """Resolve ``ref`` strictly under ``workdir``; reject absolute paths and ``..`` escapes."""
+
     path = Path(ref)
     if path.is_absolute():
-        return path
-    return workdir / path
+        raise PathEscapeError(f"absolute paths are not allowed: {ref!r}")
+    root = workdir.resolve()
+    candidate = (root / path).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise PathEscapeError(f"path escapes workdir: {ref!r}") from exc
+    return candidate
 
 
 def _load_json(path: Path) -> Any:
@@ -197,8 +203,18 @@ def _run_schema(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
             output_excerpt=f"jsonschema unavailable: {exc}",
             errored=True,
         )
-    target_path = _resolve_path(ctx.workdir, criterion.target)
-    schema_path = _resolve_path(ctx.workdir, criterion.schema_ref)
+    try:
+        target_path = _resolve_path(ctx.workdir, criterion.target)
+        schema_path = _resolve_path(ctx.workdir, criterion.schema_ref)
+    except PathEscapeError as exc:
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="schema",
+            passed=False,
+            weight=criterion.weight,
+            output_excerpt=f"schema error: {exc}"[:2000],
+            errored=True,
+        )
     try:
         instance = _load_json(target_path)
         schema = _load_json(schema_path)
@@ -223,7 +239,17 @@ def _run_schema(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
 
 def _run_metric(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
     assert criterion.metric is not None and criterion.op is not None and criterion.threshold is not None
-    metrics_path = ctx.workdir / "metrics.json"
+    try:
+        metrics_path = _resolve_path(ctx.workdir, "metrics.json")
+    except PathEscapeError as exc:
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="metric",
+            passed=False,
+            weight=criterion.weight,
+            output_excerpt=f"metric error: {exc}"[:2000],
+            errored=True,
+        )
     try:
         if not metrics_path.exists():
             raise FileNotFoundError("metrics.json missing in workdir")
@@ -234,9 +260,7 @@ def _run_metric(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
         value = float(raw)
         cmp = _OPS[criterion.op]
         passed = bool(cmp(value, float(criterion.threshold)))
-        excerpt = (
-            f"metric {criterion.metric}={value} {criterion.op} {criterion.threshold} => {passed}"
-        )
+        excerpt = f"metric {criterion.metric}={value} {criterion.op} {criterion.threshold} => {passed}"
         return CriterionResult(
             criterion_id=criterion.id,
             kind="metric",

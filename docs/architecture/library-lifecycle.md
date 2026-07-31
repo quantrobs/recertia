@@ -16,10 +16,10 @@ stateDiagram-v2
     [*] --> draft
     draft --> candidate: validators pass with sensitivity proofs
     candidate --> shadow: eval set exists for the task class
-    shadow --> approved: trial wins and zero regressions
-    candidate --> approved: human approval
+    shadow --> candidate: trial wins (lift + sample thresholds)
+    candidate --> approved: golden-gated promote_to_approved
     approved --> benched: cap pressure or negative contribution
-    benched --> approved: evidence improves or Curator revision
+    benched --> candidate: restore_benched (then golden gate again)
     approved --> needs_recert: child change, model upgrade, or drift check due
     needs_recert --> approved: recertified green
     needs_recert --> quarantined: recertification fails
@@ -31,9 +31,10 @@ stateDiagram-v2
 ```
 
 `shadow` is where autonomy is earned: a candidate is retrieved and planned, the approved
-version's result is what ships, and the two are compared offline. Enough shadow wins let
-policy promote without a human — the human gate relaxes on evidence rather than being absent
-from the start.
+version's result is what ships, and the two are compared offline. Enough shadow wins advance
+the version back to `candidate` (`maybe_advance_shadow_to_candidate`); golden-gated
+`promote_to_approved` remains required before `approved`. The human gate relaxes on evidence
+rather than being absent from the start — shadow never writes `approved` directly.
 
 **Curation provenance affects the bar.** Skills carry `curation`: `human_authored`,
 `mined_from_human_artifact`, or `self_distilled`. The one benchmark that separated these found

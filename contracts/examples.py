@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion
+from contracts.criteria import SkillCertificationCriterion, mint_rejecting_proof
 from contracts.resources import ResourceClaim
 from contracts.skill import (
     FailureMode,
@@ -30,6 +30,27 @@ from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffe
 from contracts.status import Certification, SkillStatus
 
 _NOW = datetime(2026, 7, 30, 15, 22, 11, tzinfo=timezone.utc)
+
+
+def _proven_cmd(cid: str, command: str, fixture: str) -> SkillCertificationCriterion:
+    base = SkillCertificationCriterion(
+        id=cid,
+        kind="command",
+        run=command,
+        expect_exit=0,
+        weight=1.0,
+        preregistered=True,
+    )
+    return base.model_copy(
+        update={
+            "sensitivity_proof": mint_rejecting_proof(
+                base,
+                negative_fixture=fixture,
+                fingerprint="env-fingerprint-v3",
+                checked_at=_NOW,
+            )
+        }
+    )
 
 
 def bump_python_dep_version() -> SkillVersion:
@@ -104,50 +125,20 @@ def bump_python_dep_version() -> SkillVersion:
             ),
         ],
         certification_criteria=[
-            SkillCertificationCriterion(
-                id="install",
-                kind="command",
-                run="uv sync --frozen",
-                expect_exit=0,
-                weight=1.0,
-                preregistered=True,
-                sensitivity_proof=SensitivityProof(
-                    criterion_id="install",
-                    negative_fixture="pre-bump workspace with a broken lockfile",
-                    rejected=True,
-                    checked_at=_NOW,
-                    checked_against="sha256:env-fingerprint-v3",
-                ),
+            _proven_cmd(
+                "install",
+                "uv sync --frozen",
+                "pre-bump workspace with a broken lockfile",
             ),
-            SkillCertificationCriterion(
-                id="types",
-                kind="command",
-                run="mypy .",
-                expect_exit=0,
-                weight=1.0,
-                preregistered=True,
-                sensitivity_proof=SensitivityProof(
-                    criterion_id="types",
-                    negative_fixture="v2's stale-lockfile regression case",
-                    rejected=True,
-                    checked_at=_NOW,
-                    checked_against="sha256:env-fingerprint-v3",
-                ),
+            _proven_cmd(
+                "types",
+                "mypy .",
+                "v2's stale-lockfile regression case",
             ),
-            SkillCertificationCriterion(
-                id="tests",
-                kind="command",
-                run="pytest -q",
-                expect_exit=0,
-                weight=1.0,
-                preregistered=True,
-                sensitivity_proof=SensitivityProof(
-                    criterion_id="tests",
-                    negative_fixture="pre-bump workspace, unpatched",
-                    rejected=True,
-                    checked_at=_NOW,
-                    checked_against="sha256:env-fingerprint-v3",
-                ),
+            _proven_cmd(
+                "tests",
+                "pytest -q",
+                "pre-bump workspace, unpatched",
             ),
             SkillCertificationCriterion(
                 id="scope",

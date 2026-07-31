@@ -24,7 +24,7 @@
     "action": {
       "enum": [
         "write",
-        "promote",
+        "advance_to_candidate",
         "quarantine_version",
         "deprecate",
         "policy_change"

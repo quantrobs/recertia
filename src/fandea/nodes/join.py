@@ -63,6 +63,7 @@ def join(state: RunState, ctx: NodeContext) -> NodeOutcome:
         layered=layered,
     )
 
+    survivor_ids: set[str] | None = None
     if layered and state.strategy == "portfolio":
         # Mechanical reduction: keep top half by score, then select winner among survivors.
         ranked = sorted(
@@ -73,6 +74,7 @@ def join(state: RunState, ctx: NodeContext) -> NodeOutcome:
         keep = {b.branch_id for b in ranked[: max(2, len(ranked) // 2)]} or {
             b.branch_id for b in ranked[:1]
         }
+        survivor_ids = keep
         state = state.model_copy(
             update={
                 "branches": [
@@ -83,7 +85,7 @@ def join(state: RunState, ctx: NodeContext) -> NodeOutcome:
         )
 
     if state.strategy == "portfolio" or any(b.kind == "portfolio" for b in state.branches):
-        winner = _select_portfolio_winner(state)
+        winner = _select_portfolio_winner(state, eligible_ids=survivor_ids)
         branches = []
         for b in state.branches:
             branches.append(
@@ -183,14 +185,21 @@ def _portfolio_score(b) -> tuple[int, float, float]:
     return (req_pass, advisory, cost)
 
 
-def _select_portfolio_winner(state: RunState):
-    succeeded = [b for b in state.branches if b.status == "succeeded"]
+def _select_portfolio_winner(state: RunState, *, eligible_ids: set[str] | None = None):
+    """Select a portfolio winner, restricted to layered survivors when provided."""
+
+    def _eligible(branches: list) -> list:
+        if eligible_ids is None:
+            return list(branches)
+        return [b for b in branches if b.branch_id in eligible_ids]
+
+    succeeded = _eligible([b for b in state.branches if b.status == "succeeded"])
     if succeeded:
         return max(succeeded, key=_portfolio_score)
     # Preserve a deterministic selected branch for audit/recovery even when the runtime
     # fails every branch before validation (for example, unavailable sandbox capacity).
     # The run still routes through failure because the parent criterion result/signals fail.
-    completed = [b for b in state.branches if b.status in ("failed", "timed_out")]
+    completed = _eligible([b for b in state.branches if b.status in ("failed", "timed_out")])
     return max(completed, key=_portfolio_score) if completed else None
 
 

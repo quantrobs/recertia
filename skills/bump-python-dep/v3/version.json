@@ -190,7 +190,7 @@
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
         "checked_against": "sha256:env-fingerprint-v3",
-        "evidence_hash": null
+        "evidence_hash": "07ce9f4e072525cd09db1e4504adebac2be29a720effe7d1d62a97a6e0c6824a"
       },
       "authored_by": "distiller",
       "preregistered": true
@@ -217,7 +217,7 @@
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
         "checked_against": "sha256:env-fingerprint-v3",
-        "evidence_hash": null
+        "evidence_hash": "b035b604e83b5600668269b77e1f1bb378b65b0dc4169ad413d8e3e6e30fe11c"
       },
       "authored_by": "distiller",
       "preregistered": true
@@ -244,7 +244,7 @@
         "rejected": true,
         "checked_at": "2026-07-30T15:22:11Z",
         "checked_against": "sha256:env-fingerprint-v3",
-        "evidence_hash": null
+        "evidence_hash": "7f409da50bebea543616c46f52cddefde789d022825e5c2ab5f4d8bd494dda4c"
       },
       "authored_by": "distiller",
       "preregistered": true

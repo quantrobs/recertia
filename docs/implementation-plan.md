@@ -263,7 +263,9 @@ established" on real traffic still passes M4.
 
 - Shadow execution with offline comparison; shadow results never reach the caller.
 - Trust scoring, decay, and lift reported together.
-- Auto-promotion on the shadow thresholds; quarantine on consecutive field failures.
+- Auto-advance shadow → candidate on the shadow thresholds (`maybe_advance_shadow_to_candidate`);
+  golden-gated `promote_to_approved` remains required for `approved`; quarantine on consecutive
+  field failures.
 - **Bounded active set** per task class with `benched` as a reversible state, incumbent-displacement
   grace periods, and `active_cap_pressure` tracking.
 - **Contribution estimates** from randomized shadow versus suppression (separate from class-level
@@ -272,9 +274,10 @@ established" on real traffic still passes M4.
   parents of a benched child marked `needs_recert`.
 - Curation prior in ranking; higher evidence bar for `self_distilled` promotion.
 
-**Done when (engineering, per refactor-plan B7):** a skill reaches `approved` through shadow
-evidence alone with no human decision; an injected regression drives a skill to `quarantined`
-automatically; a skill with high trust but zero lift is *not* auto-promoted; a skill with
+**Done when (engineering, per refactor-plan B7):** a skill advances shadow → candidate on shadow
+evidence alone (no human), then reaches `approved` only via golden-gated `promote_to_approved`;
+an injected regression drives a skill to `quarantined`
+automatically; a skill with high trust but zero lift is *not* auto-advanced from shadow; a skill with
 sustained negative contribution is benched and restorable; a skill below the evidence floor is
 never benched on contribution; and a synthetic harsh configuration (evidence floor 20, threshold
 0) is demonstrated, **on a synthetic environment with a known injected over-pruning effect**, to

@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from contracts.criteria import CriterionResult, SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from contracts.criteria import (
+    CriterionResult,
+    SkillCertificationCriterion,
+    TaskCriterion,
+    mint_rejecting_proof,
+)
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
 from contracts.stats import Contribution, PredictiveTrust, SkillStats
@@ -34,11 +39,11 @@ def _skill(
     task_class: str = "repo-chore",
     uses: list[SkillUse] | None = None,
 ) -> SkillVersion:
-    proof = SensitivityProof(
-        criterion_id="ok",
-        negative_fixture="empty",
-        rejected=True,
-        checked_at=datetime.now(timezone.utc),
+    base = SkillCertificationCriterion(
+        id="ok",
+        kind="command",
+        run="true",
+        preregistered=True,
     )
     return SkillVersion(
         skill_id=skill_id,
@@ -56,12 +61,8 @@ def _skill(
             )
         ],
         certification_criteria=[
-            SkillCertificationCriterion(
-                id="ok",
-                kind="command",
-                run="true",
-                sensitivity_proof=proof,
-                preregistered=True,
+            base.model_copy(
+                update={"sensitivity_proof": mint_rejecting_proof(base, fingerprint="m5-ok")}
             )
         ],
         provenance=Provenance(
@@ -330,8 +331,9 @@ def test_shadow_scheduling_job_persists_offline_outcomes(tmp_path: Path) -> None
 
     for result in results:
         stats = store.get_stats(result.skill_id, result.version)
-        assert stats.predictive_trust.applications >= 1
-        assert stats.predictive_trust.successes >= 1
+        # Shadow scheduling must not inflate caller-visible predictive trust.
+        assert stats.predictive_trust.applications == 0
+        assert stats.predictive_trust.successes == 0
 
     shadow_rows = [
         row

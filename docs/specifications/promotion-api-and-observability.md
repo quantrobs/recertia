@@ -5,20 +5,21 @@
 ```text
 draft      → candidate : all non-judge criteria passed during the originating run
 candidate  → shadow    : task_class has an eval set with >= 5 golden tasks
-candidate  → approved  : human approval (default in v1)
-shadow     → approved  : >= 10 shadow applications
-                         AND shadow success >= approved success
-                         AND zero golden-set regressions
+shadow     → candidate : >= 10 shadow applications
+                         AND lift / success thresholds (maybe_advance_shadow_to_candidate)
+candidate  → approved  : golden-gated promote_to_approved (human approval is the v1 default path;
+                         post-shadow eligibility still requires the same golden gate)
 approved   → deprecated: a newer version of the same skill reaches approved
 any        → quarantined: 2 consecutive field failures, or a reviewer rejection
 ```
 
 These are all `SkillStatus` transitions (§2.2, §2.5), made by the Curator or Recertifier reading
-across runs — never by a single run's task-plane graph (§4, ADR-0008).
+across runs — never by a single run's task-plane graph (§4, ADR-0008). Shadow autonomy advances
+only to `candidate`; it MUST NOT write `approved`.
 
 Regression gate: before any promotion to `approved`, the golden set for the skill's
-`task_class` MUST run green against the candidate. A regression blocks promotion and is
-reported with the failing task ids.
+`task_class` MUST run green against the candidate via `promote_to_approved`. A regression blocks
+promotion and is reported with the failing task ids.
 
 ## 9. HTTP API
 
