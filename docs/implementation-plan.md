@@ -454,7 +454,10 @@ source; and `RunState.criteria` never type-checks a `SkillCertificationCriterion
 
 ## Immediate next actions
 
-M0–M9 engineering done-whens are implemented. Operational hardening for sandbox approvals,
-scope promotion, store migrations (SQLite + Postgres/pgvector dialect), and telemetry event
-surfaces is in tree. Remaining work is optional (R4 doc split, R5 branch cleanup, secondary
-debt S1/S2/S4/S5) and research outcomes in [`assumptions.md`](assumptions.md).
+M0–M9 and operational hardening are implemented, including container-sim/Docker sandbox
+backends, store driver-swap (SQLite + Postgres/pgvector dialect), vector index API
+(sqlite-vec when loaded), FastAPI surface, blob store, OTel JSONL export + dashboard JSON,
+skill scope promotion, layered fan-in, practice curricula, and second-domain lift reporting.
+
+Remaining work is optional hygiene (R4 doc split), secondary debt S1/S2/S4/S5, and research
+outcomes in [`assumptions.md`](assumptions.md) under real traffic.

@@ -168,7 +168,7 @@ class RunState(BaseModel):
     predicted_success: float | None = Field(default=None, ge=0, le=1)
 
     attempt_no: int = Field(default=0, ge=0)
-    branches: list[BranchState] = Field(default_factory=list, max_length=3)
+    branches: list[BranchState] = Field(default_factory=list, max_length=16)
     artifacts: list[Artifact] = Field(default_factory=list)
     transcript_ref: str | None = None
     workspace_snapshots: list[WorkspaceSnapshot] = Field(default_factory=list)

@@ -16,8 +16,9 @@ class SandboxPolicy:
     scrub_env: bool = True
     allowed_env_keys: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
     # Container backend name; ``subprocess`` is the default local jail.
+    # ``container`` uses Docker when present, else ``container-sim``.
     backend: str = "subprocess"
-    image: str | None = None  # set when backend == "container"
+    image: str | None = "python:3.12-slim"
 
 
 DEFAULT_SANDBOX = SandboxPolicy()
