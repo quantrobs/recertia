@@ -24,8 +24,14 @@ from fandea.nodes import NODE_FUNCS, NodeContext
 from fandea.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
+    from fandea.memory.affordance import AffordanceStore
+    from fandea.memory.episodic import EpisodicStore
     from fandea.memory.procedural.store import SkillStore
     from fandea.retrieval.pipeline import Retriever
+    from fandea.solver.apply import SkillApplicator
+    from fandea.solver.model import ModelClient
+    from fandea.solver.tools import ToolRuntime
+    from fandea.solver.transcript import TranscriptStore
 
 MAX_GRAPH_STEPS = 500
 """A safety valve against a routing defect looping forever. Not a budget concept — a run that
@@ -44,6 +50,12 @@ class GraphOrchestrator:
         retriever: "Retriever | None" = None,
         store: "SkillStore | None" = None,
         env_fingerprint: dict[str, str] | None = None,
+        tools: "ToolRuntime | None" = None,
+        model: "ModelClient | None" = None,
+        transcripts: "TranscriptStore | None" = None,
+        applicator: "SkillApplicator | None" = None,
+        episodic: "EpisodicStore | None" = None,
+        affordances: "AffordanceStore | None" = None,
     ) -> None:
         self.runs_root = Path(runs_root)
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -54,6 +66,12 @@ class GraphOrchestrator:
         self.retriever = retriever
         self.store = store
         self.env_fingerprint = env_fingerprint or {}
+        self.tools = tools
+        self.model = model
+        self.transcripts = transcripts
+        self.applicator = applicator
+        self.episodic = episodic
+        self.affordances = affordances
 
     def close(self) -> None:
         self.checkpoints.close()
@@ -133,6 +151,12 @@ class GraphOrchestrator:
                 retriever=self.retriever,
                 store=self.store,
                 env_fingerprint=self.env_fingerprint,
+                tools=self.tools,
+                model=self.model,
+                transcripts=self.transcripts,
+                applicator=self.applicator,
+                episodic=self.episodic,
+                affordances=self.affordances,
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state
