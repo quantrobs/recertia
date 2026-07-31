@@ -6,7 +6,12 @@ from datetime import datetime, timezone
 
 from contracts.fact import Fact
 from contracts.scope import RedactionReport, Scope, ScopePromotion, is_upscope
+from contracts.skill import SkillVersion
+from contracts.stats import SkillStats
+from contracts.status import SkillStatus
 from fandea.ledger import HashChainLedger
+from fandea.memory.procedural.allocate import allocate_and_write
+from fandea.memory.procedural.store import SkillStore
 from fandea.memory.semantic import FactStore
 
 
@@ -30,6 +35,10 @@ def redact_assertion(assertion: str) -> tuple[str, RedactionReport]:
             report.notes.append(f"redacted assertion containing {token!r}")
             break
     return rewritten, report
+
+
+def redact_skill_text(text: str) -> tuple[str, RedactionReport]:
+    return redact_assertion(text)
 
 
 def promote_fact_scope(
@@ -84,3 +93,61 @@ def promote_fact_scope(
             at=record.promoted_at,
         )
     return promoted, record
+
+
+def promote_skill_scope(
+    store: SkillStore,
+    version: SkillVersion,
+    *,
+    to_scope: Scope,
+    reviewer: str,
+    ledger: HashChainLedger | None = None,
+) -> tuple[SkillVersion, ScopePromotion]:
+    """Promote a skill by writing version N+1 at the broader scope (immutable versions)."""
+
+    if not reviewer.strip():
+        raise ScopeError("cross-scope promotion requires a recorded reviewer")
+    if not is_upscope(version.scope, to_scope):
+        raise ScopeError(f"refusing non-upscope {version.scope} → {to_scope}")
+    new_intent, report = redact_skill_text(version.intent)
+    draft = version.model_copy(update={"scope": to_scope, "intent": new_intent, "version": 1})
+    stamped = allocate_and_write(store, draft)
+    store.write_status(
+        SkillStatus(
+            skill_id=stamped.skill_id,
+            version=stamped.version,
+            lifecycle="candidate",
+            active=False,
+        )
+    )
+    store.write_stats(SkillStats(skill_id=stamped.skill_id, version=stamped.version))
+    record = ScopePromotion(
+        artifact_kind="skill",
+        artifact_id=f"{stamped.skill_id}@v{stamped.version}",
+        from_scope=version.scope,
+        to_scope=to_scope,
+        reviewer=reviewer,
+        redaction=report,
+        promoted_at=datetime.now(timezone.utc),
+        ledger_target=f"skill:{stamped.skill_id}@v{stamped.version}",
+    )
+    if ledger is not None:
+        ledger.append(
+            actor=reviewer,
+            action="policy_change",
+            target=record.ledger_target or stamped.skill_id,
+            evidence={
+                "kind": "scope_promotion",
+                "from": version.scope,
+                "to": to_scope,
+                "redaction": report.model_dump(mode="json"),
+            },
+            at=record.promoted_at,
+        )
+    return stamped, record
+
+
+def tenant_readable(artifact_scope: Scope, readable_scopes: set[str]) -> bool:
+    """Multi-tenant isolation: artifact visible only if its scope is in the caller's set."""
+
+    return artifact_scope in readable_scopes

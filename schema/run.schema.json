@@ -1598,7 +1598,7 @@
       "items": {
         "$ref": "#/$defs/BranchState"
       },
-      "maxItems": 3,
+      "maxItems": 16,
       "title": "Branches",
       "type": "array"
     },
