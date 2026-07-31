@@ -92,12 +92,16 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design intent is complete, and the structural blockers that made it unimplementable as
-written are resolved: [`contracts/`](contracts) is now the normative structural source
-(ADR-0009), enforced by tests and CI (`.github/workflows/contracts.yml`).
-[`docs/refactor-plan.md`](docs/refactor-plan.md) tracks what remains before M0 — mainly
-scaffolding `src/fandea/` against these contracts and three cross-doc CI checks — and
-[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order after that.
+Design intent is complete, the structural blockers that made it unimplementable as written are
+resolved, and **M0 (the walking skeleton) is built**: [`contracts/`](contracts) is the
+normative structural source (ADR-0009), and [`src/fandea/`](src/fandea) is a working runtime
+against it — a graph engine that routes purely from [`contracts/graph.py`](contracts/graph.py),
+all fifteen nodes, a hash-chained provenance ledger, workspace snapshot/restore, at-least-once
+operation execution, a T0–T3 import-boundary test, and a CLI (`fandea run` /
+`fandea runs show --route-log` / `fandea ledger verify`). All of it is enforced by tests and CI
+(`.github/workflows/ci.yml`). [`docs/refactor-plan.md`](docs/refactor-plan.md) tracks what
+remains (three cross-doc CI checks, secondary debt), and
+[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M1 onward.
 
 ## License
 
