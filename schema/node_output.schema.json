@@ -153,6 +153,16 @@
             "versions_written": 0
           }
         },
+        "reserved": {
+          "$ref": "#/$defs/BudgetReservation",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0
+          }
+        },
         "results": {
           "items": {
             "$ref": "#/$defs/CriterionResult"
@@ -257,7 +267,7 @@
         },
         "max_branches": {
           "default": 3,
-          "maximum": 3,
+          "maximum": 16,
           "minimum": 1,
           "title": "Max Branches",
           "type": "integer"
@@ -282,6 +292,44 @@
         }
       },
       "title": "Budget",
+      "type": "object"
+    },
+    "BudgetReservation": {
+      "additionalProperties": false,
+      "description": "Resources promised to work which has not completed yet.\n\nReservations make concurrent branch dispatch safe: an admission decision counts both\nrecorded spend and work already admitted elsewhere.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "wall_clock_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Wall Clock S",
+          "type": "number"
+        },
+        "cost_usd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Cost Usd",
+          "type": "number"
+        }
+      },
+      "title": "BudgetReservation",
       "type": "object"
     },
     "CriterionResult": {
@@ -643,6 +691,17 @@
           "default": false,
           "title": "Layered",
           "type": "boolean"
+        },
+        "batches": {
+          "description": "Actual fan-in batches in execution order; empty for a direct merge.",
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Batches",
+          "type": "array"
         }
       },
       "required": [
@@ -1253,6 +1312,16 @@
             "versions_written": 0
           }
         },
+        "reserved": {
+          "$ref": "#/$defs/BudgetReservation",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0
+          }
+        },
         "route_log": {
           "items": {
             "$ref": "#/$defs/RouteEntry"
@@ -1319,6 +1388,19 @@
           ],
           "default": null,
           "title": "Checked Against"
+        },
+        "evidence_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sha256 hash binding the criterion definition to the negative-fixture fingerprint used for this proof",
+          "title": "Evidence Hash"
         }
       },
       "required": [

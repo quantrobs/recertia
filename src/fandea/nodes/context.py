@@ -4,14 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, TypeVar
+from typing import TYPE_CHECKING, Callable, Protocol, TypeVar
 
 from contracts.run import RunState
-from fandea.ledger import HashChainLedger
-from fandea.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
-    from fandea.graph.ops import OperationLedger
     from fandea.memory.affordance import AffordanceStore
     from fandea.memory.episodic import EpisodicStore
     from fandea.memory.procedural.store import SkillStore
@@ -24,6 +21,26 @@ if TYPE_CHECKING:
     from fandea.solver.transcript import TranscriptStore
 
 T = TypeVar("T")
+
+
+class OperationRunner(Protocol):
+    """The sole idempotency capability exposed to nodes."""
+
+    def run_once(self, run_id: str, attempt_no: int, node: str, op_seq: int, fn: Callable[[], T]) -> T: ...
+
+
+class WorkspaceCapability(Protocol):
+    """Snapshot/restore capability; nodes never receive the backing snapshot store."""
+
+    def snapshot(self, workdir: Path, run_id: str, *, attempt_no: int) -> str: ...
+
+    def restore(self, workdir: Path, snapshot_ref: str) -> None: ...
+
+
+class LedgerCapability(Protocol):
+    """Append-only audit capability required by terminal nodes."""
+
+    def append(self, **kwargs: object) -> object: ...
 
 
 @dataclass
@@ -43,9 +60,9 @@ class NodeContext:
     attempt_no: int
     node: str
     workdir: Path
-    workspaces: WorkspaceManager
-    ledger: HashChainLedger
-    ops: "OperationLedger"
+    workspaces: WorkspaceCapability
+    ledger: LedgerCapability
+    ops: OperationRunner
     script: list[str] | None = None
     retriever: "Retriever | None" = None
     store: "SkillStore | None" = None
