@@ -8,13 +8,13 @@ not a documented exception to a rule that does not exist yet.
 A golden task is a directory::
 
     evals/golden/<task_class>/<skill_id>/
+        goal.json          # preferred (Variant B Goal)
         task.json          # {request, expected_skill_id, expected_version?, criteria?}
         workspace/         # fixture files copied into the run workdir
         expect.json        # {terminal: "solved"} (M1 minimal)
 
-The runner applies the skill's shell steps against the fixture and scores the task criteria
-(or the skill's non-judge certification criteria when the task supplies none). The log is
-the evidence of the regression gate — not a note in a PR description.
+When ``goal.json`` is present it is used as the primary input; ``task.json`` request remains
+the legacy fallback.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from pathlib import Path
 
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
+from contracts.goal import Goal, compile_goal
 from contracts.run import Task
 from contracts.skill import SkillVersion
 from fandea.graph.engine import GraphOrchestrator
@@ -79,7 +80,9 @@ class GoldenReport:
 
 def discover_golden(golden_root: Path, skill_id: str, task_class: str = "repo-chore") -> Path | None:
     path = golden_root / task_class / skill_id
-    return path if path.is_dir() and (path / "task.json").exists() else None
+    has_task = path.is_dir() and (path / "task.json").exists()
+    has_goal = path.is_dir() and (path / "goal.json").exists()
+    return path if has_task or has_goal else None
 
 
 def run_golden_for_skill(
@@ -93,7 +96,14 @@ def run_golden_for_skill(
 ) -> GoldenResult:
     """Execute one golden task against ``version``; return a :class:`GoldenResult`."""
 
-    task_spec = json.loads((golden_dir / "task.json").read_text(encoding="utf-8"))
+    task_spec: dict = {}
+    if (golden_dir / "task.json").exists():
+        task_spec = json.loads((golden_dir / "task.json").read_text(encoding="utf-8"))
+
+    goal: Goal | None = None
+    if (golden_dir / "goal.json").exists():
+        goal = Goal.model_validate_json((golden_dir / "goal.json").read_text(encoding="utf-8"))
+
     expect = {}
     expect_path = golden_dir / "expect.json"
     if expect_path.exists():
@@ -118,7 +128,10 @@ def run_golden_for_skill(
                 shutil.copy2(item, dest)
 
     try:
-        criteria = _criteria_from_task(task_spec, version)
+        if goal is not None and "criteria" not in task_spec:
+            criteria = compile_goal(goal, source="caller")
+        else:
+            criteria = _criteria_from_task(task_spec, version)
     except ValueError as exc:
         return GoldenResult(
             skill_id=version.skill_id,
@@ -139,11 +152,9 @@ def run_golden_for_skill(
         index_snapshot_id=snapshot_id,
         library_commit=snapshot_id,
     )
+    request = task_spec.get("request") or (goal.context if goal else None)
     orch = GraphOrchestrator(runs_root / "golden-runs")
     previous_backend = os.environ.get("FANDEA_EXECUTION_BACKEND")
-    # Golden fixtures are an in-process test harness.  Opt into the guarded local executor
-    # only for this harness when no backend was explicitly configured; production executions
-    # retain the container-only default.
     if previous_backend is None:
         os.environ["FANDEA_EXECUTION_BACKEND"] = "local"
     try:
@@ -151,7 +162,8 @@ def run_golden_for_skill(
             run_id,
             Task(
                 task_id=run_id,
-                request=task_spec["request"],
+                goal=goal,
+                request=request,
                 task_class=version.task_class,
                 submitted_at=datetime.now(timezone.utc),
                 is_eval_fixture=True,
@@ -167,7 +179,6 @@ def run_golden_for_skill(
         orch.close()
         if previous_backend is None:
             os.environ.pop("FANDEA_EXECUTION_BACKEND", None)
-        # Deterministic teardown so the next run starts from a pristine fixture.
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
 
@@ -193,20 +204,15 @@ def run_task_class_gate(
     runs_root: Path,
     task_class: str | None = None,
 ) -> GoldenReport:
-    """Run every golden under ``golden_root/<task_class>/`` against ``version`` (M3 harness).
-
-    This is the same runner ``run_golden_for_skill`` uses — review approval and seed promotion
-    share one mechanism (specs §8).
-    """
-
     task_class = task_class or version.task_class
     report = GoldenReport()
     class_root = golden_root / task_class
     if not class_root.is_dir():
         return report
-    for child in sorted(p for p in class_root.iterdir() if p.is_dir() and (p / "task.json").exists()):
-        # Skip private/helper dirs.
+    for child in sorted(p for p in class_root.iterdir() if p.is_dir()):
         if child.name.startswith("_"):
+            continue
+        if not ((child / "task.json").exists() or (child / "goal.json").exists()):
             continue
         report.results.append(
             run_golden_for_skill(version, child, runs_root=runs_root, use_skill_script=True)
@@ -223,12 +229,6 @@ def select_and_run_gate(
     require_task_class_gate: bool = False,
     require_fixture: bool = False,
 ) -> GoldenReport:
-    """Select applicable golden fixture(s) and run them (shared by review + promote).
-
-    Promote callers pass ``require_fixture=True`` so missing inputs raise ``ValueError``.
-    Review callers omit that flag and receive an empty report when nothing applies.
-    """
-
     prefer_task_class = require_task_class_gate or (
         require_fixture and golden_root is not None and golden_dir is None
     )
@@ -250,7 +250,9 @@ def select_and_run_gate(
 
     if golden_root is not None:
         skill_dir = golden_root / version.task_class / version.skill_id
-        if skill_dir.is_dir() and (skill_dir / "task.json").exists():
+        if skill_dir.is_dir() and (
+            (skill_dir / "task.json").exists() or (skill_dir / "goal.json").exists()
+        ):
             return GoldenReport(
                 results=[run_golden_for_skill(version, skill_dir, runs_root=runs_root)]
             )
@@ -276,8 +278,6 @@ def run_seed_library_gate(
     log_path: Path,
     skill_ids: list[str] | None = None,
 ) -> GoldenReport:
-    """Run the golden task for every (or selected) skill; write the regression log."""
-
     report = GoldenReport()
     for version, _status, _stats in store.iter_loaded():
         if skill_ids is not None and version.skill_id not in skill_ids:
@@ -318,8 +318,6 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
                 "sensitivity evidence"
             )
         return out
-    # A golden task may adapt an already-proven non-judge certification criterion, but may
-    # never fabricate a proof or a trivially passing task criterion.
     adapted: list[TaskCriterion] = []
     for c in version.certification_criteria:
         if c.kind == "judge" or not c.is_required:
@@ -346,7 +344,6 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
             f"golden task cannot promote {version.skill_id}@v{version.version}: "
             "no required non-judge criterion with hashed sensitivity evidence"
         )
-    # Re-check after adaptation: TaskCriterion must still bind the same evidence hash.
     if not any(c.is_preregistered_and_proven for c in adapted):
         raise ValueError(
             f"golden task cannot promote {version.skill_id}@v{version.version}: "
