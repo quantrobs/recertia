@@ -1,8 +1,7 @@
-"""Sandbox backends: subprocess rlimits and container (Docker) isolation."""
+"""Production command sandbox backed exclusively by Docker or Podman."""
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
@@ -10,9 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from fandea.solver.sandbox import SandboxError, SandboxLimits, run_sandboxed
+from fandea.solver.sandbox import SandboxError, SandboxLimits
 
-Backend = Literal["subprocess", "container", "container-sim"]
+Backend = Literal["container"]
 
 
 @dataclass(frozen=True)
@@ -27,8 +26,15 @@ class ContainerSpec:
     remove: bool = True
 
 
-def docker_available() -> bool:
-    return shutil.which("docker") is not None
+def container_runtime() -> str | None:
+    """Return the explicitly requested or first approved OCI runtime."""
+
+    requested = os.environ.get("FANDEA_CONTAINER_RUNTIME")
+    if requested:
+        if requested not in {"docker", "podman"}:
+            return None
+        return requested if shutil.which(requested) else None
+    return next((runtime for runtime in ("docker", "podman") if shutil.which(runtime)), None)
 
 
 def run_in_container(
@@ -38,13 +44,11 @@ def run_in_container(
     limits: SandboxLimits | None = None,
     spec: ContainerSpec | None = None,
     timeout_s: int = 60,
-    force_sim: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     """Run ``command`` inside a container with no network and a bound workdir.
 
-    Uses Docker when available (unless ``force_sim``). Otherwise uses
-    ``container-sim``: subprocess jail plus a sidecar manifest proving the
-    isolation contract that a real container would have enforced.
+    There is deliberately no local-process or simulated fallback.  A command
+    that cannot be run in an approved OCI runtime is rejected before execution.
     """
 
     workdir = workdir.resolve()
@@ -55,13 +59,14 @@ def run_in_container(
     if limits.allow_network:
         raise SandboxError("container backend refuses allow_network=True")
 
-    if not force_sim and docker_available():
-        return _docker_run(command, workdir=workdir, spec=spec, timeout_s=timeout_s)
+    runtime = container_runtime()
+    if runtime is None:
+        raise SandboxError("no approved container runtime available (Docker or Podman required)")
+    return _container_run(runtime, command, workdir=workdir, spec=spec, timeout_s=timeout_s)
 
-    return _container_sim(command, workdir=workdir, limits=limits, spec=spec, timeout_s=timeout_s)
 
-
-def _docker_run(
+def _container_run(
+    runtime: str,
     command: str,
     *,
     workdir: Path,
@@ -69,7 +74,7 @@ def _docker_run(
     timeout_s: int,
 ) -> subprocess.CompletedProcess[str]:
     args = [
-        "docker",
+        runtime,
         "run",
         "--rm" if spec.remove else "",
         f"--network={spec.network}",
@@ -90,66 +95,22 @@ def _docker_run(
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout_s)
 
 
-def _container_sim(
-    command: str,
-    *,
-    workdir: Path,
-    limits: SandboxLimits,
-    spec: ContainerSpec,
-    timeout_s: int,
-) -> subprocess.CompletedProcess[str]:
-    """CI-safe stand-in: enforce subprocess jail and record the container contract."""
-
-    manifest = {
-        "backend": "container-sim",
-        "network": spec.network,
-        "user": spec.user,
-        "read_only_root": spec.read_only_root,
-        "image": spec.image,
-        "workdir": str(workdir),
-        "allow_network": False,
-    }
-    (workdir / ".fandea-container-sim.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
-    # Clear host-leaking env more aggressively than default scrub.
-    env = {k: os.environ[k] for k in ("PATH", "LANG") if k in os.environ}
-    env["HOME"] = str(workdir)
-    env["TMPDIR"] = str(workdir)
-    env["FANDEA_SANDBOX"] = "container-sim"
-    # Reuse rlimit jail with forced scrubbed env.
-    return run_sandboxed(
-        command,
-        workdir=workdir,
-        limits=SandboxLimits(
-            max_cpu_seconds=limits.max_cpu_seconds,
-            max_address_space_mb=limits.max_address_space_mb,
-            scrub_env=True,
-            allowed_env_keys=tuple(env.keys()),
-            allow_network=False,
-        ),
-        timeout_s=timeout_s,
-    )
-
-
 def run_with_backend(
     command: str,
     *,
     workdir: Path,
-    backend: Backend = "subprocess",
+    backend: Backend = "container",
     limits: SandboxLimits | None = None,
     timeout_s: int = 60,
     image: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    if backend == "subprocess":
-        return run_sandboxed(command, workdir=workdir, limits=limits, timeout_s=timeout_s)
+    if backend != "container":
+        raise SandboxError(f"unsupported production sandbox backend: {backend!r}")
     spec = ContainerSpec(image=image or "python:3.12-slim")
-    force_sim = backend == "container-sim"
     return run_in_container(
         command,
         workdir=workdir,
         limits=limits,
         spec=spec,
         timeout_s=timeout_s,
-        force_sim=force_sim,
     )

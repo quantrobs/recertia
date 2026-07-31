@@ -63,7 +63,14 @@ class Telemetry:
     def add_exporter(self, exporter: Any) -> None:
         self._exporters.append(exporter)
 
-    def emit(self, name: str, **attributes: Any) -> SpanEvent:
+    def emit(
+        self, name: str, *, tenant_id: str | None = None, run_id: str | None = None, **attributes: Any
+    ) -> SpanEvent:
+        if not tenant_id:
+            raise ValueError("telemetry events require tenant_id")
+        if name.startswith(("run.", "node.", "tool.", "judge.")) and not run_id:
+            raise ValueError(f"telemetry event {name!r} requires run_id")
+        attributes = {"tenant_id": tenant_id, **({"run_id": run_id} if run_id else {}), **attributes}
         event = SpanEvent(name=name, attributes=attributes)
         self.events.append(event)
         for exporter in self._exporters:
@@ -71,7 +78,12 @@ class Telemetry:
         return event
 
     @contextmanager
-    def span(self, name: str, **attributes: Any) -> Iterator[SpanRecord]:
+    def span(
+        self, name: str, *, tenant_id: str | None = None, run_id: str | None = None, **attributes: Any
+    ) -> Iterator[SpanRecord]:
+        if not tenant_id:
+            raise ValueError("telemetry spans require tenant_id")
+        attributes = {"tenant_id": tenant_id, **({"run_id": run_id} if run_id else {}), **attributes}
         record = SpanRecord(name=name, attributes=attributes)
         self.spans.append(record)
         otel_cm = None
@@ -128,11 +140,13 @@ def _span_dict(span: SpanRecord) -> dict[str, Any]:
     }
 
 
-def render_dashboard(tel: Telemetry) -> dict[str, Any]:
+def render_dashboard(tel: Telemetry, *, tenant_id: str) -> dict[str, Any]:
     """Operational dashboard payload (Grafana-compatible-ish summary JSON)."""
 
     by_name: dict[str, int] = {}
     for e in tel.events:
+        if e.attributes.get("tenant_id") != tenant_id:
+            continue
         by_name[e.name] = by_name.get(e.name, 0) + 1
     return {
         "title": "Fandea ops",
@@ -153,6 +167,7 @@ def render_dashboard(tel: Telemetry) -> dict[str, Any]:
                         "started_at": s.started_at.isoformat(),
                     }
                     for s in tel.spans
+                    if s.attributes.get("tenant_id") == tenant_id
                 ],
             },
         ],
@@ -160,10 +175,10 @@ def render_dashboard(tel: Telemetry) -> dict[str, Any]:
     }
 
 
-def write_dashboard(tel: Telemetry, path: Path | str) -> Path:
+def write_dashboard(tel: Telemetry, path: Path | str, *, tenant_id: str) -> Path:
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(json.dumps(render_dashboard(tel), indent=2) + "\n", encoding="utf-8")
+    dest.write_text(json.dumps(render_dashboard(tel, tenant_id=tenant_id), indent=2) + "\n", encoding="utf-8")
     return dest
 
 
@@ -174,7 +189,17 @@ def get_telemetry() -> Telemetry:
     return _GLOBAL
 
 
-def reset_telemetry() -> Telemetry:
+def reset_telemetry(*, admin_actor: str, tenant_id: str) -> Telemetry:
+    """Test/maintenance-only reset, recorded before the recorder is replaced."""
+
+    if not admin_actor or not tenant_id:
+        raise PermissionError("telemetry reset requires an authenticated admin actor and tenant")
     global _GLOBAL
+    _GLOBAL.emit(
+        "telemetry.reset",
+        tenant_id=tenant_id,
+        actor=admin_actor,
+        reason="explicit administrative reset",
+    )
     _GLOBAL = Telemetry()
     return _GLOBAL

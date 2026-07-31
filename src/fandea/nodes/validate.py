@@ -7,7 +7,6 @@ artifact+rubric context with ``context_hash`` recorded so isolation is testable.
 from __future__ import annotations
 
 import functools
-import subprocess
 from pathlib import Path
 
 from contracts.criteria import CriterionResult, TaskCriterion
@@ -19,13 +18,34 @@ from fandea.validation.judge import assert_distinct_lenses, evaluate_judge
 
 
 def validate(state: RunState, ctx: NodeContext) -> NodeOutcome:
+    results, failure_signal, downgrade_notes = score_criteria(state, ctx)
+    new_state = state.model_copy(
+        update={
+            "results": results,
+            "results_history": [*state.results_history, results],
+            "failure_signal": failure_signal,
+        }
+    )
+
+    route = "no_branches_and_failing" if failure_signal is not None else "no_branches_and_passing"
+    if state.branches:
+        route = "has_branches"
+    note = "; ".join(downgrade_notes) if downgrade_notes else None
+    return NodeOutcome(state=new_state, route=route, note=note)
+
+
+def score_criteria(
+    state: RunState, ctx: NodeContext, *, op_offset: int = 0
+) -> tuple[list[CriterionResult], FailureSignal | None, list[str]]:
+    """Score a state against ``ctx.workdir`` for normal and post-merge validation."""
+
     results: list[CriterionResult] = []
     downgrade_notes: list[str] = []
     any_effectively_required_failed = False
 
     assert_distinct_lenses(list(state.criteria))
 
-    for op_seq, criterion in enumerate(state.criteria):
+    for op_seq, criterion in enumerate(state.criteria, start=op_offset):
         raw = ctx.op_once(op_seq, functools.partial(_score_criterion_dict, criterion, ctx))
         outcome_result = CriterionResult.model_validate(raw)
         actual_passed = outcome_result.passed
@@ -60,19 +80,7 @@ def validate(state: RunState, ctx: NodeContext) -> NodeOutcome:
             source="validator", detail="a required, proven criterion failed", at=now()
         )
 
-    new_state = state.model_copy(
-        update={
-            "results": results,
-            "results_history": [*state.results_history, results],
-            "failure_signal": failure_signal,
-        }
-    )
-
-    route = "no_branches_and_failing" if failure_signal is not None else "no_branches_and_passing"
-    if state.branches:
-        route = "has_branches"
-    note = "; ".join(downgrade_notes) if downgrade_notes else None
-    return NodeOutcome(state=new_state, route=route, note=note)
+    return results, failure_signal, downgrade_notes
 
 
 def _score_criterion_dict(criterion: TaskCriterion, ctx: NodeContext) -> dict:
@@ -99,21 +107,21 @@ def _score_criterion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionRes
 
 def _run_command(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
     assert criterion.run is not None
-    proc = subprocess.run(
-        criterion.run,
-        shell=True,
-        cwd=ctx.workdir,
-        capture_output=True,
-        text=True,
-        timeout=criterion.timeout_s,
-    )
+    from fandea.solver.container import run_in_container
+    from fandea.solver.sandbox import SandboxError
+
+    try:
+        proc = run_in_container(criterion.run, workdir=ctx.workdir, timeout_s=criterion.timeout_s)
+        exit_code, output = proc.returncode, proc.stdout + proc.stderr
+    except SandboxError as exc:
+        exit_code, output = 126, str(exc)
     return CriterionResult(
         criterion_id=criterion.id,
         kind="command",
-        passed=proc.returncode == criterion.expect_exit,
+        passed=exit_code == criterion.expect_exit,
         weight=criterion.weight,
-        exit_code=proc.returncode,
-        output_excerpt=(proc.stdout + proc.stderr)[-2000:],
+        exit_code=exit_code,
+        output_excerpt=output[-2000:],
         duration_s=0.0,
     )
 
