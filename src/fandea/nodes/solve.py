@@ -258,7 +258,14 @@ def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
         return ctx.script
     if state.strategy in ("apply", "adapt") and state.chosen is not None and ctx.store is not None:
         version = ctx.store.get_version(state.chosen.skill_id, state.chosen.version)
-        return script_from_skill(version)
+        params = dict(state.chosen.bound_parameters)
+        for p in version.parameters:
+            if p.name not in params and p.default is not None:
+                params[p.name] = p.default
+        from fandea.solver.apply import bind_parameters
+
+        raw = script_from_skill(version)
+        return [bind_parameters(cmd, params) for cmd in raw]
     if state.strategy == "scratch" and ctx.model is not None:
         response = ctx.model.complete(
             f"Propose a single shell command to: {state.task.request}\n"

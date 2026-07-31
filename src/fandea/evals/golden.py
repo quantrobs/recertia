@@ -125,6 +125,7 @@ def run_golden_for_skill(
                 request=task_spec["request"],
                 task_class=version.task_class,
                 submitted_at=datetime.now(timezone.utc),
+                is_eval_fixture=True,
             ),
             criteria,
             budget=Budget(max_attempts=2),
@@ -144,6 +145,34 @@ def run_golden_for_skill(
         run_id=run_id,
         detail=f"expected terminal={expected_terminal!r}, got {state.terminal!r}",
     )
+
+
+def run_task_class_gate(
+    version: SkillVersion,
+    golden_root: Path,
+    *,
+    runs_root: Path,
+    task_class: str | None = None,
+) -> GoldenReport:
+    """Run every golden under ``golden_root/<task_class>/`` against ``version`` (M3 harness).
+
+    This is the same runner ``run_golden_for_skill`` uses — review approval and seed promotion
+    share one mechanism (specs §8).
+    """
+
+    task_class = task_class or version.task_class
+    report = GoldenReport()
+    class_root = golden_root / task_class
+    if not class_root.is_dir():
+        return report
+    for child in sorted(p for p in class_root.iterdir() if p.is_dir() and (p / "task.json").exists()):
+        # Skip private/helper dirs.
+        if child.name.startswith("_"):
+            continue
+        report.results.append(
+            run_golden_for_skill(version, child, runs_root=runs_root, use_skill_script=True)
+        )
+    return report
 
 
 def run_seed_library_gate(
