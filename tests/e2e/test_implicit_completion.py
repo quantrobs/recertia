@@ -102,13 +102,12 @@ def _skill(skill_id: str, *, scope: str = "project") -> SkillVersion:
     )
 
 
-def test_container_sim_backend_writes_manifest(tmp_path: Path) -> None:
+def test_container_backend_fails_closed_without_runtime(tmp_path: Path, monkeypatch) -> None:
     work = tmp_path / "jail"
     work.mkdir()
-    proc = run_with_backend("true", workdir=work, backend="container-sim")
-    assert proc.returncode == 0
-    manifest = (work / ".fandea-container-sim.json").read_text()
-    assert '"network": "none"' in manifest
+    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
+    with pytest.raises(Exception, match="container runtime"):
+        run_with_backend("true", workdir=work)
 
 
 def test_sqlite_backend_and_pgvector_dialect(tmp_path: Path) -> None:
@@ -133,10 +132,10 @@ def test_vector_index_and_blob_store(tmp_path: Path) -> None:
 
 
 def test_otel_jsonl_export_and_dashboard(tmp_path: Path) -> None:
-    tel = reset_telemetry()
+    tel = reset_telemetry(admin_actor="test-admin", tenant_id="test")
     exporter = JsonlSpanExporter(tmp_path / "spans.jsonl")
     tel.add_exporter(exporter)
-    with tel.span("run", run_id="r1"):
+    with tel.span("run", tenant_id="test", run_id="r1"):
         for name in (
             "run.started",
             "run.finished",
@@ -148,10 +147,10 @@ def test_otel_jsonl_export_and_dashboard(tmp_path: Path) -> None:
             "policy.changed",
             "scope.promoted",
         ):
-            tel.emit(name)
+            tel.emit(name, tenant_id="test", run_id="r1")
     assert tel.missing_required() == []
     assert (tmp_path / "spans.jsonl").read_text().strip()
-    dash = write_dashboard(tel, tmp_path / "dashboard.json")
+    dash = write_dashboard(tel, tmp_path / "dashboard.json", tenant_id="test")
     assert "required_events" in dash.read_text()
 
 
@@ -188,10 +187,12 @@ def test_fastapi_health_runs_blobs_dashboard(tmp_path: Path, monkeypatch) -> Non
     _ = fastapi
     from fastapi.testclient import TestClient
 
-    monkeypatch.setenv("FANDEA_API_KEY", "test-key")
     app = create_app(root=tmp_path / "api-root")
+    issued = app.state.api_keys.issue(
+        tenant_id="test", scopes={"runs", "blobs", "metrics"}, actor="test-admin"
+    )
     client = TestClient(app)
-    headers = {"X-API-Key": "test-key"}
+    headers = {"X-API-Key": issued.secret}
     assert client.get("/health").json()["status"] == "ok"
     created = client.post(
         "/v1/runs", json={"request": "do chore", "task_class": "repo-chore"}, headers=headers

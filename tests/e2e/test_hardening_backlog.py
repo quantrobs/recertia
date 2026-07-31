@@ -12,7 +12,7 @@ from fandea.governance.sandbox import DEFAULT_SANDBOX, ApprovalGate, SandboxPoli
 from fandea.ledger import HashChainLedger
 from fandea.memory.scope import ScopeError, promote_fact_scope
 from fandea.memory.semantic import FactStore
-from fandea.solver.sandbox import SandboxLimits, run_sandboxed
+from fandea.solver.sandbox import SandboxError, SandboxLimits, run_sandboxed
 from fandea.solver.tools import ApprovalRequiredError, ToolRuntime, default_registry
 from fandea.store import (
     apply_sqlite_migrations,
@@ -36,17 +36,17 @@ def test_non_read_tools_require_approval(tmp_path: Path) -> None:
     gate.approve("shell", actor="alice")
     runtime.approval_gate = gate
     approved = runtime.invoke("shell", {"command": "true"}, workdir=work, step_id="s3")
-    assert approved.ok
+    assert not approved.ok
+    assert approved.exit_code == 126
 
 
-def test_sandboxed_shell_is_cwd_jailed(tmp_path: Path) -> None:
+def test_host_subprocess_sandbox_is_disabled(tmp_path: Path) -> None:
     work = tmp_path / "jail"
     work.mkdir()
     (work / "marker").write_text("in-jail")
-    proc = run_sandboxed("cat marker", workdir=work, limits=SandboxLimits())
-    assert proc.returncode == 0
-    assert "in-jail" in proc.stdout
-    assert DEFAULT_SANDBOX.backend == "subprocess"
+    with pytest.raises(SandboxError, match="disabled"):
+        run_sandboxed("cat marker", workdir=work, limits=SandboxLimits())
+    assert DEFAULT_SANDBOX.backend == "container"
     assert isinstance(SandboxPolicy(), SandboxPolicy)
 
 
@@ -76,10 +76,10 @@ def test_scope_promotion_requires_reviewer_and_redacts(tmp_path: Path) -> None:
 
 
 def test_telemetry_required_events_surface() -> None:
-    tel = reset_telemetry()
-    with tel.span("run", run_id="r1"):
+    tel = reset_telemetry(admin_actor="test-admin", tenant_id="test")
+    with tel.span("run", tenant_id="test", run_id="r1"):
         for name in sorted(REQUIRED_EVENTS):
-            tel.emit(name, run_id="r1")
+            tel.emit(name, tenant_id="test", run_id="r1")
     assert tel.missing_required() == []
     assert any(s.name == "run" for s in tel.spans)
 
