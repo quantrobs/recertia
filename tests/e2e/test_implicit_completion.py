@@ -183,22 +183,28 @@ def test_skill_scope_promotion_and_tenant_isolation(tmp_path: Path) -> None:
     assert not tenant_readable("org", {"run", "project"})
 
 
-def test_fastapi_health_runs_blobs_dashboard(tmp_path: Path) -> None:
+def test_fastapi_health_runs_blobs_dashboard(tmp_path: Path, monkeypatch) -> None:
     fastapi = pytest.importorskip("fastapi")
     _ = fastapi
     from fastapi.testclient import TestClient
 
+    monkeypatch.setenv("FANDEA_API_KEY", "test-key")
     app = create_app(root=tmp_path / "api-root")
     client = TestClient(app)
+    headers = {"X-API-Key": "test-key"}
     assert client.get("/health").json()["status"] == "ok"
-    created = client.post("/v1/runs", json={"request": "do chore", "task_class": "repo-chore"})
+    created = client.post(
+        "/v1/runs", json={"request": "do chore", "task_class": "repo-chore"}, headers=headers
+    )
     assert created.status_code == 200
     run_id = created.json()["run_id"]
-    assert client.get(f"/v1/runs/{run_id}").status_code == 200
-    put = client.post("/v1/blobs", json={"data": "snap", "content_type": "text/plain"})
+    assert client.get(f"/v1/runs/{run_id}", headers=headers).status_code == 200
+    put = client.post(
+        "/v1/blobs", json={"data": "snap", "content_type": "text/plain"}, headers=headers
+    )
     digest = put.json()["digest"]
-    assert client.get(f"/v1/blobs/{digest.removeprefix('sha256:')}").status_code == 200
-    dash = client.get("/v1/metrics/dashboard").json()
+    assert client.get(f"/v1/blobs/{digest.removeprefix('sha256:')}", headers=headers).status_code == 200
+    dash = client.get("/v1/metrics/dashboard", headers=headers).json()
     assert "panels" in dash
 
 
