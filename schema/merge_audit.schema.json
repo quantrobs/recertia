@@ -38,6 +38,17 @@
       "default": false,
       "title": "Layered",
       "type": "boolean"
+    },
+    "batches": {
+      "description": "Actual fan-in batches in execution order; empty for a direct merge.",
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Batches",
+      "type": "array"
     }
   },
   "required": [

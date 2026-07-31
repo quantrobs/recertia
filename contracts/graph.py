@@ -108,22 +108,35 @@ ROUTES: tuple[Route, ...] = (
         lambda s: s.strategy in ("apply", "adapt", "scratch"),
         "Single-strategy runs solve directly.",
     ),
-    Route("fan_out", "solve", "always", lambda s: True, "Every branch is dispatched to solve."),
+    Route(
+        "fan_out",
+        "classify_failure",
+        "pre_dispatch_budget_failure",
+        lambda s: s.failure_signal is not None,
+        "A failed branch reservation is a budget failure before any branch is dispatched.",
+    ),
+    Route(
+        "fan_out",
+        "solve",
+        "always",
+        lambda s: s.failure_signal is None,
+        "Every successfully dispatched branch proceeds to solve.",
+    ),
     Route(
         "solve",
         "classify_failure",
         "pre_validation_failure_signal",
-        lambda s: s.failure_signal is not None and not s.results,
+        lambda s: s.failure_signal is not None,
         (
             "Environment, tool, or mid-attempt budget failures occur before or instead of "
-            "validation (ADR-0008); classify_failure never requires a result vector for these."
+            "validation (ADR-0008), including after a retry retains prior validation results."
         ),
     ),
     Route(
         "solve",
         "validate",
         "attempt_completed",
-        lambda s: s.transcript_ref is not None,
+        lambda s: s.transcript_ref is not None and s.failure_signal is None,
         "A completed attempt (whether it will pass or fail) proceeds to validation.",
     ),
     Route(

@@ -7,7 +7,6 @@ The registry *contents* are T3 (code review only — ADR-0005): runs invoke tool
 
 from __future__ import annotations
 
-import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
@@ -249,10 +248,16 @@ def default_registry() -> ToolRegistry:
     registry = ToolRegistry()
 
     def shell_handler(inputs: dict, workdir: Path) -> ToolResult:
-        from fandea.solver.sandbox import SandboxLimits, run_sandboxed
+        from fandea.solver.container import run_configured_command
+        from fandea.solver.sandbox import SandboxError, SandboxLimits
 
         command = str(inputs.get("command", "true"))
-        proc = run_sandboxed(command, workdir=workdir, limits=SandboxLimits(), timeout_s=60)
+        try:
+            proc = run_configured_command(
+                command, workdir=workdir, limits=SandboxLimits(), timeout_s=60
+            )
+        except SandboxError as exc:
+            return ToolResult(tool="shell", ok=False, exit_code=126, stderr=str(exc))
         return ToolResult(
             tool="shell",
             ok=proc.returncode == 0,
@@ -287,19 +292,26 @@ def default_registry() -> ToolRegistry:
     def grep_handler(inputs: dict, workdir: Path) -> ToolResult:
         pattern = str(inputs.get("pattern", ""))
         path = confined_path(workdir, inputs.get("path", "."))
-        proc = subprocess.run(
-            ["grep", "-R", "-n", pattern, str(path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        # grep exit 1 = no match; treat as ok with empty stdout for skill use.
+        # Read-only search is implemented in-process, so it does not create a
+        # host subprocess escape hatch in the production tool runtime.
+        matches: list[str] = []
+        try:
+            for candidate in path.rglob("*"):
+                if not candidate.is_file():
+                    continue
+                try:
+                    for line_no, line in enumerate(candidate.read_text(errors="replace").splitlines(), 1):
+                        if pattern in line:
+                            matches.append(f"{candidate}:{line_no}:{line}")
+                except OSError:
+                    continue
+        except OSError as exc:
+            return ToolResult(tool="grep", ok=False, exit_code=2, stderr=str(exc))
         return ToolResult(
             tool="grep",
-            ok=proc.returncode in (0, 1),
-            exit_code=proc.returncode,
-            stdout=proc.stdout[-8000:],
-            stderr=proc.stderr[-8000:],
+            ok=True,
+            exit_code=0 if matches else 1,
+            stdout="\n".join(matches)[-8000:],
         )
 
     registry.register(

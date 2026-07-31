@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
 from contracts.eval import BinomialSample, ControlBaseline, EvalObservation
+from contracts.run import RunState
+
+
+class ObservationError(ValueError):
+    """A run cannot be represented as durable evaluation evidence."""
 
 
 class EvalStore:
@@ -39,6 +46,14 @@ class EvalStore:
                     terminal TEXT,
                     fixture_id TEXT,
                     is_eval_fixture INTEGER NOT NULL,
+                    strategy TEXT,
+                    attempt_no INTEGER,
+                    cost_usd REAL,
+                    abstention_confirmed INTEGER,
+                    skill_id TEXT,
+                    skill_version INTEGER,
+                    valid_non_judge_evidence INTEGER NOT NULL DEFAULT 0,
+                    evidence_hash TEXT NOT NULL,
                     recorded_at TEXT NOT NULL,
                     payload TEXT NOT NULL
                 );
@@ -55,19 +70,101 @@ class EvalStore:
                     UNIQUE(task_class, snapshot_id, report_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_obs_snap ON observations(snapshot_id, task_class);
+                CREATE INDEX IF NOT EXISTS idx_obs_skill ON observations(skill_id, skill_version, task_class);
                 CREATE INDEX IF NOT EXISTS idx_base_class ON baselines(task_class, created_at);
                 """
             )
+            existing = {
+                row["name"] for row in self._conn.execute("PRAGMA table_info(observations)")
+            }
+            migrations = {
+                "strategy": "TEXT",
+                "attempt_no": "INTEGER",
+                "cost_usd": "REAL",
+                "abstention_confirmed": "INTEGER",
+                "skill_id": "TEXT",
+                "skill_version": "INTEGER",
+                "valid_non_judge_evidence": "INTEGER NOT NULL DEFAULT 0",
+                "evidence_hash": "TEXT NOT NULL DEFAULT ''",
+            }
+            for column, definition in migrations.items():
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE observations ADD COLUMN {column} {definition}")
+
+    def append_run(self, state: RunState) -> EvalObservation:
+        """Append an observation derived only from a completed, locked ``RunState``.
+
+        The run ID is a primary key and is never replaced.  The canonical run payload hash is
+        retained with the derived fields so callers cannot rewrite an observation after the fact.
+        """
+
+        if state.terminal is None:
+            raise ObservationError("cannot record an observation for a non-terminal run")
+        if state.criteria_locked_at is None or state.manifest.criteria_hash is None:
+            raise ObservationError("cannot record a run whose criteria were not locked")
+        if not state.task.task_class:
+            raise ObservationError("cannot record a run without a task_class")
+        if not state.manifest.index_snapshot_id:
+            raise ObservationError("cannot record a run without index_snapshot_id")
+        evidence = state.model_dump(mode="json")
+        evidence_hash = hashlib.sha256(
+            json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        required_non_judge = {
+            criterion.id
+            for criterion in state.criteria
+            if criterion.is_required and criterion.kind != "judge"
+        }
+        results = {
+            result.criterion_id: result
+            for result in state.results
+            if not result.errored
+        }
+        valid_non_judge_evidence = bool(required_non_judge) and all(
+            criterion_id in results for criterion_id in required_non_judge
+        )
+        obs = EvalObservation(
+            run_id=state.run_id,
+            task_class=state.task.task_class,
+            arm=state.arm,
+            snapshot_id=state.manifest.index_snapshot_id,
+            model_version=state.manifest.model_version,
+            first_attempt_success=state.terminal == "solved" and state.attempt_no == 1,
+            predicted_success=state.predicted_success,
+            terminal=state.terminal,
+            fixture_id=state.task.task_id if state.task.is_eval_fixture else None,
+            is_eval_fixture=state.task.is_eval_fixture,
+            recorded_at=datetime.now(timezone.utc),
+            strategy=state.strategy,
+            attempt_no=state.attempt_no,
+            cost_usd=state.spent.cost_usd,
+            abstention_confirmed=state.terminal == "abstained" and state.failure is not None,
+            skill_id=state.chosen.skill_id if state.chosen else None,
+            skill_version=state.chosen.version if state.chosen else None,
+            valid_non_judge_evidence=valid_non_judge_evidence,
+            evidence_hash=evidence_hash,
+        )
+        self._append_observation(obs)
+        return obs
 
     def record_observation(self, obs: EvalObservation) -> None:
+        """Reject caller-authored observations; use :meth:`append_run` instead."""
+
+        del obs
+        raise ObservationError("observations must be append_run-derived from a locked RunState")
+
+    def _append_observation(self, obs: EvalObservation) -> None:
         with self._lock, self._conn:
-            self._conn.execute(
+            try:
+                self._conn.execute(
                 """
-                INSERT OR REPLACE INTO observations (
+                INSERT INTO observations (
                     run_id, task_class, arm, snapshot_id, model_version,
                     first_attempt_success, predicted_success, terminal, fixture_id,
-                    is_eval_fixture, recorded_at, payload
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    is_eval_fixture, strategy, attempt_no, cost_usd, abstention_confirmed,
+                    skill_id, skill_version, valid_non_judge_evidence, evidence_hash,
+                    recorded_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     obs.run_id,
@@ -80,10 +177,20 @@ class EvalStore:
                     obs.terminal,
                     obs.fixture_id,
                     int(obs.is_eval_fixture),
+                    obs.strategy,
+                    obs.attempt_no,
+                    obs.cost_usd,
+                    None if obs.abstention_confirmed is None else int(obs.abstention_confirmed),
+                    obs.skill_id,
+                    obs.skill_version,
+                    int(obs.valid_non_judge_evidence),
+                    obs.evidence_hash,
                     obs.recorded_at.isoformat(),
                     obs.model_dump_json(),
                 ),
             )
+            except sqlite3.IntegrityError as exc:
+                raise ObservationError(f"run {obs.run_id!r} already has an immutable observation") from exc
 
     def write_baseline(self, baseline: ControlBaseline) -> None:
         with self._lock, self._conn:
@@ -142,6 +249,58 @@ class EvalStore:
                 successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
             )
         return out
+
+    def contribution_samples(
+        self, *, skill_id: str, version: int, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[BinomialSample, BinomialSample]:
+        """Return eligible treatment and control samples for one skill decision."""
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class, skill_id, version]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        treatment = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND skill_id = ? AND skill_version = ?
+              AND arm = 'treatment' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            params,
+        )
+        control_params: list[object] = [task_class]
+        if snapshot_id is not None:
+            control_params.append(snapshot_id)
+        control = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            control_params,
+        )
+        return treatment, control
+
+    def metric_rows(
+        self, *, task_class: str | None = None, snapshot_id: str | None = None
+    ) -> list[dict]:
+        """Return stored, run-derived rows in the shape consumed by metric aggregation."""
+
+        return [
+            observation.model_dump(mode="json")
+            for observation in self.list_observations(task_class=task_class, snapshot_id=snapshot_id)
+        ]
+
+    def _sample(self, sql: str, params: list[object]) -> BinomialSample:
+        row = self._conn.execute(sql, params).fetchone()
+        return BinomialSample(
+            successes=int((row["successes"] if row else 0) or 0),
+            trials=int((row["trials"] if row else 0) or 0),
+        )
 
     def list_observations(
         self, *, task_class: str | None = None, snapshot_id: str | None = None

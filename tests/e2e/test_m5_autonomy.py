@@ -7,10 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion
+from contracts.criteria import CriterionResult, SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
 from contracts.stats import Contribution, SkillStats, Trust
 from contracts.status import SkillStatus
+from fandea.evals.store import EvalStore
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.active_set import recompute_active_set
 from fandea.memory.procedural.store import SkillStore
@@ -79,15 +81,65 @@ def _seed(store: SkillStore, version: SkillVersion, *, lifecycle: str = "shadow"
     store.write_stats(SkillStats(skill_id=version.skill_id, version=1))
 
 
+def _record_evidence(
+    eval_store: EvalStore,
+    *,
+    skill_id: str,
+    prefix: str,
+    treatment: tuple[int, int],
+    control: tuple[int, int],
+) -> None:
+    criterion = TaskCriterion(id="non-judge", kind="command", run="true", source="caller")
+
+    def append(run_id: str, arm: str, success: bool, chosen: bool) -> None:
+        eval_store.append_run(
+            RunState(
+                run_id=run_id,
+                task=Task(
+                    task_id=run_id,
+                    request="evidence fixture",
+                    task_class="repo-chore",
+                    submitted_at=datetime.now(timezone.utc),
+                ),
+                manifest=RunManifest(index_snapshot_id="evidence-snapshot", criteria_hash="locked"),
+                arm=arm,  # type: ignore[arg-type]
+                criteria=[criterion],
+                criteria_locked_at=datetime.now(timezone.utc),
+                chosen=(
+                    SkillCandidateRef(skill_id=skill_id, version=1, score=1.0)
+                    if chosen
+                    else None
+                ),
+                attempt_no=1,
+                results=[CriterionResult(criterion_id=criterion.id, kind="command", passed=success)],
+                terminal="solved" if success else "unsolved",
+            )
+        )
+
+    successes, trials = treatment
+    for index in range(trials):
+        append(f"{prefix}-t-{index}", "treatment", index < successes, True)
+    successes, trials = control
+    for index in range(trials):
+        append(f"{prefix}-c-{index}", "control", index < successes, False)
+
+
 def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
+    eval_store = EvalStore(tmp_path / "evals.sqlite")
     ledger = HashChainLedger(tmp_path / "ledger.jsonl")
     _seed(store, _skill("shadow-winner"))
     for _ in range(10):
         record_shadow_outcome(store, "shadow-winner", 1, success=True)
-    # baseline 0.5 → lift ~0.5
+    _record_evidence(
+        eval_store,
+        skill_id="shadow-winner",
+        prefix="winner",
+        treatment=(10, 10),
+        control=(5, 10),
+    )
     approved = maybe_auto_promote_from_shadow(
-        store, "shadow-winner", 1, baseline_success=0.5, ledger=ledger
+        store, "shadow-winner", 1, eval_store=eval_store, ledger=ledger
     )
     assert approved.lifecycle == "candidate"
     assert approved.active is False
@@ -96,8 +148,18 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
     _seed(store, _skill("zero-lift"))
     for _ in range(10):
         record_shadow_outcome(store, "zero-lift", 1, success=True)
+    zero_eval_store = EvalStore(tmp_path / "zero-evals.sqlite")
+    _record_evidence(
+        zero_eval_store,
+        skill_id="zero-lift",
+        prefix="zero",
+        treatment=(10, 10),
+        control=(10, 10),
+    )
     with pytest.raises(LifecycleError, match="refusing auto-promote"):
-        maybe_auto_promote_from_shadow(store, "zero-lift", 1, baseline_success=1.0)
+        maybe_auto_promote_from_shadow(store, "zero-lift", 1, eval_store=zero_eval_store)
+    eval_store.close()
+    zero_eval_store.close()
 
 
 def test_quarantine_on_injected_regression(tmp_path: Path) -> None:
@@ -113,6 +175,7 @@ def test_quarantine_on_injected_regression(tmp_path: Path) -> None:
 
 def test_bench_respects_evidence_floor_and_is_restorable(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
+    eval_store = EvalStore(tmp_path / "evals.sqlite")
     ledger = HashChainLedger(tmp_path / "ledger.jsonl")
     _seed(store, _skill("neg-contrib"), lifecycle="approved")
     # Below floor
@@ -126,25 +189,25 @@ def test_bench_respects_evidence_floor_and_is_restorable(tmp_path: Path) -> None
     )
     with pytest.raises(LifecycleError, match="evidence floor"):
         maybe_bench_on_contribution(
-            store, "neg-contrib", 1, baseline_success=0.8, config=DEFAULT_AUTONOMY
+            store, "neg-contrib", 1, eval_store=eval_store, config=DEFAULT_AUTONOMY
         )
 
     # Past floor with sustained negative contribution
-    store.write_stats(
-        SkillStats(
-            skill_id="neg-contrib",
-            version=1,
-            trust=Trust(applications=40, successes=5),
-            contribution=Contribution(applications=40, successes=5),
-        )
+    _record_evidence(
+        eval_store,
+        skill_id="neg-contrib",
+        prefix="negative",
+        treatment=(5, 40),
+        control=(32, 40),
     )
     benched = maybe_bench_on_contribution(
-        store, "neg-contrib", 1, baseline_success=0.8, ledger=ledger
+        store, "neg-contrib", 1, eval_store=eval_store, ledger=ledger
     )
     assert benched.lifecycle == "benched"
     restored = restore_benched(store, "neg-contrib", 1, ledger=ledger)
     assert restored.lifecycle == "candidate"
     assert restored.retirement.restored_at is not None
+    eval_store.close()
 
 
 def test_harsh_config_over_prunes_vs_defaults(tmp_path: Path) -> None:
@@ -152,27 +215,28 @@ def test_harsh_config_over_prunes_vs_defaults(tmp_path: Path) -> None:
 
     def setup(root: Path, config_name: str) -> int:
         store = SkillStore(root / config_name)
+        eval_store = EvalStore(root / f"{config_name}.sqlite")
         benched = 0
         for i in range(5):
             sid = f"skill-{config_name}-{i}"
             _seed(store, _skill(sid), lifecycle="approved")
             # 25 apps, 10 successes vs baseline 0.5 → mild negative/near-zero
-            store.write_stats(
-                SkillStats(
-                    skill_id=sid,
-                    version=1,
-                    trust=Trust(applications=25, successes=10),
-                    contribution=Contribution(applications=25, successes=10),
-                )
+            _record_evidence(
+                eval_store,
+                skill_id=sid,
+                prefix=sid,
+                treatment=(10, 25),
+                control=(13, 25),
             )
             cfg = HARSH_AUTONOMY if config_name == "harsh" else DEFAULT_AUTONOMY
             try:
                 maybe_bench_on_contribution(
-                    store, sid, 1, baseline_success=0.5, config=cfg
+                    store, sid, 1, eval_store=eval_store, config=cfg
                 )
                 benched += 1
             except LifecycleError:
                 pass
+        eval_store.close()
         return benched
 
     harsh = setup(tmp_path, "harsh")

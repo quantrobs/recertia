@@ -15,9 +15,8 @@ class SandboxPolicy:
     max_address_space_mb: int = 512
     scrub_env: bool = True
     allowed_env_keys: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
-    # Container backend name; ``subprocess`` is the default local jail.
-    # ``container`` uses Docker when present, else ``container-sim``.
-    backend: str = "subprocess"
+    # Production commands run only in Docker or Podman; no host-process fallback.
+    backend: str = "container"
     image: str | None = "python:3.12-slim"
 
 

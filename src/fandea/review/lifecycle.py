@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from contracts.status import Retirement, SkillStatus
+from fandea.evals.store import EvalStore
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.contribution import estimate_contribution, trust_score
 from fandea.memory.procedural.store import SkillStore
@@ -20,7 +21,7 @@ def maybe_auto_promote_from_shadow(
     skill_id: str,
     version: int,
     *,
-    baseline_success: float | None,
+    eval_store: EvalStore,
     config: AutonomyConfig = DEFAULT_AUTONOMY,
     ledger: HashChainLedger | None = None,
 ) -> SkillStatus:
@@ -33,10 +34,15 @@ def maybe_auto_promote_from_shadow(
     trust = trust_score(
         applications=stats.trust.applications, successes=stats.trust.successes
     )
+    treatment, control = eval_store.contribution_samples(
+        skill_id=skill_id,
+        version=version,
+        task_class=store.get_version(skill_id, version).task_class,
+    )
     contrib = estimate_contribution(
-        applications=stats.contribution.applications or stats.trust.applications,
-        successes=stats.contribution.successes or stats.trust.successes,
-        baseline_success=baseline_success,
+        applications=treatment.trials,
+        successes=treatment.successes,
+        control=control,
     )
     # High trust + zero/None lift must NOT auto-promote.
     lift = contrib.estimate
@@ -45,9 +51,9 @@ def maybe_auto_promote_from_shadow(
             f"refusing auto-promote: lift={lift} trust={trust:.3f} "
             f"(need lift>={config.shadow_min_lift})"
         )
-    if stats.trust.applications < config.shadow_min_applications:
+    if treatment.trials < config.shadow_min_applications:
         raise LifecycleError("insufficient shadow applications")
-    if stats.trust.successes < config.shadow_min_successes:
+    if treatment.successes < config.shadow_min_successes:
         raise LifecycleError("insufficient shadow successes")
 
     # Curation prior: self_distilled needs higher lift.
@@ -113,7 +119,7 @@ def maybe_bench_on_contribution(
     skill_id: str,
     version: int,
     *,
-    baseline_success: float | None,
+    eval_store: EvalStore,
     config: AutonomyConfig = DEFAULT_AUTONOMY,
     ledger: HashChainLedger | None = None,
 ) -> SkillStatus:
@@ -121,14 +127,19 @@ def maybe_bench_on_contribution(
 
     status = store.get_status(skill_id, version)
     stats = store.get_stats(skill_id, version)
-    apps = stats.contribution.applications or stats.trust.applications
-    succs = stats.contribution.successes or stats.trust.successes
+    treatment, control = eval_store.contribution_samples(
+        skill_id=skill_id,
+        version=version,
+        task_class=store.get_version(skill_id, version).task_class,
+    )
+    apps = treatment.trials
+    succs = treatment.successes
     if apps < config.evidence_floor:
         raise LifecycleError(
             f"below evidence floor ({apps} < {config.evidence_floor}); never bench"
         )
     contrib = estimate_contribution(
-        applications=apps, successes=succs, baseline_success=baseline_success
+        applications=apps, successes=succs, control=control
     )
     est = contrib.estimate
     if est is None or est > -config.retirement_threshold:
