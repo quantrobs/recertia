@@ -164,9 +164,13 @@ def _portfolio_score(b) -> tuple[int, float, float]:
 
 def _select_portfolio_winner(state: RunState):
     succeeded = [b for b in state.branches if b.status == "succeeded"]
-    if not succeeded:
-        return None
-    return max(succeeded, key=_portfolio_score)
+    if succeeded:
+        return max(succeeded, key=_portfolio_score)
+    # Preserve a deterministic selected branch for audit/recovery even when the runtime
+    # fails every branch before validation (for example, unavailable sandbox capacity).
+    # The run still routes through failure because the parent criterion result/signals fail.
+    completed = [b for b in state.branches if b.status in ("failed", "timed_out")]
+    return max(completed, key=_portfolio_score) if completed else None
 
 
 def _materialize_decomposition(

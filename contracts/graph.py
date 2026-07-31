@@ -126,17 +126,17 @@ ROUTES: tuple[Route, ...] = (
         "solve",
         "classify_failure",
         "pre_validation_failure_signal",
-        lambda s: s.failure_signal is not None and not s.results,
+        lambda s: s.failure_signal is not None,
         (
             "Environment, tool, or mid-attempt budget failures occur before or instead of "
-            "validation (ADR-0008); classify_failure never requires a result vector for these."
+            "validation (ADR-0008), including after a retry retains prior validation results."
         ),
     ),
     Route(
         "solve",
         "validate",
         "attempt_completed",
-        lambda s: s.transcript_ref is not None,
+        lambda s: s.transcript_ref is not None and s.failure_signal is None,
         "A completed attempt (whether it will pass or fail) proceeds to validation.",
     ),
     Route(

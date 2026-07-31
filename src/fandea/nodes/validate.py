@@ -107,11 +107,11 @@ def _score_criterion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionRes
 
 def _run_command(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
     assert criterion.run is not None
-    from fandea.solver.container import run_in_container
+    from fandea.solver.container import run_configured_command
     from fandea.solver.sandbox import SandboxError
 
     try:
-        proc = run_in_container(criterion.run, workdir=ctx.workdir, timeout_s=criterion.timeout_s)
+        proc = run_configured_command(criterion.run, workdir=ctx.workdir, timeout_s=criterion.timeout_s)
         exit_code, output = proc.returncode, proc.stdout + proc.stderr
     except SandboxError as exc:
         exit_code, output = 126, str(exc)

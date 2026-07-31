@@ -248,12 +248,14 @@ def default_registry() -> ToolRegistry:
     registry = ToolRegistry()
 
     def shell_handler(inputs: dict, workdir: Path) -> ToolResult:
-        from fandea.solver.container import run_in_container
+        from fandea.solver.container import run_configured_command
         from fandea.solver.sandbox import SandboxError, SandboxLimits
 
         command = str(inputs.get("command", "true"))
         try:
-            proc = run_in_container(command, workdir=workdir, limits=SandboxLimits(), timeout_s=60)
+            proc = run_configured_command(
+                command, workdir=workdir, limits=SandboxLimits(), timeout_s=60
+            )
         except SandboxError as exc:
             return ToolResult(tool="shell", ok=False, exit_code=126, stderr=str(exc))
         return ToolResult(
