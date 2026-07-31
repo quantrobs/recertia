@@ -93,15 +93,16 @@ Everything else in these documents supports those eight.
 ## Status
 
 Design intent is complete, the structural blockers that made it unimplementable as written are
-resolved, and **M0 (the walking skeleton) is built**: [`contracts/`](contracts) is the
-normative structural source (ADR-0009), and [`src/fandea/`](src/fandea) is a working runtime
-against it — a graph engine that routes purely from [`contracts/graph.py`](contracts/graph.py),
-all fifteen nodes, a hash-chained provenance ledger, workspace snapshot/restore, at-least-once
-operation execution, a T0–T3 import-boundary test, and a CLI (`fandea run` /
-`fandea runs show --route-log` / `fandea ledger verify`). All of it is enforced by tests and CI
-(`.github/workflows/ci.yml`). [`docs/refactor-plan.md`](docs/refactor-plan.md) tracks what
-remains (three cross-doc CI checks, secondary debt), and
-[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M1 onward.
+resolved, and **M0 + M1 are built**:
+
+- [`contracts/`](contracts) is the normative structural source (ADR-0009).
+- [`src/fandea/`](src/fandea) is a working runtime against it — graph engine, all fifteen nodes,
+  hash-chained ledger, workspace snapshot/restore, at-least-once ops, T0–T3 import boundary,
+  CLI, **procedural skill store**, **FTS5+embedding retrieval**, **active-set filter**,
+  **golden-regression promotion gate**, and a 10-skill `repo-chore` seed library.
+- Enforced by tests and CI (`.github/workflows/ci.yml`).
+
+[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M2 onward.
 
 ## License
 

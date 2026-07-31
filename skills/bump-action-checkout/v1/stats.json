@@ -1,0 +1,20 @@
+{
+  "skill_id": "bump-action-checkout",
+  "version": 1,
+  "trust": {
+    "applications": 0,
+    "successes": 0,
+    "last_used_at": null,
+    "lift_estimate": null,
+    "lift_samples": 0,
+    "decayed_score": null
+  },
+  "contribution": {
+    "applications": 0,
+    "successes": 0,
+    "baseline_success": null,
+    "interval_low": null,
+    "interval_high": null,
+    "last_evaluated_at": null
+  }
+}

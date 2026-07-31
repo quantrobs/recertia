@@ -1,11 +1,11 @@
-"""``solve``: run a scripted tool sequence and produce a transcript (specs §4). M0 stub.
+"""``solve``: run a scripted tool sequence and produce a transcript (specs §4).
 
-M0 has no model, no tool registry, and no skill to apply — "a scripted tool sequence" per the
-implementation plan means the run's ``ctx.script`` (a fixed list of shell commands) stands in
-for a skill's step graph. Every command is expected to succeed; an unexpected nonzero exit is
-an environment/tool failure raised directly, before validation ever runs (ADR-0008) — that is
-a different failure mode from "the steps ran fine but the result does not satisfy criteria",
-which is ``validate``'s job to discover.
+M0/M1: no model, no general tool registry. The script comes from, in order:
+
+1. ``ctx.script`` if the caller supplied one (tests, golden runner override).
+2. The chosen skill's shell steps, when ``strategy`` is ``apply`` or ``adapt`` and a store is
+   available (M1).
+3. ``["true"]`` — a no-op scratch attempt that still produces a transcript so ``validate`` runs.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import subprocess
 
 from contracts.failure import FailureSignal
 from contracts.run import Artifact, RunState
+from fandea.memory.procedural.apply import script_from_skill
 from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
 
@@ -28,7 +29,7 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     """
 
     attempt_no = state.attempt_no + 1
-    script = ctx.script or ["true"]
+    script = _resolve_script(state, ctx)
 
     for op_seq, command in enumerate(script):
         result = ctx.op_once(op_seq, functools.partial(_run_command, command, ctx))
@@ -59,12 +60,21 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
             "transcript_ref": transcript_ref,
             "artifacts": [
                 *state.artifacts,
-                Artifact(kind="text", ref=transcript_ref, description="M0 scripted attempt transcript"),
+                Artifact(kind="text", ref=transcript_ref, description="scripted attempt transcript"),
             ],
             "failure_signal": None,
         }
     )
     return NodeOutcome(state=new_state, route="attempt_completed")
+
+
+def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
+    if ctx.script is not None:
+        return ctx.script
+    if state.strategy in ("apply", "adapt") and state.chosen is not None and ctx.store is not None:
+        version = ctx.store.get_version(state.chosen.skill_id, state.chosen.version)
+        return script_from_skill(version)
+    return ["true"]
 
 
 def _run_command(command: str, ctx: NodeContext) -> dict:

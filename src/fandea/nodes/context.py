@@ -1,8 +1,8 @@
-"""What every node function receives besides the state (M0's "fake services" for tests, too)."""
+"""What every node function receives besides the state (injected services for tests, too)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, TypeVar
 
@@ -12,6 +12,8 @@ from fandea.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
     from fandea.graph.ops import OperationLedger
+    from fandea.memory.procedural.store import SkillStore
+    from fandea.retrieval.pipeline import Retriever
 
 T = TypeVar("T")
 
@@ -44,7 +46,12 @@ class NodeContext:
     ledger: HashChainLedger
     ops: "OperationLedger"
     script: list[str] | None = None
-    """The scripted tool sequence ``solve`` runs (M0 stand-in for a real tool runtime)."""
+    """Explicit scripted tool sequence. When None and strategy is ``apply``, ``solve`` derives
+    a script from the chosen skill's shell steps (M1)."""
+
+    retriever: "Retriever | None" = None
+    store: "SkillStore | None" = None
+    env_fingerprint: dict[str, str] = field(default_factory=dict)
 
     def op_once(self, op_seq: int, fn: Callable[[], T]) -> T:
         """At-least-once execution keyed by ``(run_id, attempt_no, node, op_seq)`` (ADR per B6)."""

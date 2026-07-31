@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
@@ -22,6 +23,10 @@ from fandea.ledger import HashChainLedger
 from fandea.nodes import NODE_FUNCS, NodeContext
 from fandea.workspace import WorkspaceManager
 
+if TYPE_CHECKING:
+    from fandea.memory.procedural.store import SkillStore
+    from fandea.retrieval.pipeline import Retriever
+
 MAX_GRAPH_STEPS = 500
 """A safety valve against a routing defect looping forever. Not a budget concept — a run that
 legitimately needs this many node-hops has a routing bug, not a slow task."""
@@ -32,13 +37,23 @@ class RoutingError(RuntimeError):
 
 
 class GraphOrchestrator:
-    def __init__(self, runs_root: Path | str) -> None:
+    def __init__(
+        self,
+        runs_root: Path | str,
+        *,
+        retriever: "Retriever | None" = None,
+        store: "SkillStore | None" = None,
+        env_fingerprint: dict[str, str] | None = None,
+    ) -> None:
         self.runs_root = Path(runs_root)
         self.runs_root.mkdir(parents=True, exist_ok=True)
         self.checkpoints = CheckpointStore(self.runs_root / "checkpoints.db")
         self.ops = OperationLedger(self.runs_root / "operations.db")
         self.ledger = HashChainLedger(self.runs_root / "ledger.jsonl")
         self.workspaces = WorkspaceManager(self.runs_root / "snapshots")
+        self.retriever = retriever
+        self.store = store
+        self.env_fingerprint = env_fingerprint or {}
 
     def close(self) -> None:
         self.checkpoints.close()
@@ -115,6 +130,9 @@ class GraphOrchestrator:
                 ledger=self.ledger,
                 ops=self.ops,
                 script=script,
+                retriever=self.retriever,
+                store=self.store,
+                env_fingerprint=self.env_fingerprint,
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state

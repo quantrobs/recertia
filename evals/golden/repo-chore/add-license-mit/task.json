@@ -1,0 +1,4 @@
+{
+  "request": "Add an MIT LICENSE file at the repository root",
+  "expected_skill_id": "add-license-mit"
+}
