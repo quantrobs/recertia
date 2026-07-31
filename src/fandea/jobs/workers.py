@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion
+from contracts.criteria import SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from fandea.jobs import Proposal
 from fandea.memory.procedural.store import SkillStore
+from fandea.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
 
 
 def mine_from_repo_hints(store: SkillStore, *, hints: list[str]) -> list[Proposal]:
@@ -146,11 +147,14 @@ def propose_parallelise(skill_id: str, version: int, *, fake_edge_failures: int)
 
 
 def draft_from_mine_proposal(proposal: Proposal) -> SkillVersion:
-    proof = SensitivityProof(
-        criterion_id="ok",
-        negative_fixture="empty",
-        rejected=True,
-        checked_at=datetime.now(timezone.utc),
+    criterion = SkillCertificationCriterion(
+        id="workspace-evidence",
+        kind="command",
+        run="test -f ok.txt",
+        preregistered=True,
+    )
+    proof = author_sensitivity_proof(
+        criterion, negative_workdir=empty_negative_fixture()
     )
     return SkillVersion(
         skill_id=proposal.skill_id,
@@ -168,9 +172,9 @@ def draft_from_mine_proposal(proposal: Proposal) -> SkillVersion:
         ],
         certification_criteria=[
             SkillCertificationCriterion(
-                id="ok",
+                id=criterion.id,
                 kind="command",
-                run="true",
+                run=criterion.run,
                 sensitivity_proof=proof,
                 preregistered=True,
             )
