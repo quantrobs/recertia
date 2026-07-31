@@ -1,0 +1,133 @@
+"""Skill library store: immutable SkillVersion writes, mutable SkillStatus/SkillStats (ADR-0007).
+
+Layout on disk (matches ``docs/implementation-plan.md`` repository layout)::
+
+    skills/<skill_id>/v<N>/version.json   # immutable once written
+    skills/<skill_id>/v<N>/status.json    # projected SkillStatus
+    skills/<skill_id>/v<N>/stats.json     # derived SkillStats (T0)
+
+The "git adapter" for M1 is the filesystem under a skills root that is expected to live in a
+git-tracked tree: writes go through this class so immutability is enforced in code, not by
+reviewer habit. A later milestone MAY wrap each write in ``git add``/``git commit`` without
+changing this interface.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from contracts.skill import SkillVersion
+from contracts.stats import SkillStats
+from contracts.status import SkillStatus
+
+
+class ImmutabilityError(Exception):
+    """Raised when a caller attempts to overwrite an existing ``SkillVersion``."""
+
+
+class SkillStore:
+    def __init__(self, skills_root: Path | str) -> None:
+        self.root = Path(skills_root)
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def version_dir(self, skill_id: str, version: int) -> Path:
+        return self.root / skill_id / f"v{version}"
+
+    def write_version(self, version: SkillVersion) -> Path:
+        """Write an immutable ``version.json``. Refuses if the file already exists."""
+
+        dest_dir = self.version_dir(version.skill_id, version.version)
+        dest = dest_dir / "version.json"
+        if dest.exists():
+            raise ImmutabilityError(
+                f"SkillVersion {version.skill_id}@v{version.version} already exists at {dest}; "
+                "evolution produces version N+1, never a rewrite (ADR-0007)"
+            )
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest.write_text(version.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        return dest
+
+    def write_status(self, status: SkillStatus) -> Path:
+        dest_dir = self.version_dir(status.skill_id, status.version)
+        if not (dest_dir / "version.json").exists():
+            raise FileNotFoundError(
+                f"cannot write status for {status.skill_id}@v{status.version}: version.json missing"
+            )
+        dest = dest_dir / "status.json"
+        dest.write_text(status.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        return dest
+
+    def write_stats(self, stats: SkillStats) -> Path:
+        dest_dir = self.version_dir(stats.skill_id, stats.version)
+        if not (dest_dir / "version.json").exists():
+            raise FileNotFoundError(
+                f"cannot write stats for {stats.skill_id}@v{stats.version}: version.json missing"
+            )
+        dest = dest_dir / "stats.json"
+        dest.write_text(stats.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        return dest
+
+    def get_version(self, skill_id: str, version: int) -> SkillVersion:
+        path = self.version_dir(skill_id, version) / "version.json"
+        return SkillVersion.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def get_status(self, skill_id: str, version: int) -> SkillStatus:
+        path = self.version_dir(skill_id, version) / "status.json"
+        return SkillStatus.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def get_stats(self, skill_id: str, version: int) -> SkillStats:
+        path = self.version_dir(skill_id, version) / "stats.json"
+        if not path.exists():
+            return SkillStats(skill_id=skill_id, version=version)
+        return SkillStats.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def list_versions(self) -> list[tuple[str, int]]:
+        """Every ``(skill_id, version)`` that has a ``version.json`` under the root."""
+
+        found: list[tuple[str, int]] = []
+        if not self.root.exists():
+            return found
+        for skill_dir in sorted(self.root.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            for version_dir in sorted(skill_dir.iterdir()):
+                if version_dir.is_dir() and version_dir.name.startswith("v"):
+                    try:
+                        ver = int(version_dir.name[1:])
+                    except ValueError:
+                        continue
+                    if (version_dir / "version.json").exists():
+                        found.append((skill_dir.name, ver))
+        return found
+
+    def iter_loaded(self) -> list[tuple[SkillVersion, SkillStatus, SkillStats]]:
+        out: list[tuple[SkillVersion, SkillStatus, SkillStats]] = []
+        for skill_id, version in self.list_versions():
+            ver = self.get_version(skill_id, version)
+            status_path = self.version_dir(skill_id, version) / "status.json"
+            if status_path.exists():
+                status = self.get_status(skill_id, version)
+            else:
+                status = SkillStatus(skill_id=skill_id, version=version, lifecycle="draft")
+            stats = self.get_stats(skill_id, version)
+            out.append((ver, status, stats))
+        return out
+
+    def dump_index_manifest(self) -> dict:
+        """A small fingerprint of the library contents for run manifests."""
+
+        items = [
+            {
+                "skill_id": sid,
+                "version": ver,
+                "sha256": _file_sha(self.version_dir(sid, ver) / "version.json"),
+            }
+            for sid, ver in self.list_versions()
+        ]
+        return {"skills": items, "count": len(items)}
+
+
+def _file_sha(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
