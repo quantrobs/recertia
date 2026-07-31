@@ -33,11 +33,13 @@ from contracts.run import Task
 from fandea.graph.engine import GraphOrchestrator
 from fandea.ledger import HashChainLedger, LedgerVerificationError
 
-app = typer.Typer(help="Fandea: a self-improving agent system (M0 walking skeleton).")
+app = typer.Typer(help="Fandea: a self-improving agent system.")
 runs_app = typer.Typer(help="Inspect runs.")
 ledger_app = typer.Typer(help="Verify the provenance ledger.")
+skills_app = typer.Typer(help="Lint and search the skill library.")
 app.add_typer(runs_app, name="runs")
 app.add_typer(ledger_app, name="ledger")
+app.add_typer(skills_app, name="skills")
 
 
 def _load_spec(spec_path: Path) -> dict:
@@ -143,6 +145,71 @@ def ledger_verify(
         typer.echo(f"LEDGER INVALID: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(f"ledger OK: {len(ledger.entries())} entries verified")
+
+
+@skills_app.command("lint")
+def skills_lint(
+    skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
+) -> None:
+    """Structural + semantic lint of every skill version under ``skills_root``."""
+
+    from fandea.memory.procedural.lint import lint_store
+    from fandea.memory.procedural.store import SkillStore
+
+    store = SkillStore(skills_root)
+    report = lint_store(store)
+    failures = {k: v for k, v in report.items() if v}
+    for key, violations in report.items():
+        if violations:
+            typer.echo(f"FAIL {key}")
+            for v in violations:
+                typer.echo(f"  - {v}")
+        else:
+            typer.echo(f"OK   {key}")
+    if failures:
+        raise typer.Exit(code=1)
+
+
+@skills_app.command("search")
+def skills_search(
+    query: str = typer.Argument(...),
+    skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
+    index_path: Path = typer.Option(Path(".fandea/skill_index.db"), "--index"),
+    workdir: Path = typer.Option(Path("."), "--workdir"),
+    explain: bool = typer.Option(False, "--explain", help="Print scores and drop reasons."),
+    env: Optional[str] = typer.Option(
+        None, "--env", help="JSON object of tool→version for fingerprint matching."
+    ),
+) -> None:
+    """Retrieval debug endpoint (specs §9): scores and drop reasons without running a task."""
+
+    from fandea.memory.procedural.store import SkillStore
+    from fandea.retrieval.index import SkillIndex
+    from fandea.retrieval.pipeline import Retriever
+
+    store = SkillStore(skills_root)
+    index = SkillIndex(index_path)
+    try:
+        index.rebuild(store.iter_loaded())
+        retriever = Retriever(index)
+        env_fp = json.loads(env) if env else {}
+        bundle, explanation = retriever.search(
+            query, workdir=workdir, env_fingerprint=env_fp
+        )
+    finally:
+        index.close()
+
+    if explain:
+        typer.echo(f"snapshot={explanation.snapshot_id}")
+        typer.echo(f"lexical_hits={len(explanation.lexical_hits)} vector_hits={len(explanation.vector_hits)}")
+        for d in explanation.dropped:
+            typer.echo(f"  DROP {d.skill_id}@v{d.version} stage={d.stage} reason={d.reason}")
+        for sid, ver, score, reason in explanation.demoted:
+            typer.echo(f"  DEMOTE {sid}@v{ver} score={score:.3f} ({reason})")
+    for c in bundle.skills:
+        typer.echo(f"{c.skill_id}@v{c.version} score={c.score}")
+    if not bundle.skills:
+        typer.echo("(empty bundle)")
 
 
 if __name__ == "__main__":
