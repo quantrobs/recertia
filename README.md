@@ -92,16 +92,20 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design intent is complete, structural blockers are resolved, and **M0–M4 are built**:
+Design intent is complete, structural blockers are resolved, and **M0–M9 are built**:
 
 - [`contracts/`](contracts) — normative structural source (ADR-0009)
 - [`src/fandea/`](src/fandea) — graph engine, skill store, retrieval, solver/tool runtime,
   wave-based skill application, episodic + affordance memory, distillation + review + fact
-  store, verifier isolation, **measurement harness** (causal lift, Wilson intervals, eval
-  firewall, control baselines, regression gate), hash-chained ledger, CLI
+  store, verifier isolation, measurement harness, **earned autonomy** (shadow promote,
+  quarantine, contribution retirement, capped active set), **fan-out** (portfolio /
+  decomposition + merge audits), **improvement-plane jobs** (proposals only), **composite
+  skills**, second-domain golden fixtures, T2 policy proposals, concurrent version
+  allocation, hash-chained ledger, CLI
 - Enforced by tests and CI (`.github/workflows/ci.yml`)
 
-[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M5 onward.
+[`docs/implementation-plan.md`](docs/implementation-plan.md) records the milestone sequence
+and remaining operational hardening options (sandbox, Postgres, OTel dashboards).
 
 ## License
 

@@ -69,6 +69,8 @@ def validate(state: RunState, ctx: NodeContext) -> NodeOutcome:
     )
 
     route = "no_branches_and_failing" if failure_signal is not None else "no_branches_and_passing"
+    if state.branches:
+        route = "has_branches"
     note = "; ".join(downgrade_notes) if downgrade_notes else None
     return NodeOutcome(state=new_state, route=route, note=note)
 

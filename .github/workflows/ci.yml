@@ -1,8 +1,8 @@
 name: ci
 
 # Validates contracts/ (ADR-0009: the Pydantic models that are the normative structural
-# source of truth, and everything generated from it) and src/fandea/ (the M0 walking
-# skeleton, ADR per docs/implementation-plan.md M0).
+# source of truth, and everything generated from it) and src/fandea/ (M0–M9 per
+# docs/implementation-plan.md).
 
 on:
   push:
@@ -44,5 +44,5 @@ jobs:
       - name: Example drift (skills/bump-python-dep/v3/*.json must equal contracts/examples.py)
         run: python3 scripts/export_examples.py --check
 
-      - name: Test suite (contracts, M0–M4, import boundary)
+      - name: Test suite (contracts, M0–M9, import boundary)
         run: pytest -v
