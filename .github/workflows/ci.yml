@@ -53,5 +53,5 @@ jobs:
       - name: Assumptions hygiene (R3)
         run: python3 scripts/check_assumptions_hygiene.py --check
 
-      - name: Test suite (contracts, M0–M9, hardening, import boundary)
+      - name: Test suite (contracts, M0–M9, hardening, API, import boundary)
         run: pytest -v

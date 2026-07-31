@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
@@ -43,17 +44,73 @@ def curator_active_set_and_dedup(store: SkillStore) -> list[Proposal]:
     ]
 
 
-def practice_from_one_offs(one_off_reasons: list[str]) -> list[Proposal]:
-    return [
-        Proposal(
-            kind="practice",
-            skill_id=f"practice-{i}",
-            version=1,
-            rationale=f"practice curriculum from one-off cluster: {reason[:60]}",
-            payload={"predicted_success_band": [0.2, 0.8]},
+def practice_from_one_offs(
+    one_off_reasons: list[str],
+    *,
+    curriculum_dir: Path | None = None,
+) -> list[Proposal]:
+    """Build practice proposals in the predicted_success ∈ [0.2, 0.8] band.
+
+    When ``curriculum_dir`` is set, write one curriculum JSON per cluster for the Practice job.
+    """
+
+    proposals: list[Proposal] = []
+    if curriculum_dir is not None:
+        curriculum_dir.mkdir(parents=True, exist_ok=True)
+    for i, reason in enumerate(one_off_reasons):
+        skill_id = f"practice-{i}"
+        payload = {
+            "predicted_success_band": [0.2, 0.8],
+            "cluster_reason": reason,
+            "excluded_from_user_metrics": True,
+        }
+        if curriculum_dir is not None:
+            path = curriculum_dir / f"{skill_id}.json"
+            path.write_text(
+                __import__("json").dumps(
+                    {
+                        "skill_id": skill_id,
+                        "predicted_success": 0.5,
+                        "band": [0.2, 0.8],
+                        "reason": reason,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            payload["curriculum_path"] = str(path)
+        proposals.append(
+            Proposal(
+                kind="practice",
+                skill_id=skill_id,
+                version=1,
+                rationale=f"practice curriculum from one-off cluster: {reason[:60]}",
+                payload=payload,
+            )
         )
-        for i, reason in enumerate(one_off_reasons)
-    ]
+    return proposals
+
+
+def enqueue_mined_candidate(store: SkillStore, proposal: Proposal) -> SkillVersion:
+    """Persist a mined draft as ``candidate`` only — promotion stays behind the golden gate."""
+
+    draft = draft_from_mine_proposal(proposal)
+    store.write_version(draft)
+    from contracts.stats import SkillStats
+    from contracts.status import SkillStatus
+
+    store.write_status(
+        SkillStatus(
+            skill_id=draft.skill_id,
+            version=draft.version,
+            lifecycle="candidate",
+            active=False,
+        )
+    )
+    store.write_stats(SkillStats(skill_id=draft.skill_id, version=draft.version))
+    return draft
+
 
 
 def recertify_stale(store: SkillStore, *, tool_upgraded: str | None = None) -> list[Proposal]:

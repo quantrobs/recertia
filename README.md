@@ -92,14 +92,13 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design intent is complete, structural blockers are resolved, and **M0–M9 are built**, including
-operational hardening (sandbox approvals, scope promotion, store migrations, telemetry events)
-and R3 contract-CI hygiene:
+Design intent is complete, structural blockers are resolved, and **M0–M9 plus operational
+completion** are built:
 
 - [`contracts/`](contracts) — normative structural source (ADR-0009)
-- [`src/fandea/`](src/fandea) — graph engine through improvement-plane jobs, composite skills,
-  second-domain fixtures, governance sandbox policy, scope promotion, SQLite/Postgres
-  migrations, telemetry
+- [`src/fandea/`](src/fandea) — full milestone stack plus container sandbox backends, store
+  driver-swap, vector index API, FastAPI (`fandea.api`), content-addressed blobs, OTel JSONL
+  export and dashboard JSON, skill/fact scope promotion, layered fan-in, practice curricula
 - [`research/`](research) — scored preprint survey binaries (never normative)
 - Enforced by tests and CI (`.github/workflows/ci.yml`)
 

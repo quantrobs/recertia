@@ -6,9 +6,11 @@ runs stay dependency-light while still asserting the required event surface.
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterator
 
 REQUIRED_EVENTS = frozenset(
@@ -50,6 +52,7 @@ class Telemetry:
         self.spans: list[SpanRecord] = []
         self.events: list[SpanEvent] = []
         self._otel = None
+        self._exporters: list[Any] = []
         try:
             from opentelemetry import trace  # type: ignore
 
@@ -57,9 +60,14 @@ class Telemetry:
         except Exception:  # noqa: BLE001 — optional dependency
             self._otel = None
 
+    def add_exporter(self, exporter: Any) -> None:
+        self._exporters.append(exporter)
+
     def emit(self, name: str, **attributes: Any) -> SpanEvent:
         event = SpanEvent(name=name, attributes=attributes)
         self.events.append(event)
+        for exporter in self._exporters:
+            exporter.export_event(event)
         return event
 
     @contextmanager
@@ -77,12 +85,86 @@ class Telemetry:
             raise
         finally:
             record.ended_at = datetime.now(timezone.utc)
+            for exporter in self._exporters:
+                exporter.export_span(record)
             if otel_cm is not None:
                 otel_cm.__exit__(None, None, None)
 
     def missing_required(self) -> list[str]:
         seen = {e.name for e in self.events}
         return sorted(REQUIRED_EVENTS - seen)
+
+
+class JsonlSpanExporter:
+    """Append spans/events as JSONL — local OTLP stand-in for CI and ops."""
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def export_event(self, event: SpanEvent) -> None:
+        self._write({"type": "event", **_event_dict(event)})
+
+    def export_span(self, span: SpanRecord) -> None:
+        self._write({"type": "span", **_span_dict(span)})
+
+    def _write(self, payload: dict[str, Any]) -> None:
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, default=str) + "\n")
+
+
+def _event_dict(event: SpanEvent) -> dict[str, Any]:
+    return {"name": event.name, "attributes": event.attributes, "at": event.at.isoformat()}
+
+
+def _span_dict(span: SpanRecord) -> dict[str, Any]:
+    return {
+        "name": span.name,
+        "attributes": span.attributes,
+        "status": span.status,
+        "started_at": span.started_at.isoformat(),
+        "ended_at": span.ended_at.isoformat() if span.ended_at else None,
+        "events": [_event_dict(e) for e in span.events],
+    }
+
+
+def render_dashboard(tel: Telemetry) -> dict[str, Any]:
+    """Operational dashboard payload (Grafana-compatible-ish summary JSON)."""
+
+    by_name: dict[str, int] = {}
+    for e in tel.events:
+        by_name[e.name] = by_name.get(e.name, 0) + 1
+    return {
+        "title": "Fandea ops",
+        "panels": [
+            {
+                "id": "required_events",
+                "type": "stat",
+                "targets": sorted(REQUIRED_EVENTS),
+                "values": {name: by_name.get(name, 0) for name in sorted(REQUIRED_EVENTS)},
+            },
+            {
+                "id": "spans",
+                "type": "table",
+                "rows": [
+                    {
+                        "name": s.name,
+                        "status": s.status,
+                        "started_at": s.started_at.isoformat(),
+                    }
+                    for s in tel.spans
+                ],
+            },
+        ],
+        "missing_required": tel.missing_required(),
+    }
+
+
+def write_dashboard(tel: Telemetry, path: Path | str) -> Path:
+    dest = Path(path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(render_dashboard(tel), indent=2) + "\n", encoding="utf-8")
+    return dest
 
 
 _GLOBAL = Telemetry()
