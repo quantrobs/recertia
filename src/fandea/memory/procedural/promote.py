@@ -30,8 +30,14 @@ def promote_to_approved(
     log_dir: Path,
     model_validated_on: str = "m1-seed",
     tool_fingerprint: dict[str, str] | None = None,
+    repo_root: Path | None = None,
 ) -> SkillStatus:
-    """Run the golden task; on pass, write ``lifecycle=approved, active=True`` and the log ref."""
+    """Run the golden task; on pass, write ``lifecycle=approved, active=True`` and the log ref.
+
+    ``golden_set_ref`` is stored as a path relative to ``repo_root`` (when provided) so the
+    evidence travels with the repository and resolves on any checkout — not as an absolute
+    machine-local path that breaks CI.
+    """
 
     ver = store.get_version(skill_id, version)
     status = store.get_status(skill_id, version)
@@ -53,6 +59,8 @@ def promote_to_approved(
             f"(log: {log_path})"
         )
 
+    golden_ref = _portable_ref(log_path, repo_root)
+
     approved = SkillStatus(
         skill_id=skill_id,
         version=version,
@@ -61,7 +69,7 @@ def promote_to_approved(
         certification=Certification(
             model_validated_on=model_validated_on,
             tool_fingerprint=tool_fingerprint or {},
-            golden_set_ref=str(log_path),
+            golden_set_ref=golden_ref,
             last_recertified_at=datetime.now(timezone.utc),
             recert_status="fresh",
         ),
@@ -73,6 +81,23 @@ def promote_to_approved(
         raise PromotionError(f"approved profile violations: {violations}")
     store.write_status(approved)
     return approved
+
+
+def _portable_ref(log_path: Path, repo_root: Path | None) -> str:
+    """Prefer a repo-relative POSIX path; fall back to the absolute path only if needed."""
+
+    resolved = log_path.resolve()
+    if repo_root is not None:
+        try:
+            return resolved.relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            pass
+    # Best-effort: if the path contains the canonical evals/golden prefix, strip to that.
+    parts = resolved.parts
+    if "evals" in parts:
+        idx = parts.index("evals")
+        return "/".join(parts[idx:])
+    return str(resolved)
 
 
 def _result_json(result: GoldenResult) -> str:

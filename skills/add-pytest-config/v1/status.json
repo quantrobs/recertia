@@ -9,7 +9,7 @@
       "python": "3.12",
       "pytest": "8.3.4"
     },
-    "golden_set_ref": "/workspace/evals/golden/_promotion_logs/add-pytest-config-v1.json",
+    "golden_set_ref": "evals/golden/_promotion_logs/add-pytest-config-v1.json",
     "last_recertified_at": "2026-07-31T01:13:17.103896Z",
     "recert_status": "fresh"
   },

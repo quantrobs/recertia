@@ -180,12 +180,27 @@ def test_every_seed_skill_has_golden_promotion_log() -> None:
         assert status.lifecycle == "approved"
         assert status.active is True
         assert status.certification.golden_set_ref
-        log_path = Path(status.certification.golden_set_ref)
-        assert log_path.exists(), f"missing golden log for {version.skill_id}"
+        log_path = _resolve_repo_path(status.certification.golden_set_ref)
+        assert log_path.exists(), (
+            f"missing golden log for {version.skill_id} "
+            f"(ref={status.certification.golden_set_ref!r} → {log_path})"
+        )
         payload = json.loads(log_path.read_text())
         assert payload["passed"] is True
-        # Prefer the canonical log_dir location.
-        assert log_path.parent == log_dir or log_path.exists()
+        assert log_path.parent == log_dir
+
+
+def _resolve_repo_path(ref: str) -> Path:
+    """Resolve a golden_set_ref that may be repo-relative or a legacy absolute path."""
+
+    path = Path(ref)
+    if path.is_absolute():
+        # Legacy absolute refs from early seed installs — map onto this checkout.
+        if "evals" in path.parts:
+            idx = path.parts.index("evals")
+            return REPO.joinpath(*path.parts[idx:])
+        return path
+    return (REPO / path).resolve()
 
 
 def test_matching_task_routes_to_apply(tmp_path: Path) -> None:
