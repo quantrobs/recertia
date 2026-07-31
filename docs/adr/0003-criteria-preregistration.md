@@ -56,3 +56,44 @@ system's scorecard degrading.
   advisory, surfaced to review, and eligible to become required in the *next* version.
 - Criteria drift becomes visible: since criteria are versioned with the skill, weakening them
   is a diff a reviewer sees, and the regression gate re-runs the prior version's criteria.
+
+## Amendment: two criteria timelines (2026-07-30)
+
+This ADR was silent on one timeline collision, flagged in
+[`refactor-plan.md`](../refactor-plan.md) B2: `intake` locks required criteria *before*
+`retrieve` and `plan` run, so no skill has been chosen yet — but the original text listed
+"skill-inherited (when a skill is applied)" as a lock source, which is temporally impossible.
+Separately, a skill's own certification criteria are authored at `distill` time, *after* the run
+that produced them succeeded, which looks like exactly the post-hoc fitting this ADR exists to
+prevent, unless the timeline for *those* criteria is stated separately from the run's timeline.
+
+**Clarifying decision: these are two different measurement questions, with two different
+criteria types and two different timelines, and they never merge.**
+
+1. **`TaskCriterion`** answers "did this run solve what the caller asked for?" It is locked at
+   `intake`, from the caller, a task-class default template, or a critic pass — **never** from
+   a skill, because no skill is chosen yet. This is unchanged from the original decision and
+   remains genuinely pre-registered relative to solving.
+2. **`SkillCertificationCriterion`** answers "does this skill version reliably do what it
+   claims?" It is authored once, at `distill` time, from the transcript that produced the draft
+   — and is therefore *not* pre-registered relative to that first transcript, by construction,
+   the same way any transcript-derived rubric is post-hoc. "Preregistered" for this type means
+   registered **before the certification runs that validate it** — the shadow trials and
+   scheduled recertifications in specs §8/§20 — not before the original success. A version
+   cannot reach `candidate` on the strength of the transcript it was born from; it reaches
+   `candidate` only after its certification criteria are re-run, cold, on independent fixtures.
+
+**The load-bearing consequence:** a run's locked `TaskCriterion` set is **never** modified,
+extended, or replaced by which skill `plan` happens to choose. A skill's certification criteria
+may additionally be evaluated against the same run's artifact — this is a free observation,
+since the artifact already exists — but that observation is advisory telemetry feeding
+`SkillStats`/`needs_recert` (specs §20), and it never gates `join`, `distill`, or the caller's
+result. This closes the reopened gaming path the original text's "skill-inherited" language
+would have created: if certification criteria could enter a run's required set, a caller could
+be told a task "solved" against a bar the caller never asked for and never saw, chosen after the
+fact by which skill got retrieved.
+
+See [ADR-0009](0009-contracts-as-code.md) for the executable form: `contracts/criteria.py`
+defines `TaskCriterion` and `SkillCertificationCriterion` as distinct types, and
+`contracts/run.py`'s `RunState.criteria` is typed `list[TaskCriterion]` — a
+`SkillCertificationCriterion` cannot type-check into a run's required set at all.
