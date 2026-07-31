@@ -12,6 +12,7 @@ from fandea.governance.sandbox import DEFAULT_SANDBOX, ApprovalGate, SandboxPoli
 from fandea.ledger import HashChainLedger
 from fandea.memory.scope import ScopeError, promote_fact_scope
 from fandea.memory.semantic import FactStore
+from fandea.solver.container import container_runtime
 from fandea.solver.sandbox import SandboxError, SandboxLimits, run_sandboxed
 from fandea.solver.tools import ApprovalRequiredError, ToolRuntime, default_registry
 from fandea.store import (
@@ -37,8 +38,11 @@ def test_non_read_tools_require_approval(tmp_path: Path, monkeypatch) -> None:
     runtime.approval_gate = gate
     monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "container")
     approved = runtime.invoke("shell", {"command": "true"}, workdir=work, step_id="s3")
-    assert not approved.ok
-    assert approved.exit_code == 126
+    if container_runtime() is not None:
+        assert approved.ok
+    else:
+        assert not approved.ok
+        assert approved.exit_code == 126
 
 
 def test_host_subprocess_sandbox_is_disabled(tmp_path: Path) -> None:
