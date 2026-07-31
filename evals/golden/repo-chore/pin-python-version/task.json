@@ -1,0 +1,4 @@
+{
+  "request": "Pin the repository Python version to 3.12",
+  "expected_skill_id": "pin-python-version"
+}

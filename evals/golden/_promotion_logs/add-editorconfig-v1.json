@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-editorconfig",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-editorconfig",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-editorconfig-v1-a23aa5",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.139184+00:00"
+}
