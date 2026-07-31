@@ -92,15 +92,16 @@ Everything else in these documents supports those eight.
 
 ## Status
 
-Design intent is complete, structural blockers are resolved, and **M0–M2 are built**:
+Design intent is complete, structural blockers are resolved, and **M0–M3 are built**:
 
 - [`contracts/`](contracts) — normative structural source (ADR-0009)
-- [`src/fandea/`](src/fandea) — graph engine, skill store, retrieval, **solver/tool runtime**,
-  **wave-based skill application**, **episodic + affordance memory**, evolve repair moves,
+- [`src/fandea/`](src/fandea) — graph engine, skill store, retrieval, solver/tool runtime,
+  wave-based skill application, episodic + affordance memory, **distillation + review + fact
+  store**, verifier isolation, sensitivity-proof authoring, evolve repair moves,
   hash-chained ledger, CLI
 - Enforced by tests and CI (`.github/workflows/ci.yml`)
 
-[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M3 onward.
+[`docs/implementation-plan.md`](docs/implementation-plan.md) is the build order for M4 onward.
 
 ## License
 

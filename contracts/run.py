@@ -30,6 +30,14 @@ class Task(BaseModel):
     workspace: str | None = None
     submitted_by: str | None = None
     submitted_at: datetime
+    is_eval_fixture: bool = Field(
+        default=False,
+        description=(
+            "When true, distill must not author library memory (M3 firewall ahead of M4's full "
+            "eval firewall). Golden / promotion runs set this so the regression gate cannot "
+            "recursively learn from itself."
+        ),
+    )
 
 
 class RunManifest(BaseModel):

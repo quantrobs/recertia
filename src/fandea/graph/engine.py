@@ -27,7 +27,9 @@ if TYPE_CHECKING:
     from fandea.memory.affordance import AffordanceStore
     from fandea.memory.episodic import EpisodicStore
     from fandea.memory.procedural.store import SkillStore
+    from fandea.memory.semantic import FactStore
     from fandea.retrieval.pipeline import Retriever
+    from fandea.review import ReviewService
     from fandea.solver.apply import SkillApplicator
     from fandea.solver.model import ModelClient
     from fandea.solver.tools import ToolRuntime
@@ -56,6 +58,9 @@ class GraphOrchestrator:
         applicator: "SkillApplicator | None" = None,
         episodic: "EpisodicStore | None" = None,
         affordances: "AffordanceStore | None" = None,
+        facts: "FactStore | None" = None,
+        reviewer: "ReviewService | None" = None,
+        one_off_log: Path | None = None,
     ) -> None:
         self.runs_root = Path(runs_root)
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -72,6 +77,9 @@ class GraphOrchestrator:
         self.applicator = applicator
         self.episodic = episodic
         self.affordances = affordances
+        self.facts = facts
+        self.reviewer = reviewer
+        self.one_off_log = one_off_log
 
     def close(self) -> None:
         self.checkpoints.close()
@@ -157,6 +165,9 @@ class GraphOrchestrator:
                 applicator=self.applicator,
                 episodic=self.episodic,
                 affordances=self.affordances,
+                facts=self.facts,
+                reviewer=self.reviewer,
+                one_off_log=self.one_off_log,
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state
