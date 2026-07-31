@@ -31,7 +31,9 @@ class ApprovedLifecycleError(Exception):
 
 
 # Lifecycles that ``write_candidate`` must not clobber — only explicit helpers may leave them.
-_PROTECTED_FROM_CANDIDATE_DEMOTE = frozenset({"approved", "quarantined", "shadow"})
+_PROTECTED_FROM_CANDIDATE_DEMOTE = frozenset(
+    {"approved", "quarantined", "shadow", "benched", "needs_recert", "deprecated"}
+)
 
 
 class LifecycleConflictError(Exception):
@@ -69,8 +71,9 @@ class SkillStore:
 
         Writes ``version.json`` when missing (callers that already allocated via
         ``allocate_and_write`` skip that step). Always writes ``lifecycle=candidate``,
-        ``active=False`` — never approved. Refuses to demote ``approved``,
-        ``quarantined``, or ``shadow``; those transitions belong to explicit lifecycle helpers.
+        ``active=False`` — never approved. Refuses to demote non-draft lifecycles
+        (``approved``/``quarantined``/``shadow``/``benched``/``needs_recert``/``deprecated``);
+        those transitions belong to explicit lifecycle helpers.
         """
 
         dest = self.version_dir(version.skill_id, version.version) / "version.json"
