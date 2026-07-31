@@ -15,7 +15,24 @@ from fandea.nodes.context import NodeContext, NodeOutcome
 
 
 def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
-    # Always record the solved attempt episodically (M2 behaviour retained).
+    # Eval firewall (specs §19): fixture runs must not write episodic / draft / facts / store.
+    if state.task.is_eval_fixture:
+        verdict = ReusabilityVerdict(
+            verdict="one_off",
+            parameterisable=False,
+            context_free=True,
+            checkable=True,
+            not_duplicate=True,
+            bounded=True,
+            reason="eval firewall: fixture run — distillation and memory writes suppressed",
+        )
+        return NodeOutcome(
+            state=state.model_copy(update={"reusability": verdict, "draft": None, "facts_extracted": []}),
+            route="one_off",
+            note=verdict.reason,
+        )
+
+    # Always record the solved attempt episodically (M2 behaviour retained) for non-fixture runs.
     if ctx.episodic is not None:
         approach = (
             f"skill:{state.chosen.skill_id}@v{state.chosen.version}"
@@ -36,8 +53,8 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
         )
         ctx.episodic.write(case)
 
-    # Eval fixtures must not author library memory (M3 firewall ahead of M4).
-    if state.task.is_eval_fixture or state.arm == "control":
+    # Control arm: measure without learning.
+    if state.arm == "control":
         verdict = ReusabilityVerdict(
             verdict="one_off",
             parameterisable=False,
@@ -45,7 +62,7 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             checkable=True,
             not_duplicate=True,
             bounded=True,
-            reason="eval fixture or control arm — distillation suppressed",
+            reason="control arm — distillation suppressed",
         )
         return NodeOutcome(
             state=state.model_copy(update={"reusability": verdict}),

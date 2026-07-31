@@ -14,9 +14,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from contracts.budget import Budget
+from contracts.common import Arm
 from contracts.criteria import TaskCriterion
 from contracts.graph import legal_routes
-from contracts.run import RouteEntry, RunState, Task, WorkspaceSnapshot
+from contracts.run import RouteEntry, RunManifest, RunState, Task, WorkspaceSnapshot
 from fandea.graph.ops import OperationLedger
 from fandea.graph.store import CheckpointStore
 from fandea.ledger import HashChainLedger
@@ -95,15 +96,24 @@ class GraphOrchestrator:
         workdir: Path | str,
         script: list[str] | None = None,
         max_steps: int | None = None,
+        arm: Arm = "treatment",
+        manifest: RunManifest | None = None,
     ) -> RunState:
         """Start a brand-new run at ``intake``.
 
-        ``max_steps`` stops after that many node-hops, checkpointing normally, and returns the
-        (not-yet-finalized) state — a genuine "process died here" simulation for resume tests,
-        not just a mock.
+        ``arm`` is assigned by the caller (CLI / harness / ablation sampler). Nodes never
+        import the T3 ablation module (ADR-0005). ``manifest`` pins model/library snapshot
+        identity for measurement (M4).
         """
 
-        state = RunState(run_id=run_id, task=task, criteria=criteria, budget=budget or Budget())
+        state = RunState(
+            run_id=run_id,
+            task=task,
+            criteria=criteria,
+            budget=budget or Budget(),
+            arm=arm,
+            manifest=manifest or RunManifest(),
+        )
         return self._execute(state, "intake", workdir=Path(workdir), script=script, max_steps=max_steps)
 
     def resume(

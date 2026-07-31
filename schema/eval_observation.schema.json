@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/EvalObservation",
+  "additionalProperties": false,
+  "description": "One run observation keyed for aggregation under a library snapshot.",
+  "properties": {
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "arm": {
+      "default": "treatment",
+      "enum": [
+        "treatment",
+        "control",
+        "shadow",
+        "practice"
+      ],
+      "title": "Arm",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "first_attempt_success": {
+      "title": "First Attempt Success",
+      "type": "boolean"
+    },
+    "predicted_success": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predicted Success"
+    },
+    "terminal": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Terminal"
+    },
+    "fixture_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fixture Id"
+    },
+    "is_eval_fixture": {
+      "default": false,
+      "title": "Is Eval Fixture",
+      "type": "boolean"
+    },
+    "recorded_at": {
+      "format": "date-time",
+      "title": "Recorded At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "task_class",
+    "snapshot_id",
+    "first_attempt_success",
+    "recorded_at"
+  ],
+  "title": "EvalObservation",
+  "type": "object"
+}
