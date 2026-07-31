@@ -43,18 +43,23 @@ is in [`references.md`](references.md).
 
 ## Repository layout
 
+Per [ADR-0009](adr/0009-contracts-as-code.md), `contracts/` (Pydantic models, generated
+`schema/`, semantic profiles) exists ahead of `src/fandea/` — specification tooling, not the
+runtime. `src/fandea/` imports from it rather than redefining these types.
+
 ```text
 fandea/
 ├── pyproject.toml
-├── schema/                    # JSON Schema contracts
-├── skills/<skill_id>/v<N>.json     # procedural memory, canonical
+├── contracts/                  # normative structural source (ADR-0009); Pydantic models
+├── schema/                     # JSON Schema, generated from contracts/ — never hand-edited
+├── skills/<skill_id>/v<N>/     # version.json (immutable, git), status.json, stats.json (ADR-0007)
 ├── facts/<scope>/<slug>.json       # semantic memory, canonical
 ├── policy/                          # T2 config, versioned and reviewed
 ├── src/fandea/
 │   ├── graph/                 # engine: registry, router, checkpoints, budgets, fan-out
 │   ├── nodes/                 # intake, retrieve, plan, fan_out, solve, validate, join,
 │   │                          # classify_failure, evolve, distill, review, store,
-│   │                          # quarantine, finalize
+│   │                          # record_dead_end, reject_draft, finalize (ADR-0008)
 │   ├── memory/
 │   │   ├── procedural/        # skills: store, versioning, lineage, composition, git adapter
 │   │   ├── semantic/          # facts: assertions, verification, contradictions
@@ -84,41 +89,80 @@ fandea/
 **Goal:** one task traverses the whole graph with no learning, no models, no memory — but with
 the rails that everything later depends on.
 
-- Graph engine: node registry, typed `RunState`, conditional edges, per-node checkpoints,
-  budget accounting enforced on back-edges.
-- All fourteen nodes stubbed; `solve` is a scripted tool sequence.
+Per refactor-plan B6, four mechanisms that the original plan deferred past the point their own
+MUSTs require them are pulled forward here, at the *minimum* strength each needs — not their
+full eventual form:
+
+- Graph engine: node registry, typed `RunState` (from [`contracts/run.py`](../contracts/run.py)),
+  conditional edges from the route table in [`contracts/graph.py`](../contracts/graph.py),
+  per-node checkpoints, budget accounting enforced on back-edges.
+- **Stable operation ids and at-least-once execution.** Every side-effecting node call (tool
+  invocation, ledger append) is keyed by `(run_id, attempt_no, node, op_seq)`; a resumed run
+  replays or no-ops already-applied operations rather than re-executing them. Without this,
+  "killing the process mid-run and resuming completes it" (below) is a claim with no mechanism.
+- All fifteen nodes stubbed per `specifications.md` §4 (`join` is a no-op stub — it only
+  activates once `fan_out` exists in M6); `solve` is a scripted tool sequence.
 - `validate` runs `command` criteria for real in the subprocess sandbox.
-- **Criteria locking** at `intake` with hash recorded in the run manifest.
+- **Criteria locking** at `intake` with hash recorded in the run manifest; `TaskCriterion` only
+  (§15.1 — no skill has been chosen at `intake`).
+- **Minimal sensitivity-proof execution.** `validate` checks that every required criterion's
+  `sensitivity_proof.rejected == true` before counting it toward a pass; M0's golden fixture
+  ships hand-authored proofs. This is the *check*, not the authoring tooling (that is M3) — but
+  without it, every "required" criterion in M0–M2 is definitionally advisory per §2.4, and every
+  later milestone's done-when that assumes required criteria matter would be unverifiable.
 - **Attempt isolation:** workspace snapshot before each attempt, restore in `evolve`.
-- **Failure classification** with the eight-class taxonomy, driving `evolve` move selection.
+- **Failure classification** with the eight-class taxonomy and explicit `FailureSignal`
+  (ADR-0008), driving `evolve` move selection.
 - **Ledger:** append-only hash chain with `verify`.
 - **Governance skeleton:** tier registry plus a CI import-boundary test proving `nodes/` and
   `jobs/` cannot import `governance/` or `evals/ablation`.
 - CLI `fandea run`, `fandea runs show --route-log`, `fandea ledger verify`.
 
 **Done when:** a run reaches `finalize` with `terminal="solved"`; killing the process mid-run
-and resuming completes it from the last checkpoint; a run whose criteria always fail terminates
-at `quarantine` with a failure class rather than looping; retrying always starts from a clean
-snapshot; the boundary test fails if a node imports a T3 module.
+and resuming completes it from the last checkpoint with no operation double-applied (proven by
+the stable-operation-id mechanism, not asserted); a run whose criteria always fail terminates
+at `record_dead_end` with a failure class rather than looping; retrying always starts from a
+clean snapshot; a required criterion with no sensitivity proof is treated as advisory, not
+required, and this is visible in the route log; the boundary test fails if a node imports a T3
+module.
 
 ## M1 — Procedural memory and retrieval
 
 **Goal:** hand-authored skills are found and applied. No distillation yet.
 
-- `skill.schema.json` enforcement, including placeholder binding and `uses` validation.
+Per refactor-plan B6, two more mechanisms are pulled forward: a stub active-set assignment (so
+retrieval's active-set filter is not a silent no-op), and a minimal golden-regression runner (so
+approving the seed library does not quietly bypass the regression gate specs §8 requires of
+every promotion).
+
+- Structural validation against `schema/skill_version.schema.json` (generated from
+  [`contracts/skill.py`](../contracts/skill.py)) plus the `candidate-skill` /
+  `approved-skill` semantic profiles from [`contracts/profiles.py`](../contracts/profiles.py),
+  including placeholder binding and `uses` validation.
 - Skill store with immutability guard (any write to an existing version is refused), lineage,
-  and git adapter.
+  and git adapter, writing `SkillVersion` (git) separately from `SkillStatus` (ADR-0007).
+- **Active-set stub.** Every `approved` `SkillStatus.active` is `True` by default — no cap, no
+  ranking, no eviction yet (those are M5) — but the *filter* retrieval applies (§5, §24.1) is the
+  real mechanism from day one, so M5 tightens a working gate instead of installing the first one.
+- **Golden-regression runner (minimal).** One golden task per seed skill, run before that skill's
+  `SkillStatus.lifecycle` is set to `approved`. The full harness (fixtures per task class,
+  snapshot pinning, `causal_lift`) is M4; this is the narrow slice specs §8's regression gate
+  needs to be true of the seed library specifically, so "approving the seed library" is not a
+  documented exception to a rule that does not exist yet.
 - Index build from canonical files with snapshot ids; embeddings + FTS5.
 - Retrieval pipeline: generation, RRF merge, precondition filter including environment
   fingerprint, active-set filter, rerank, score floor, evidence and staleness demotion.
 - `plan` chooses `apply` / `adapt` / `scratch` / `abstain` with `predicted_success`.
-- 8–12 hand-authored `repo-chore` skills, marked `curation: human_authored`.
+- 8–12 hand-authored `repo-chore` skills, marked `curation: human_authored`, each with hygiene
+  scan run and a hand-authored sensitivity proof per required criterion (both structural
+  prerequisites from M0, applied here to real content for the first time).
 - `fandea skills lint`, `fandea skills search --explain`.
 
 **Done when:** `retrieval_precision_at_3` ≥ 0.7 on a labelled probe set; unrelated tasks return
 an empty bundle; novel tasks route to `scratch`; a skill whose environment fingerprint does not
 match is dropped rather than down-ranked; a thin-evidence skill is demoted in ranking but never
-hard-dropped.
+hard-dropped; every seed skill passed its golden task before reaching `approved`, and the
+regression runner's log is the evidence, not a note in a PR description.
 
 ## M2 — Solver, tool runtime, episodic and affordance memory
 
@@ -158,7 +202,13 @@ decisions, including wave composition, with no model calls.
   and rubric, with distinct `lens` values across judges, and the isolation mode plus a hash of the
   exact context recorded per result. The hash is what turns "judges are isolated" from an
   assertion in a document into something a test can prove.
-- **Sensitivity proofs** generated and stored per criterion; unproven criteria are advisory.
+- **Sensitivity-proof authoring tooling**, generating proofs automatically per criterion; M0
+  only *checked* proofs that already existed by hand, this is what authors them at scale.
+  Unproven criteria remain advisory.
+- **Golden-regression harness, generalised.** The M1 one-task-per-skill runner is extended to a
+  full harness per task class; `review`'s approval path calls the same runner M1 introduced,
+  not a parallel mechanism, so "reviewer approves a candidate" and "seed skill reaches approved"
+  are the same rule applied at different points in the library's history.
 - **Authoring prior** as a versioned T2 document, applied on every distillation, with
   `authoring_prior_version` recorded on each skill. This lands here rather than later because it
   was the highest-value single component in the only ablation that measured it
@@ -195,10 +245,15 @@ persuasive but wrong solver transcript still fails the artifact because it never
 - All metrics from specs §11 and specs §23, including `merge_gap_rate`, `parallel_speedup`,
   `fake_edge_rate`, and `judge_isolation_violations`; regression gate wired into promotion.
 
-**Done when:** the harness shows first-attempt success and cost per solved task improving
-against an empty-memory baseline; `causal_lift` is positive with an interval excluding zero; an
-intentionally bad skill version is blocked by the regression gate; a lift claim with an interval
-spanning zero is reported as "not established".
+**Done when (engineering, per refactor-plan B7 — the harness measures correctly, it does not
+require the product hypothesis to be true):** the harness correctly computes `causal_lift` and
+its Wilson interval on a synthetic scenario with a known, injected lift, and correctly reports
+"not established" on a synthetic scenario with a known, injected null effect; an intentionally
+bad skill version is blocked by the regression gate; per-task-class control baselines persist
+across snapshots. Whether real `repo-chore` traffic shows a positive `causal_lift` with an
+interval excluding zero is a **research outcome**, tracked in
+[`assumptions.md`](assumptions.md#a1), not a merge gate — a harness that correctly reports "not
+established" on real traffic still passes M4.
 
 ## M5 — Earned autonomy, capacity, and retirement
 
@@ -214,13 +269,18 @@ spanning zero is reported as "not established".
   parents of a benched child marked `needs_recert`.
 - Curation prior in ranking; higher evidence bar for `self_distilled` promotion.
 
-**Done when:** a skill reaches `approved` through shadow evidence alone with no human decision;
-an injected regression drives a skill to `quarantined` automatically; a skill with high trust but
-zero lift is *not* auto-promoted; a skill with sustained negative contribution is benched and
-restorable; a skill below the evidence floor is never benched on contribution; and a synthetic
-harsh configuration (evidence floor 20, threshold 0) is demonstrated to *underperform* the loose
-defaults on the golden sets, reproducing the finding that motivated them
-([`references.md`](references.md) §1.2).
+**Done when (engineering, per refactor-plan B7):** a skill reaches `approved` through shadow
+evidence alone with no human decision; an injected regression drives a skill to `quarantined`
+automatically; a skill with high trust but zero lift is *not* auto-promoted; a skill with
+sustained negative contribution is benched and restorable; a skill below the evidence floor is
+never benched on contribution; and a synthetic harsh configuration (evidence floor 20, threshold
+0) is demonstrated, **on a synthetic environment with a known injected over-pruning effect**, to
+underperform the loose defaults — this proves the mechanism can detect the failure mode
+ADR-0006 exists to prevent. Whether this specific finding
+([`references.md`](references.md) §1.2) replicates on our own golden sets and traffic volume is
+a research outcome, tracked in [`assumptions.md`](assumptions.md#a2), not a merge gate: our
+evidence floor default (30) is lower than the literature's (100) specifically because our
+throughput is thinner (§A2), and confirming or revising it is ongoing, not a one-time M5 gate.
 
 ## M6 — Fan-out: portfolio and decomposition
 
@@ -300,9 +360,12 @@ provably blocks its parents from being retrieved as `approved`.
 - OpenTelemetry spans and all required events; operational dashboards.
 - Concurrency: write serialisation on version allocation, read-your-writes per run.
 
-**Done when:** the second domain reaches positive reuse rate and lift on the unchanged runtime;
-a T2 change cannot land without a recorded approver and eval comparison; concurrent runs produce
-no duplicate or missing versions under load.
+**Done when:** the second domain runs on the unchanged runtime with no structural change to
+graph, schema, or services — this is engineering-checkable and the actual point of M9. Whether
+it also reaches positive reuse rate and lift is, per B7, a research outcome to report, not a
+condition of M9 being done; a domain that runs correctly and honestly reports "not established"
+still passes. A T2 change cannot land without a recorded approver and eval comparison;
+concurrent runs produce no duplicate or missing versions under load.
 
 ## Graph-execution work in sequence
 
@@ -358,7 +421,12 @@ fixtures never appear in skill provenance; `ablation_rate` is unreachable from r
 evidence floor; every step's `depends_on` resolves within an acyclic graph; every `judge`
 criterion is `fresh_context` and every judge result carries a context hash containing no
 transcript content; no step wave contains two conflicting claims; every fan-in emits a merge
-audit; and no synthesis executes on an audit with missing inputs.
+audit; and no synthesis executes on an audit with missing inputs. Per this refactor
+([ADR-0009](adr/0009-contracts-as-code.md)): `schema/*.schema.json` has zero drift from
+`contracts/` (`scripts/generate_schemas.py --check`); the canonical examples pass their
+semantic profile, not merely parse; every node in the route table
+(`contracts/graph.py`) has ≥1 legal outgoing route; every `FailureClass` has ≥1 producing
+source; and `RunState.criteria` never type-checks a `SkillCertificationCriterion`.
 
 ## Risks and mitigations
 

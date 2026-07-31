@@ -1,0 +1,24 @@
+{
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "lifecycle": "approved",
+  "active": true,
+  "certification": {
+    "model_validated_on": "claude-4.6-sonnet",
+    "tool_fingerprint": {
+      "uv": "0.5.10",
+      "mypy": "1.13.0",
+      "pytest": "8.3.4"
+    },
+    "golden_set_ref": "evals/golden/repo-chore/bump-python-dep.jsonl",
+    "last_recertified_at": "2026-07-30T15:22:11Z",
+    "recert_status": "fresh"
+  },
+  "retirement": {
+    "benched_at": null,
+    "reason": null,
+    "evidence": null,
+    "restored_at": null,
+    "grace_period_remaining": null
+  }
+}
