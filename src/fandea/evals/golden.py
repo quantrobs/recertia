@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from contracts.budget import Budget
-from contracts.criteria import SensitivityProof, TaskCriterion
+from contracts.criteria import TaskCriterion
 from contracts.run import Task
 from contracts.skill import SkillVersion
 from fandea.graph.engine import GraphOrchestrator
@@ -116,7 +116,18 @@ def run_golden_for_skill(
             else:
                 shutil.copy2(item, dest)
 
-    criteria = _criteria_from_task(task_spec, version)
+    try:
+        criteria = _criteria_from_task(task_spec, version)
+    except ValueError as exc:
+        return GoldenResult(
+            skill_id=version.skill_id,
+            version=version.version,
+            golden_path=str(golden_dir),
+            passed=False,
+            terminal=None,
+            run_id="",
+            detail=str(exc),
+        )
     script = script_from_skill(version) if use_skill_script else task_spec.get("script", ["true"])
 
     run_id = f"golden-{version.skill_id}-v{version.version}-{uuid.uuid4().hex[:6]}"
@@ -232,17 +243,18 @@ def run_seed_library_gate(
 def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCriterion]:
     if "criteria" in task_spec:
         return [TaskCriterion(**c) for c in task_spec["criteria"]]
-    # Fall back to the skill's required non-judge certification criteria, adapted as TaskCriterion.
+    # A golden task may adapt an already-proven non-judge certification criterion, but may
+    # never fabricate a proof or a trivially passing task criterion.
     out: list[TaskCriterion] = []
     for c in version.certification_criteria:
         if c.kind == "judge" or not c.is_required:
             continue
-        proof = c.sensitivity_proof or SensitivityProof(
-            criterion_id=c.id,
-            negative_fixture="empty workspace",
-            rejected=True,
-            checked_at=datetime.now(timezone.utc),
-        )
+        proof = c.sensitivity_proof
+        if proof is None or not proof.rejected or not proof.evidence_hash:
+            raise ValueError(
+                f"golden task cannot promote {version.skill_id}@v{version.version}: "
+                f"criterion {c.id!r} lacks hashed rejecting sensitivity evidence"
+            )
         out.append(
             TaskCriterion(
                 id=c.id,
@@ -255,19 +267,8 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
             )
         )
     if not out:
-        out.append(
-            TaskCriterion(
-                id="default-ok",
-                kind="command",
-                run="true",
-                source="caller",
-                weight=1.0,
-                sensitivity_proof=SensitivityProof(
-                    criterion_id="default-ok",
-                    negative_fixture="false",
-                    rejected=True,
-                    checked_at=datetime.now(timezone.utc),
-                ),
-            )
+        raise ValueError(
+            f"golden task cannot promote {version.skill_id}@v{version.version}: "
+            "no required non-judge criterion with hashed sensitivity evidence"
         )
     return out
