@@ -5,3 +5,8 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .venv/
+
+# Default local run state written by `fandea run` (checkpoints, op ledger, provenance ledger,
+# workspace snapshots) — never checked in, per M0's own default of a repo-local .fandea/ dir.
+.fandea/
+
