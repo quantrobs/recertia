@@ -234,6 +234,20 @@ def _solve_script_via_tools(
         else None
     )
     for op_seq, command in enumerate(script):
+        if state.spent.tool_calls + op_seq >= state.budget.max_tool_calls:
+            signal = FailureSignal(
+                source="solver",
+                detail=(
+                    "budget exhausted before tool dispatch: "
+                    f"max_tool_calls={state.budget.max_tool_calls}"
+                ),
+                at=now(),
+            )
+            return NodeOutcome(
+                state=state.model_copy(update={"failure_signal": signal}),
+                route="pre_validation_failure_signal",
+                note="tool-call budget exhausted",
+            )
         def _run(cmd: str = command, seq: int = op_seq) -> dict:
             if writer:
                 writer.event("tool", tool="shell", command=cmd)
@@ -247,7 +261,7 @@ def _solve_script_via_tools(
                 "returncode": result.exit_code,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "flaky": ctx.tools.registry.is_flaky("shell") if ctx.tools else False,  # type: ignore[union-attr]
+                "flaky": ctx.tools.is_flaky("shell") if ctx.tools else False,
             }
 
         result = ctx.op_once(op_seq, _run)

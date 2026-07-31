@@ -89,8 +89,8 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
     approved = maybe_auto_promote_from_shadow(
         store, "shadow-winner", 1, baseline_success=0.5, ledger=ledger
     )
-    assert approved.lifecycle == "approved"
-    assert approved.active is True
+    assert approved.lifecycle == "candidate"
+    assert approved.active is False
 
     # High trust, zero lift → refuse
     _seed(store, _skill("zero-lift"))
@@ -143,7 +143,7 @@ def test_bench_respects_evidence_floor_and_is_restorable(tmp_path: Path) -> None
     )
     assert benched.lifecycle == "benched"
     restored = restore_benched(store, "neg-contrib", 1, ledger=ledger)
-    assert restored.lifecycle == "approved"
+    assert restored.lifecycle == "candidate"
     assert restored.retirement.restored_at is not None
 
 
