@@ -62,3 +62,31 @@ def test_ledger_verify_on_empty_runs_root(tmp_path: Path) -> None:
     result = runner.invoke(app, ["ledger", "verify", "--runs-root", str(tmp_path / "nothing-here")])
     assert result.exit_code == 0
     assert "0 entries" in result.output
+
+
+def test_run_reports_unreservable_portfolio_budget_without_routing_error(tmp_path: Path) -> None:
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    spec = _spec(workdir)
+    spec["task"]["request"] = "PORTFOLIO: write output.txt"
+    spec["budget"] = {"max_attempts": 1}
+    spec_path = tmp_path / "budget-spec.json"
+    spec_path.write_text(json.dumps(spec))
+
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--spec",
+            str(spec_path),
+            "--runs-root",
+            str(tmp_path / "runs"),
+            "--run-id",
+            "cli-budget",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "terminal=unsolved" in result.output
+    assert "failure_class=budget" in result.output
+    assert "RoutingError" not in result.output

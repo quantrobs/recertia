@@ -60,7 +60,7 @@ def fan_out(state: RunState, ctx: NodeContext) -> NodeOutcome:
                     )
                 }
             ),
-            route="always",
+            route="pre_dispatch_budget_failure",
             note=f"fan-out refused: {exhausted} budget cannot reserve {n} branches",
         )
 

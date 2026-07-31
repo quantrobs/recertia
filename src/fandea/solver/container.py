@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import resource
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -11,7 +12,14 @@ from typing import Literal
 
 from fandea.solver.sandbox import SandboxError, SandboxLimits
 
-Backend = Literal["container"]
+Backend = Literal["container", "local"]
+
+
+@dataclass(frozen=True)
+class LocalExecutionCapability:
+    """Explicit opt-in for the non-production executor (tests and local development)."""
+
+    purpose: str = "test-or-local-development"
 
 
 @dataclass(frozen=True)
@@ -35,6 +43,21 @@ def container_runtime() -> str | None:
             return None
         return requested if shutil.which(requested) else None
     return next((runtime for runtime in ("docker", "podman") if shutil.which(runtime)), None)
+
+
+def configured_backend() -> Backend:
+    """Read the explicitly configured execution mode; production defaults to OCI."""
+
+    backend = os.environ.get("FANDEA_EXECUTION_BACKEND", "container")
+    if backend not in {"container", "local"}:
+        raise SandboxError(f"unsupported execution backend: {backend!r}")
+    return backend  # type: ignore[return-value]
+
+
+def local_execution_capability() -> LocalExecutionCapability | None:
+    """Grant local execution only after an explicit configuration opt-in."""
+
+    return LocalExecutionCapability() if configured_backend() == "local" else None
 
 
 def run_in_container(
@@ -103,9 +126,14 @@ def run_with_backend(
     limits: SandboxLimits | None = None,
     timeout_s: int = 60,
     image: str | None = None,
+    local_capability: LocalExecutionCapability | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    if backend == "local":
+        if local_capability is None:
+            raise SandboxError("local execution requires an explicit LocalExecutionCapability")
+        return _local_run(command, workdir=workdir, limits=limits or SandboxLimits(), timeout_s=timeout_s)
     if backend != "container":
-        raise SandboxError(f"unsupported production sandbox backend: {backend!r}")
+        raise SandboxError(f"unsupported execution backend: {backend!r}")
     spec = ContainerSpec(image=image or "python:3.12-slim")
     return run_in_container(
         command,
@@ -113,4 +141,57 @@ def run_with_backend(
         limits=limits,
         spec=spec,
         timeout_s=timeout_s,
+    )
+
+
+def run_configured_command(
+    command: str,
+    *,
+    workdir: Path,
+    limits: SandboxLimits | None = None,
+    timeout_s: int = 60,
+) -> subprocess.CompletedProcess[str]:
+    """Run via OCI by default, or the explicitly opted-in local capability."""
+
+    backend = configured_backend()
+    return run_with_backend(
+        command,
+        workdir=workdir,
+        backend=backend,
+        limits=limits,
+        timeout_s=timeout_s,
+        local_capability=local_execution_capability(),
+    )
+
+
+def _local_run(
+    command: str, *, workdir: Path, limits: SandboxLimits, timeout_s: int
+) -> subprocess.CompletedProcess[str]:
+    """Bounded local executor for explicitly opted-in test/development use only."""
+
+    workdir = workdir.resolve()
+    if not workdir.is_dir():
+        raise SandboxError(f"workdir does not exist: {workdir}")
+    env = {key: value for key, value in os.environ.items() if key in limits.allowed_env_keys}
+    env.setdefault("PATH", "/usr/bin:/bin")
+    env.setdefault("HOME", str(workdir))
+    env.setdefault("TMPDIR", str(workdir))
+
+    def limit_process() -> None:
+        try:
+            resource.setrlimit(resource.RLIMIT_CPU, (limits.max_cpu_seconds, limits.max_cpu_seconds))
+            bytes_cap = limits.max_address_space_mb * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (bytes_cap, bytes_cap))
+        except (AttributeError, OSError, ValueError):
+            pass
+
+    return subprocess.run(
+        command,
+        shell=True,
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+        env=env,
+        preexec_fn=limit_process,
     )

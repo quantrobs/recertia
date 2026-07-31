@@ -410,11 +410,11 @@ def _run_command(command: str, ctx: NodeContext) -> dict:
 def _run_container_command(command: str, workdir: Path) -> dict:
     """Execute solver commands only through the approved OCI sandbox."""
 
-    from fandea.solver.container import run_in_container
+    from fandea.solver.container import run_configured_command
     from fandea.solver.sandbox import SandboxError
 
     try:
-        proc = run_in_container(command, workdir=workdir, timeout_s=60)
+        proc = run_configured_command(command, workdir=workdir, timeout_s=60)
     except SandboxError as exc:
         return {"returncode": 126, "stdout": "", "stderr": str(exc)}
     return {

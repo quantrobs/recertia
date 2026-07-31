@@ -22,7 +22,7 @@ from fandea.store import (
 from fandea.telemetry import REQUIRED_EVENTS, reset_telemetry
 
 
-def test_non_read_tools_require_approval(tmp_path: Path) -> None:
+def test_non_read_tools_require_approval(tmp_path: Path, monkeypatch) -> None:
     work = tmp_path / "w"
     work.mkdir()
     runtime = ToolRuntime(default_registry(), require_approval_for_non_read=True)
@@ -35,6 +35,7 @@ def test_non_read_tools_require_approval(tmp_path: Path) -> None:
     gate = ApprovalGate()
     gate.approve("shell", actor="alice")
     runtime.approval_gate = gate
+    monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "container")
     approved = runtime.invoke("shell", {"command": "true"}, workdir=work, step_id="s3")
     assert not approved.ok
     assert approved.exit_code == 126
