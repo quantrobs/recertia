@@ -8,6 +8,37 @@ set of nodes. Compounding happens *across* walks, through durable versioned memo
 later run reads before inventing anything new — and through offline jobs that reorganise,
 practise, and re-certify what has been learned.
 
+## What it is
+
+Fandea is built for recurring work — repository chores, research briefs, and similar
+task classes — where past solutions should make the next attempt cheaper and more reliable.
+Each run locks machine-checkable success criteria, retrieves relevant skills and cases before
+solving, validates the result, and only then proposes durable memory. Nothing is learned by
+silently mutating state: skills, facts, and cases are versioned, reviewable, and revertible.
+Failures are stored as knowledge too, so the system can avoid dead ends it has already seen.
+
+Improvement is representational, not parametric: there is no weight training. Competence grows
+through a plural memory plane (procedural skills, semantic facts, episodic cases, utterances,
+and policy) and an offline improvement plane that refines, evolves, practises, and recertifies
+candidates behind a quality gate. A causal control arm with retrieval suppressed keeps “it got
+better” as a measured claim rather than a hopeful one. The active skill library is bounded and
+retires low-contribution entries so performance does not drift below a no-memory baseline.
+
+## How it is used
+
+Day to day you drive Fandea from the CLI or the HTTP API. Install the package, then submit a
+task with `fandea run --spec task.json` (or `POST /v1/runs`). The graph walks intake →
+retrieve → plan → solve → validate, evolving within budget on failure and distilling on
+success. Inspect progress with `fandea runs show <run_id>`, resume interrupted work with
+`fandea resume`, and verify the integrity ledger with `fandea ledger verify`.
+
+Over time you manage the library: search and lint skills (`fandea skills search`,
+`fandea skills lint`), promote golden-gated versions (`fandea skills promote`), and measure
+lift against ablations (`fandea lift --task-class …`). API keys for the FastAPI surface are
+issued with `fandea keys`. Seed skills live under `skills/`; golden evals under `evals/`;
+normative contracts under `contracts/` (generated into `schema/`). Detail on planes, nodes,
+and promotion lives in the documents below.
+
 ## Documents
 
 | Document | Contents |
