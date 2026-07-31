@@ -1,0 +1,242 @@
+{
+  "schema_version": "2.0",
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "supersedes": 2,
+  "title": "Bump a pinned Python dependency and repair fallout",
+  "intent": "Raise a pinned dependency to a target version, then fix imports, type errors and test failures caused by the bump.",
+  "task_class": "repo-chore",
+  "tags": [
+    "python",
+    "dependencies",
+    "lockfile"
+  ],
+  "scope": "project",
+  "uses": [],
+  "parameters": [
+    {
+      "name": "package",
+      "type": "string",
+      "required": true,
+      "default": null,
+      "enum_values": null,
+      "description": null
+    },
+    {
+      "name": "target_version",
+      "type": "string",
+      "required": false,
+      "default": null,
+      "enum_values": null,
+      "description": "Omit to take the latest compatible release."
+    }
+  ],
+  "preconditions": [
+    {
+      "kind": "file_exists",
+      "value": "pyproject.toml",
+      "description": null
+    },
+    {
+      "kind": "command_succeeds",
+      "value": "python -c 'import tomllib'",
+      "description": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "locate",
+      "tool": "grep",
+      "intent": "Find the current pin for {{package}}.",
+      "inputs": {},
+      "optional": false,
+      "depends_on": [],
+      "resources": [],
+      "loop": null
+    },
+    {
+      "id": "changelog",
+      "tool": "fetch",
+      "intent": "Read the upstream changelog for breaking changes.",
+      "inputs": {},
+      "optional": false,
+      "depends_on": [],
+      "resources": [
+        {
+          "kind": "rate_limit",
+          "id": "pypi",
+          "mode": "write"
+        }
+      ],
+      "loop": null
+    },
+    {
+      "id": "edit",
+      "tool": "edit_file",
+      "intent": "Raise the pin to {{target_version}}.",
+      "inputs": {},
+      "optional": false,
+      "depends_on": [
+        "locate"
+      ],
+      "resources": [
+        {
+          "kind": "file",
+          "id": "pyproject.toml",
+          "mode": "write"
+        }
+      ],
+      "loop": null
+    },
+    {
+      "id": "sync",
+      "tool": "shell",
+      "intent": "Regenerate the lockfile.",
+      "inputs": {},
+      "optional": false,
+      "depends_on": [
+        "edit"
+      ],
+      "resources": [],
+      "loop": null
+    },
+    {
+      "id": "repair",
+      "tool": "agent_subtask",
+      "intent": "Fix breakage surfaced by the type checker and tests.",
+      "inputs": {},
+      "optional": false,
+      "depends_on": [
+        "sync",
+        "changelog"
+      ],
+      "resources": [],
+      "loop": {
+        "until": "criteria_pass",
+        "predicate": null,
+        "max_iterations": 3
+      }
+    }
+  ],
+  "certification_criteria": [
+    {
+      "id": "install",
+      "kind": "command",
+      "run": "uv sync --frozen",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "install",
+        "negative_fixture": "pre-bump workspace with a broken lockfile",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "types",
+      "kind": "command",
+      "run": "mypy .",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "types",
+        "negative_fixture": "v2's stale-lockfile regression case",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "tests",
+      "kind": "command",
+      "run": "pytest -q",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "tests",
+        "negative_fixture": "pre-bump workspace, unpatched",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "scope",
+      "kind": "judge",
+      "run": null,
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": "Only dependency-related files changed.",
+      "isolation": "fresh_context",
+      "lens": "scope",
+      "timeout_s": 300,
+      "weight": 0.3,
+      "sensitivity_proof": null,
+      "authored_by": "distiller",
+      "preregistered": true
+    }
+  ],
+  "failure_modes": [
+    {
+      "symptom": "Transitive pin conflict.",
+      "response": "Relax the narrowest conflicting constraint, then re-run install."
+    }
+  ],
+  "provenance": {
+    "distilled_from_run": "01JD3K0000000000000000RUN3",
+    "distilled_at": "2026-07-30T15:22:11Z",
+    "authored_by": null,
+    "curation": "human_authored",
+    "derivation": "hand_authored",
+    "failure_cluster_id": null,
+    "authoring_prior_version": null,
+    "evolved_because": "v2 left the lockfile stale when the bump was a no-op.",
+    "model": null
+  },
+  "hygiene": {
+    "secret_scan": "passed",
+    "scanned_at": "2026-07-30T15:22:11Z"
+  }
+}
