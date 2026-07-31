@@ -78,7 +78,7 @@ class ControlBaseline(BaseModel):
 
 
 class EvalObservation(BaseModel):
-    """One run observation keyed for aggregation under a library snapshot."""
+    """One immutable, run-derived observation keyed for aggregation."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -93,6 +93,14 @@ class EvalObservation(BaseModel):
     fixture_id: str | None = None
     is_eval_fixture: bool = False
     recorded_at: datetime
+    strategy: str | None = None
+    attempt_no: int | None = Field(default=None, ge=0)
+    cost_usd: float | None = Field(default=None, ge=0)
+    abstention_confirmed: bool | None = None
+    skill_id: str | None = None
+    skill_version: int | None = Field(default=None, ge=1)
+    valid_non_judge_evidence: bool = False
+    evidence_hash: str | None = None
 
 
 class MetricReport(BaseModel):

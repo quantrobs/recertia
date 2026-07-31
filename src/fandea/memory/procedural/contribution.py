@@ -13,29 +13,31 @@ def estimate_contribution(
     *,
     applications: int,
     successes: int,
-    baseline_success: float | None,
+    control: BinomialSample | None,
     has_required_non_judge: bool = True,
 ) -> Contribution:
-    """Return contribution; ``estimate`` is None when inestimable (no baseline / no criterion)."""
+    """Return contribution from observed treatment and control samples only."""
 
-    if not has_required_non_judge or applications == 0 or baseline_success is None:
+    if (
+        not has_required_non_judge
+        or applications == 0
+        or control is None
+        or control.trials == 0
+    ):
         return Contribution(
             applications=applications,
             successes=successes,
-            baseline_success=baseline_success,
+            baseline_success=control.rate if control else None,
             last_evaluated_at=datetime.now(timezone.utc),
         )
-    # Approximate control trials so Newcombe CI is defined for the difference.
-    control_trials = max(applications, 30)
-    control_successes = int(round(baseline_success * control_trials))
     interval = newcombe_wilson_difference(
         BinomialSample(successes=successes, trials=applications),
-        BinomialSample(successes=control_successes, trials=control_trials),
+        control,
     )
     return Contribution(
         applications=applications,
         successes=successes,
-        baseline_success=baseline_success,
+        baseline_success=control.rate,
         interval_low=interval.low if interval else None,
         interval_high=interval.high if interval else None,
         last_evaluated_at=datetime.now(timezone.utc),

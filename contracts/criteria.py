@@ -40,6 +40,13 @@ class SensitivityProof(BaseModel):
     rejected: bool
     checked_at: datetime
     checked_against: str | None = None
+    evidence_hash: str | None = Field(
+        default=None,
+        description=(
+            "sha256 hash binding the criterion definition to the negative-fixture fingerprint "
+            "used for this proof"
+        ),
+    )
 
 
 class _CriterionFields(BaseModel):
