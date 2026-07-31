@@ -44,5 +44,14 @@ jobs:
       - name: Example drift (skills/bump-python-dep/v3/*.json must equal contracts/examples.py)
         run: python3 scripts/export_examples.py --check
 
-      - name: Test suite (contracts, M0–M9, import boundary)
+      - name: Docs cross-refs (R3)
+        run: python3 scripts/check_cross_refs.py --check
+
+      - name: Milestone dependency (R3)
+        run: python3 scripts/check_milestone_deps.py --check
+
+      - name: Assumptions hygiene (R3)
+        run: python3 scripts/check_assumptions_hygiene.py --check
+
+      - name: Test suite (contracts, M0–M9, hardening, import boundary)
         run: pytest -v

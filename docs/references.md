@@ -213,7 +213,8 @@ and **append-only hash chains** (tamper-evident logging, the basis of the proven
 ## 7. Scored survey and next reading
 
 The full applicability scoring of ~117 preprints against Fandea's non-negotiables lives in
-[`preprints-self-improving-agents.xlsx`](preprints-self-improving-agents.xlsx) (also `.xls`),
+[`../research/preprints-self-improving-agents.xlsx`](../research/preprints-self-improving-agents.xlsx)
+(also `.xls`),
 with sheets for the rubric, every entry's score and rationale, the core/high cut (7–10), and the
 distribution. Score-10 papers are already absorbed above; the remaining score-9 papers are next
 reading, not yet design-shaping, and are listed so they do not get lost behind the spreadsheet:
@@ -227,7 +228,7 @@ reading, not yet design-shaping, and are listed so they do not get lost behind t
 
 Reference lists extracted from the four score-10 papers are in
 [`score10-references/`](score10-references/) and
-[`preprints-score10-reference-lists.xlsx`](preprints-score10-reference-lists.xlsx).
+[`../research/preprints-score10-reference-lists.xlsx`](../research/preprints-score10-reference-lists.xlsx).
 
 ## 8. Open questions the literature does not settle for us
 

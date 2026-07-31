@@ -454,7 +454,7 @@ source; and `RunState.criteria` never type-checks a `SkillCertificationCriterion
 
 ## Immediate next actions
 
-M0–M9 engineering done-whens are implemented and covered by the test suite. Remaining work is
-operational hardening called out under M9 (container sandbox, Postgres/`pgvector`, scope model,
-OpenTelemetry dashboards) and ongoing research outcomes tracked in
-[`assumptions.md`](assumptions.md) — not further milestone scaffolding.
+M0–M9 engineering done-whens are implemented. Operational hardening for sandbox approvals,
+scope promotion, store migrations (SQLite + Postgres/pgvector dialect), and telemetry event
+surfaces is in tree. Remaining work is optional (R4 doc split, R5 branch cleanup, secondary
+debt S1/S2/S4/S5) and research outcomes in [`assumptions.md`](assumptions.md).
