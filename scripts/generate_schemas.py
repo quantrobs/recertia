@@ -21,8 +21,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
+from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
+from contracts.policy import AuthoringPrior  # noqa: E402
+from contracts.review import ReviewDecision  # noqa: E402
 from contracts.run import RunState  # noqa: E402
 from contracts.skill import SkillVersion  # noqa: E402
 from contracts.stats import SkillStats  # noqa: E402
@@ -38,6 +41,9 @@ MODELS: dict[str, type] = {
     "failure_signal.schema.json": FailureSignal,
     "failure_verdict.schema.json": FailureVerdict,
     "ledger_entry.schema.json": LedgerEntry,
+    "fact.schema.json": Fact,
+    "review_decision.schema.json": ReviewDecision,
+    "authoring_prior.schema.json": AuthoringPrior,
 }
 
 

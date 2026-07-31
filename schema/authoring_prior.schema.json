@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/AuthoringPrior",
+  "additionalProperties": false,
+  "description": "Rules the distiller must apply on every success or failure-cluster path.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    },
+    "require_parameter_or_recurrence": {
+      "default": true,
+      "title": "Require Parameter Or Recurrence",
+      "type": "boolean"
+    },
+    "require_non_judge_criterion": {
+      "default": true,
+      "title": "Require Non Judge Criterion",
+      "type": "boolean"
+    },
+    "require_sensitivity_proof": {
+      "default": true,
+      "title": "Require Sensitivity Proof",
+      "type": "boolean"
+    },
+    "max_steps": {
+      "default": 12,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Max Steps",
+      "type": "integer"
+    },
+    "prefer_shell_when_applicable": {
+      "default": true,
+      "title": "Prefer Shell When Applicable",
+      "type": "boolean"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "title": "AuthoringPrior",
+  "type": "object"
+}

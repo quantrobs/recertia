@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/Fact",
+  "$defs": {
+    "FactProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "asserting_run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asserting Run"
+        },
+        "asserting_job": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asserting Job"
+        },
+        "asserting_human": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asserting Human"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        }
+      },
+      "title": "FactProvenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Canonical fact under ``facts/<scope>/<slug>.json``.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "fact_id": {
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Fact Id",
+      "type": "string"
+    },
+    "scope": {
+      "default": "project",
+      "enum": [
+        "run",
+        "project",
+        "org",
+        "global"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "slug": {
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Slug",
+      "type": "string"
+    },
+    "assertion": {
+      "maxLength": 2000,
+      "minLength": 5,
+      "title": "Assertion",
+      "type": "string"
+    },
+    "status": {
+      "default": "asserted",
+      "enum": [
+        "asserted",
+        "verified",
+        "contradicted",
+        "demoted"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "confidence": {
+      "default": 0.5,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "provenance": {
+      "$ref": "#/$defs/FactProvenance"
+    },
+    "verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Verified At"
+    },
+    "contradicts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Contradicts",
+      "type": "array"
+    },
+    "authored_at": {
+      "format": "date-time",
+      "title": "Authored At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fact_id",
+    "slug",
+    "assertion",
+    "provenance",
+    "authored_at"
+  ],
+  "title": "Fact",
+  "type": "object"
+}

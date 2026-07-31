@@ -65,8 +65,21 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
                     )
                 )
 
+    facts: list[MemoryElementRef] = []
+    if ctx.facts is not None:
+        for fact in ctx.facts.retrieve(state.task.request, limit=10):
+            facts.append(
+                MemoryElementRef(
+                    plane="semantic",
+                    ref=fact.fact_id,
+                    summary=fact.assertion[:200],
+                    trust=fact.confidence,
+                )
+            )
+
     bundle = MemoryBundle(
         skills=skills,
+        facts=facts,
         cases=cases,
         dead_ends=dead_ends,
         tool_cautions=tool_cautions,
