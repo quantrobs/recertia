@@ -244,6 +244,47 @@ def test_layered_portfolio_pruned_low_scores_cannot_win(tmp_path: Path) -> None:
     assert not any(b.selected and b.branch_id == "b0" for b in outcome.state.branches)
 
 
+def test_layered_portfolio_all_failed_still_selects_audit_winner(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path, node="join")
+    branches = [
+        BranchState(
+            branch_id=f"f{i}",
+            kind="portfolio",
+            strategy="scratch",
+            workspace_ref=str(ctx.workdir),
+            budget=Budget(),
+            status="failed",
+            results=[],
+            cost_usd=float(i),
+        )
+        for i in range(LAYER_THRESHOLD)
+    ]
+    state = RunState(
+        run_id="r-fail",
+        task=Task(task_id="t", request="x", submitted_at=_NOW),
+        strategy="portfolio",
+        branches=branches,
+    )
+    outcome = join(state, ctx)
+    selected = [b for b in outcome.state.branches if b.selected]
+    assert len(selected) == 1
+    # Deterministic failed audit pick must survive empty layered keep set.
+    assert selected[0].branch_id.startswith("f")
+    assert "layered" in (outcome.note or "")
+
+
+def test_candidate_store_adapter_hides_status_mutation(tmp_path: Path) -> None:
+    from fandea.memory.procedural.capability import CandidateSkillStoreAdapter
+
+    adapter = CandidateSkillStoreAdapter(SkillStore(tmp_path / "skills"))
+    assert not hasattr(adapter, "write_status")
+    assert not hasattr(adapter, "write_stats")
+    assert not hasattr(adapter, "_write_status_unchecked")
+    assert callable(adapter.write_candidate)
+    assert callable(adapter.get_version)
+    assert callable(adapter.iter_loaded)
+
+
 def _binding_skill() -> SkillVersion:
     consume = [InputBinding(input="value", source_step="produce", output="value")]
     base = SkillCertificationCriterion(id="ok", kind="command", run="true", preregistered=True)

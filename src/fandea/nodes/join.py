@@ -66,23 +66,26 @@ def join(state: RunState, ctx: NodeContext) -> NodeOutcome:
     survivor_ids: set[str] | None = None
     if layered and state.strategy == "portfolio":
         # Mechanical reduction: keep top half by score, then select winner among survivors.
+        # When nothing succeeded, leave eligible_ids unrestricted so failed/timed_out
+        # audit selection still picks a deterministic branch.
         ranked = sorted(
             [b for b in state.branches if b.status == "succeeded"],
             key=_portfolio_score,
             reverse=True,
         )
-        keep = {b.branch_id for b in ranked[: max(2, len(ranked) // 2)]} or {
-            b.branch_id for b in ranked[:1]
-        }
-        survivor_ids = keep
-        state = state.model_copy(
-            update={
-                "branches": [
-                    b if b.branch_id in keep else b.model_copy(update={"selected": False})
-                    for b in state.branches
-                ]
+        if ranked:
+            keep = {b.branch_id for b in ranked[: max(2, len(ranked) // 2)]} or {
+                ranked[0].branch_id
             }
-        )
+            survivor_ids = keep
+            state = state.model_copy(
+                update={
+                    "branches": [
+                        b if b.branch_id in keep else b.model_copy(update={"selected": False})
+                        for b in state.branches
+                    ]
+                }
+            )
 
     if state.strategy == "portfolio" or any(b.kind == "portfolio" for b in state.branches):
         winner = _select_portfolio_winner(state, eligible_ids=survivor_ids)

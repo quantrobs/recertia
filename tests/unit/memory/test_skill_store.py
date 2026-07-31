@@ -7,6 +7,7 @@ import pytest
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.stats import PredictiveTrust, SkillStats
 from contracts.status import SkillStatus
 from fandea.memory.procedural.hygiene import require_clean, scan_skill
 from fandea.memory.procedural.seeds import (
@@ -130,12 +131,16 @@ def test_write_candidate_skips_existing_version(tmp_path: Path) -> None:
     assert store.get_status("prewritten", 1).lifecycle == "candidate"
 
 
-@pytest.mark.parametrize("lifecycle", ["approved", "quarantined", "shadow"])
+@pytest.mark.parametrize(
+    "lifecycle",
+    ["approved", "quarantined", "shadow", "benched", "needs_recert", "deprecated"],
+)
 def test_write_candidate_refuses_demoting_protected_lifecycles(
     tmp_path: Path, lifecycle: str
 ) -> None:
     store = SkillStore(tmp_path / "skills")
-    v = _minimal_version(f"protect-{lifecycle}")
+    slug = lifecycle.replace("_", "-")
+    v = _minimal_version(f"protect-{slug}")
     store.write_version(v)
     if lifecycle == "approved":
         seed_approved_for_tests(store, v, active=True)
@@ -148,6 +153,15 @@ def test_write_candidate_refuses_demoting_protected_lifecycles(
                 active=False,
             )
         )
+        store.write_stats(
+            SkillStats(
+                skill_id=v.skill_id,
+                version=v.version,
+                predictive_trust=PredictiveTrust(applications=3, successes=2),
+            )
+        )
     with pytest.raises(ApprovedLifecycleError, match="refusing to demote"):
         store.write_candidate(v)
     assert store.get_status(v.skill_id, v.version).lifecycle == lifecycle
+    if lifecycle != "approved":
+        assert store.get_stats(v.skill_id, v.version).predictive_trust.applications == 3
