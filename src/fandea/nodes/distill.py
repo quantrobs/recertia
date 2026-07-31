@@ -32,8 +32,8 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             note=verdict.reason,
         )
 
-    # Control arm: measure without learning — before any episodic/fact/draft writes.
-    if state.arm == "control":
+    # Non-treatment arms: measure without learning — before any episodic/fact/draft writes.
+    if state.arm in ("control", "shadow"):
         verdict = ReusabilityVerdict(
             verdict="one_off",
             parameterisable=False,
@@ -41,7 +41,7 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             checkable=True,
             not_duplicate=True,
             bounded=True,
-            reason="control arm — distillation suppressed",
+            reason=f"{state.arm} arm — distillation suppressed",
         )
         return NodeOutcome(
             state=state.model_copy(update={"reusability": verdict}),
