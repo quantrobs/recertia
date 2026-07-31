@@ -1,4 +1,7 @@
-"""``plan``: choose apply/adapt/scratch/abstain/portfolio/decomposition (M1+M6)."""
+"""``plan``: choose apply/adapt/scratch/abstain/portfolio/decomposition (M1+M6).
+
+Variant B: prefer ``Goal.strategy_hint`` over request-string prefixes when a Goal is present.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +15,14 @@ PORTFOLIO_GAP = 0.08  # top two scores within this → portfolio
 
 
 def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
-    if state.task.request.startswith("ABSTAIN:"):
+    # Explicit strategy from Goal (Variant B) takes precedence.
+    hint = None
+    if state.task.goal is not None:
+        hint = state.task.goal.strategy_hint
+
+    request = state.task.request or ""
+
+    if hint == "abstain" or request.startswith("ABSTAIN:"):
         new_state = state.model_copy(
             update={
                 "strategy": "abstain",
@@ -22,10 +32,8 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
         )
         return NodeOutcome(state=new_state, route="abstain")
 
-    # Explicit decomposition request.
-    if state.task.request.startswith("DECOMPOSE:") or (
-        state.task.request.startswith("PORTFOLIO:") is False
-        and "DECOMPOSE:" in state.task.request
+    if hint == "decomposition" or request.startswith("DECOMPOSE:") or (
+        not request.startswith("PORTFOLIO:") and "DECOMPOSE:" in request
     ):
         if _partition_criteria(state) is None:
             new_state = state.model_copy(
@@ -45,7 +53,7 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
         )
         return NodeOutcome(state=new_state, route="fan_out_strategy")
 
-    if state.task.request.startswith("PORTFOLIO:") or state.task.request.startswith("AMBIGUOUS:"):
+    if hint == "portfolio" or request.startswith("PORTFOLIO:") or request.startswith("AMBIGUOUS:"):
         new_state = state.model_copy(
             update={
                 "strategy": "portfolio",

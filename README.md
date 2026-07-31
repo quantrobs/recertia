@@ -24,13 +24,19 @@ candidates behind a quality gate. A causal control arm with retrieval suppressed
 better” as a measured claim rather than a hopeful one. The active skill library is bounded and
 retires low-contribution entries so performance does not drift below a no-memory baseline.
 
+**Primary input (Variant B):** a structured [`Goal`](contracts/goal.py) of desired outcomes and
+constraints, compiled to locked `TaskCriterion[]` at intake. Natural language is optional
+context. See [ADR-0010](docs/adr/0010-goal-as-primary-input.md) and
+[Goal objects](docs/specifications/goal-objects.md).
+
 ## How it is used
 
 Day to day you drive Fandea from the CLI or the HTTP API. Install the package, then submit a
-task with `fandea run --spec task.json` (or `POST /v1/runs`). The graph walks intake →
-retrieve → plan → solve → validate, evolving within budget on failure and distilling on
-success. Inspect progress with `fandea runs show <run_id>`, resume interrupted work with
-`fandea resume`, and verify the integrity ledger with `fandea ledger verify`.
+task with `fandea run --goal goal.json` (preferred) or `fandea run --spec task.json`
+(or `POST /v1/runs`). The graph walks intake → retrieve → plan → solve → validate, evolving
+within budget on failure and distilling on success. Inspect progress with
+`fandea runs show <run_id>`, resume interrupted work with `fandea resume`, and verify the
+integrity ledger with `fandea ledger verify`.
 
 Over time you manage the library: search and lint skills (`fandea skills search`,
 `fandea skills lint`), promote golden-gated versions (`fandea skills promote`), and measure
@@ -45,6 +51,7 @@ and promotion lives in the documents below.
 | --- | --- |
 | [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
+| [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
 | [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
@@ -65,6 +72,7 @@ Decision records:
 | [0007](docs/adr/0007-skill-identity-status-and-stats-split.md) | Split `SkillVersion` (immutable) from `SkillStatus` (lifecycle) and `SkillStats` (derived) |
 | [0008](docs/adr/0008-optional-join-and-failure-signals.md) | `join` is conditional on fan-out; failures are explicit signals, not inferred |
 | [0009](docs/adr/0009-contracts-as-code.md) | Pydantic models in `contracts/` are the structural source of truth |
+| [0010](docs/adr/0010-goal-as-primary-input.md) | Goal as primary task input; request is optional context |
 
 Machine-readable contracts are generated from [`contracts/`](contracts) (Pydantic models,
 ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and
@@ -179,7 +187,7 @@ Everything else in these documents supports those eight.
 Design intent is complete, structural blockers are resolved, and **M0–M9 plus operational
 completion** are built:
 
-- [`contracts/`](contracts) — normative structural source (ADR-0009)
+- [`contracts/`](contracts) — normative structural source (ADR-0009), including Goal (ADR-0010)
 - [`src/fandea/`](src/fandea) — full milestone stack plus container sandbox backends, store
   driver-swap, vector index API, FastAPI (`fandea.api`), content-addressed blobs, OTel JSONL
   export and dashboard JSON, skill/fact scope promotion, layered fan-in, practice curricula

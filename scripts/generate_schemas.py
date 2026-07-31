@@ -24,6 +24,7 @@ from contracts.branch import BranchState, MergeAudit  # noqa: E402
 from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, MetricReport  # noqa: E402
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
+from contracts.goal import Goal  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
 from contracts.node import CheckpointRecord, NodeOutput  # noqa: E402
 from contracts.policy import AuthoringPrior, Policy  # noqa: E402
@@ -56,6 +57,7 @@ MODELS: dict[str, type] = {
     "control_baseline.schema.json": ControlBaseline,
     "eval_observation.schema.json": EvalObservation,
     "metric_report.schema.json": MetricReport,
+    "goal.schema.json": Goal,
 }
 
 
