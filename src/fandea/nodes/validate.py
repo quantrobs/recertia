@@ -118,7 +118,7 @@ def _score_criterion(criterion: CriterionLike, ctx: NodeContext) -> CriterionRes
             raise ValueError(
                 f"judge criterion {criterion.id!r} requires an independent verifier model"
             )
-        if ctx.verifier_model is ctx.model:
+        if ctx.model is not None and ctx.verifier_model.shares_identity_with(ctx.model):
             raise ValueError("solver model cannot judge its own artifact")
         return evaluate_judge(criterion, workdir=ctx.workdir, model=ctx.verifier_model)
     raise ValueError(
@@ -149,11 +149,16 @@ def _run_command(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
 
 def _run_assertion(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
     assert criterion.expr is not None
-    ns = {"workdir": ctx.workdir, "Path": Path}
+    from fandea.validation.assertions import UnsafeAssertionError, evaluate_assertion
+
     try:
-        passed = bool(eval(criterion.expr, {"__builtins__": {}}, ns))  # noqa: S307
+        passed = evaluate_assertion(criterion.expr, workdir=ctx.workdir)
         excerpt = f"assertion {criterion.expr!r} => {passed}"
         errored = False
+    except UnsafeAssertionError as exc:
+        passed = False
+        excerpt = f"assertion rejected: {exc}"
+        errored = True
     except Exception as exc:  # noqa: BLE001
         passed = False
         excerpt = f"assertion error: {exc}"

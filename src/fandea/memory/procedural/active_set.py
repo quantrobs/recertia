@@ -118,6 +118,11 @@ def recompute_active_set(
                     store.write_stats(updated_stats)
                 if contribution.estimate is not None:
                     evidenced.append((version, status, updated_stats))
+        if not evidenced:
+            # Without fresh eval evidence, rank from persisted stats so a curator
+            # pass cannot empty the active set.
+            evidenced = list(approved)
+
         # Rank: contribution estimate (None → -inf), then trust score.
         def rank(row: tuple) -> tuple[float, float]:
             _v, _s, st = row

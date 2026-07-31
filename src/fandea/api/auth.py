@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -12,6 +13,9 @@ from pathlib import Path
 from typing import Callable
 
 from fastapi import Header, HTTPException
+
+_TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_ALLOWED_SCOPES = frozenset({"runs", "blobs", "metrics", "admin"})
 
 
 @dataclass(frozen=True)
@@ -27,6 +31,27 @@ class IssuedApiKey:
     secret: str
     tenant_id: str
     scopes: frozenset[str]
+
+
+def validate_tenant_id(tenant_id: str) -> str:
+    if not _TENANT_ID_RE.fullmatch(tenant_id):
+        raise ValueError(
+            "tenant_id must match ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ "
+            "(no path separators or traversal)"
+        )
+    return tenant_id
+
+
+def validate_scopes(scopes: set[str] | frozenset[str]) -> frozenset[str]:
+    normalized = frozenset(scopes)
+    if not normalized:
+        raise ValueError("at least one scope is required")
+    unknown = normalized - _ALLOWED_SCOPES
+    if unknown:
+        raise ValueError(f"unknown scopes: {sorted(unknown)}")
+    if any("," in scope or scope != scope.strip() or not scope for scope in normalized):
+        raise ValueError("scopes must be allowlisted tokens without commas or whitespace")
+    return normalized
 
 
 class ApiKeyStore:
@@ -72,16 +97,23 @@ class ApiKeyStore:
     def _hash(cls, secret: str, salt: bytes) -> bytes:
         return hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, cls._ITERATIONS)
 
-    def _audit(self, conn: sqlite3.Connection, action: str, *, key_id: str | None,
-               actor: str, detail: str) -> None:
+    def _audit(
+        self,
+        conn: sqlite3.Connection,
+        action: str,
+        *,
+        key_id: str | None,
+        actor: str,
+        detail: str,
+    ) -> None:
         conn.execute(
             "INSERT INTO api_key_audit(at, action, key_id, actor, detail) VALUES (?, ?, ?, ?, ?)",
             (self._now(), action, key_id, actor, detail),
         )
 
     def issue(self, *, tenant_id: str, scopes: set[str] | frozenset[str], actor: str) -> IssuedApiKey:
-        if not tenant_id or not scopes:
-            raise ValueError("tenant_id and at least one scope are required")
+        tenant_id = validate_tenant_id(tenant_id)
+        scopes = validate_scopes(scopes)
         key_id = f"key_{secrets.token_hex(8)}"
         secret = f"fnd_{secrets.token_urlsafe(32)}"
         salt = secrets.token_bytes(16)
@@ -89,10 +121,17 @@ class ApiKeyStore:
             conn.execute(
                 """INSERT INTO api_keys(key_id, tenant_id, scopes, salt, key_hash, created_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (key_id, tenant_id, ",".join(sorted(scopes)), salt, self._hash(secret, salt), self._now()),
+                (
+                    key_id,
+                    tenant_id,
+                    ",".join(sorted(scopes)),
+                    salt,
+                    self._hash(secret, salt),
+                    self._now(),
+                ),
             )
             self._audit(conn, "issued", key_id=key_id, actor=actor, detail=f"tenant={tenant_id}")
-        return IssuedApiKey(key_id, secret, tenant_id, frozenset(scopes))
+        return IssuedApiKey(key_id, secret, tenant_id, scopes)
 
     def authenticate(self, secret: str | None) -> Principal | None:
         if not secret:
@@ -105,9 +144,23 @@ class ApiKeyStore:
             ).fetchall()
             for key_id, tenant_id, scopes, salt, stored_hash in rows:
                 if hmac.compare_digest(self._hash(secret, salt), stored_hash):
+                    try:
+                        validate_tenant_id(tenant_id)
+                        scope_set = validate_scopes(set(scopes.split(",")))
+                    except ValueError:
+                        self._audit(
+                            conn,
+                            "authentication_failed",
+                            key_id=key_id,
+                            actor=key_id,
+                            detail="invalid tenant or scopes",
+                        )
+                        return None
                     self._audit(conn, "authenticated", key_id=key_id, actor=key_id, detail="success")
-                    return Principal(key_id=key_id, tenant_id=tenant_id, scopes=frozenset(scopes.split(",")))
-            self._audit(conn, "authentication_failed", key_id=None, actor="anonymous", detail="invalid key")
+                    return Principal(key_id=key_id, tenant_id=tenant_id, scopes=scope_set)
+            self._audit(
+                conn, "authentication_failed", key_id=None, actor="anonymous", detail="invalid key"
+            )
         return None
 
     def revoke(self, key_id: str, *, actor: str) -> bool:
@@ -127,8 +180,13 @@ class ApiKeyStore:
                 "SELECT key_id, tenant_id, scopes, created_at, revoked_at FROM api_keys ORDER BY created_at"
             ).fetchall()
         return [
-            {"key_id": row[0], "tenant_id": row[1], "scopes": row[2], "created_at": row[3],
-             "revoked": bool(row[4])}
+            {
+                "key_id": row[0],
+                "tenant_id": row[1],
+                "scopes": row[2],
+                "created_at": row[3],
+                "revoked": bool(row[4]),
+            }
             for row in rows
         ]
 

@@ -5,13 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from fandea.validation.assertions import UnsafeAssertionError, evaluate_assertion
 
 
 def sensitivity_evidence_hash(
@@ -33,7 +33,12 @@ def workspace_fingerprint(workdir: Path) -> str:
     if not workdir.exists():
         return h.hexdigest()
     for path in sorted(workdir.rglob("*")):
-        if path.is_file():
+        if path.is_file() and not path.is_symlink():
+            try:
+                resolved = path.resolve()
+                resolved.relative_to(workdir.resolve())
+            except ValueError:
+                continue
             rel = path.relative_to(workdir).as_posix()
             h.update(rel.encode())
             h.update(path.read_bytes())
@@ -88,21 +93,26 @@ def mutate_workspace(source: Path, *, drop_files: bool = True) -> Path:
 def _default_runner(
     criterion: TaskCriterion | SkillCertificationCriterion, workdir: Path
 ) -> bool:
+    """Run criteria through the configured sandbox / restricted assertion language."""
+
     if criterion.kind == "command":
         assert criterion.run is not None
-        proc = subprocess.run(
-            criterion.run,
-            shell=True,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            timeout=criterion.timeout_s,
-        )
+        from fandea.solver.container import run_configured_command
+        from fandea.solver.sandbox import SandboxError
+
+        try:
+            proc = run_configured_command(
+                criterion.run, workdir=workdir, timeout_s=criterion.timeout_s
+            )
+        except SandboxError:
+            return False
         return proc.returncode == criterion.expect_exit
     if criterion.kind == "assertion":
         assert criterion.expr is not None
-        ns = {"workdir": workdir, "Path": Path}
-        return bool(eval(criterion.expr, {"__builtins__": {}}, ns))  # noqa: S307
+        try:
+            return evaluate_assertion(criterion.expr, workdir=workdir)
+        except UnsafeAssertionError:
+            return False
     if criterion.kind in ("schema", "metric"):
         from fandea.graph.ops import OperationLedger
         from fandea.ledger import HashChainLedger

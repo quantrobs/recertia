@@ -32,6 +32,23 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             note=verdict.reason,
         )
 
+    # Control arm: measure without learning — before any episodic/fact/draft writes.
+    if state.arm == "control":
+        verdict = ReusabilityVerdict(
+            verdict="one_off",
+            parameterisable=False,
+            context_free=True,
+            checkable=True,
+            not_duplicate=True,
+            bounded=True,
+            reason="control arm — distillation suppressed",
+        )
+        return NodeOutcome(
+            state=state.model_copy(update={"reusability": verdict}),
+            route="one_off",
+            note=verdict.reason,
+        )
+
     # Always record the solved attempt episodically (M2 behaviour retained) for non-fixture runs.
     if ctx.episodic is not None:
         approach = (
@@ -52,23 +69,6 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             skill_version=state.chosen.version if state.chosen else None,
         )
         ctx.episodic.write(case)
-
-    # Control arm: measure without learning.
-    if state.arm == "control":
-        verdict = ReusabilityVerdict(
-            verdict="one_off",
-            parameterisable=False,
-            context_free=True,
-            checkable=True,
-            not_duplicate=True,
-            bounded=True,
-            reason="control arm — distillation suppressed",
-        )
-        return NodeOutcome(
-            state=state.model_copy(update={"reusability": verdict}),
-            route="one_off",
-            note=verdict.reason,
-        )
 
     # Applying an existing skill is evidence, not a new library entry (unless scratch).
     if state.strategy in ("apply", "adapt") and state.chosen is not None:

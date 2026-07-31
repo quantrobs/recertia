@@ -102,8 +102,12 @@ class Telemetry:
             if otel_cm is not None:
                 otel_cm.__exit__(None, None, None)
 
-    def missing_required(self) -> list[str]:
-        seen = {e.name for e in self.events}
+    def missing_required(self, *, tenant_id: str | None = None) -> list[str]:
+        seen = {
+            e.name
+            for e in self.events
+            if tenant_id is None or e.attributes.get("tenant_id") == tenant_id
+        }
         return sorted(REQUIRED_EVENTS - seen)
 
 
@@ -171,7 +175,7 @@ def render_dashboard(tel: Telemetry, *, tenant_id: str) -> dict[str, Any]:
                 ],
             },
         ],
-        "missing_required": tel.missing_required(),
+        "missing_required": tel.missing_required(tenant_id=tenant_id),
     }
 
 

@@ -38,7 +38,9 @@ def build_metric_report(
     non_eval = [
         r
         for r in rows
-        if not r.get("is_eval_fixture") and r.get("arm") != "practice"
+        if not r.get("is_eval_fixture")
+        and r.get("arm") != "practice"
+        and r.get("arm") != "shadow"
     ]
     treatment = [r for r in non_eval if r.get("arm", "treatment") == "treatment"]
     control = [r for r in non_eval if r.get("arm") == "control"]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 
 from contracts.criteria import SkillCertificationCriterion
@@ -19,7 +20,8 @@ def mine_from_repo_hints(store: SkillStore, *, hints: list[str]) -> list[Proposa
 
     proposals: list[Proposal] = []
     for i, hint in enumerate(hints):
-        skill_id = f"mined-{i}-{abs(hash(hint)) % 10000}"
+        digest = sha256(hint.encode()).hexdigest()[:8]
+        skill_id = f"mined-{i}-{digest}"
         proposals.append(
             Proposal(
                 kind="mine",

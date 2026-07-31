@@ -133,16 +133,22 @@ def default_registry() -> ToolRegistry:
     def grep_handler(inputs: dict, workdir: Path) -> ToolResult:
         pattern = str(inputs.get("pattern", ""))
         path = confined_path(workdir, inputs.get("path", "."))
+        root = workdir.resolve()
         # Read-only search is implemented in-process, so it does not create a
         # host subprocess escape hatch in the production tool runtime.
         matches: list[str] = []
         try:
             for candidate in path.rglob("*"):
-                if not candidate.is_file():
+                if candidate.is_symlink() or not candidate.is_file():
+                    continue
+                try:
+                    resolved = candidate.resolve()
+                    resolved.relative_to(root)
+                except ValueError:
                     continue
                 try:
                     for line_no, line in enumerate(
-                        candidate.read_text(errors="replace").splitlines(), 1
+                        resolved.read_text(errors="replace").splitlines(), 1
                     ):
                         if pattern in line:
                             matches.append(f"{candidate}:{line_no}:{line}")

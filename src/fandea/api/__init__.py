@@ -27,6 +27,18 @@ from fandea.telemetry import get_telemetry, render_dashboard
 DEFAULT_ROOT = Path(".fandea")
 
 
+def _tenant_blob_root(root: Path, tenant_id: str) -> Path:
+    """Resolve a tenant blob directory and refuse path escape."""
+
+    base = (root / "blobs").resolve()
+    candidate = (base / tenant_id).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="invalid tenant blob root") from exc
+    return candidate
+
+
 class RunCreate(BaseModel):
     request: str = Field(min_length=1)
     task_class: str = "repo-chore"
@@ -185,7 +197,7 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         principal: Principal = Depends(require_scope("blobs", key_store)),
     ) -> dict[str, str]:
         blobs = blobs_by_tenant.setdefault(
-            principal.tenant_id, FilesystemBlobStore(root / "blobs" / principal.tenant_id)
+            principal.tenant_id, FilesystemBlobStore(_tenant_blob_root(root, principal.tenant_id))
         )
         data = str(payload.get("data", "")).encode()
         digest = blobs.put(data, content_type=str(payload.get("content_type", "text/plain")))
@@ -196,7 +208,7 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         digest: str, principal: Principal = Depends(require_scope("blobs", key_store))
     ) -> dict[str, Any]:
         blobs = blobs_by_tenant.setdefault(
-            principal.tenant_id, FilesystemBlobStore(root / "blobs" / principal.tenant_id)
+            principal.tenant_id, FilesystemBlobStore(_tenant_blob_root(root, principal.tenant_id))
         )
         key = digest if digest.startswith("sha256:") else f"sha256:{digest}"
         try:

@@ -39,11 +39,39 @@ class ModelClient(ABC):
         max_retries: int = 2,
         timeout_s: float = 60.0,
         retry_backoff_s: float = 0.05,
+        provider: str | None = None,
+        model_id: str | None = None,
+        role: str = "solver",
+        credential_id: str | None = None,
     ) -> None:
         self.max_retries = max_retries
         self.timeout_s = timeout_s
         self.retry_backoff_s = retry_backoff_s
+        self.provider = provider
+        self.model_id = model_id
+        self.role = role
+        self.credential_id = credential_id
         self.spend = ModelSpend()
+
+    def model_identity(self) -> tuple[str, str, str] | None:
+        """Return a comparable provider identity when configured.
+
+        Clients without explicit provider/model metadata fall back to object identity
+        checks only — production verifier wiring should always set these fields.
+        """
+
+        if self.provider is None or self.model_id is None:
+            return None
+        return (self.provider, self.model_id, self.credential_id or "")
+
+    def shares_identity_with(self, other: "ModelClient") -> bool:
+        if self is other:
+            return True
+        left = self.model_identity()
+        right = other.model_identity()
+        if left is None or right is None:
+            return False
+        return left == right
 
     def complete(self, prompt: str, *, system: str | None = None) -> ModelResponse:
         """Call the provider with retry/timeout; accumulate spend on success."""
