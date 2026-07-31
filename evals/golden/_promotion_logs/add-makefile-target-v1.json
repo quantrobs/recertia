@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-makefile-target",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-makefile-target",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-makefile-target-v1-eaaba2",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.116155+00:00"
+}

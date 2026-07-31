@@ -1,0 +1,4 @@
+{
+  "request": "Add a root EditorConfig with Python indent settings",
+  "expected_skill_id": "add-editorconfig"
+}

@@ -1,0 +1,4 @@
+{
+  "request": "Add a pytest.ini that sets testpaths to tests",
+  "expected_skill_id": "add-pytest-config"
+}

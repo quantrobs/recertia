@@ -1,0 +1,4 @@
+{
+  "request": "Add *.pyc to the repository .gitignore",
+  "expected_skill_id": "add-gitignore-entry"
+}
