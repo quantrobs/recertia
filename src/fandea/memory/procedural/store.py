@@ -27,7 +27,11 @@ class ImmutabilityError(Exception):
 
 
 class ApprovedLifecycleError(Exception):
-    """Raised when a caller attempts to write ``lifecycle=approved`` outside the promote path."""
+    """Raised for gated lifecycle writes: demotion to candidate, or approved outside promote."""
+
+
+# Lifecycles that ``write_candidate`` must not clobber — only explicit helpers may leave them.
+_PROTECTED_FROM_CANDIDATE_DEMOTE = frozenset({"approved", "quarantined", "shadow"})
 
 
 class LifecycleConflictError(Exception):
@@ -65,12 +69,20 @@ class SkillStore:
 
         Writes ``version.json`` when missing (callers that already allocated via
         ``allocate_and_write`` skip that step). Always writes ``lifecycle=candidate``,
-        ``active=False`` — never approved.
+        ``active=False`` — never approved. Refuses to demote ``approved``,
+        ``quarantined``, or ``shadow``; those transitions belong to explicit lifecycle helpers.
         """
 
         dest = self.version_dir(version.skill_id, version.version) / "version.json"
         if not dest.exists():
             self.write_version(version)
+        existing = self._read_status_if_present(version.skill_id, version.version)
+        if existing is not None and existing.lifecycle in _PROTECTED_FROM_CANDIDATE_DEMOTE:
+            raise ApprovedLifecycleError(
+                f"refusing to demote {version.skill_id}@v{version.version} "
+                f"from {existing.lifecycle!r} to candidate; use explicit lifecycle helpers "
+                f"(e.g. maybe_advance_shadow_to_candidate, restore_benched), not write_candidate"
+            )
         self.write_status(
             SkillStatus(
                 skill_id=version.skill_id,

@@ -97,7 +97,7 @@ def maybe_advance_shadow_to_candidate(
     if ledger is not None:
         ledger.append(
             actor="m5-shadow-autonomy",
-            action="promote",
+            action="advance_to_candidate",
             target=f"{skill_id}@v{version}",
             evidence={"lift": lift, "trust": trust, "path": "shadow"},
             at=datetime.now(timezone.utc),
@@ -114,7 +114,11 @@ def maybe_auto_promote_from_shadow(
     config: AutonomyConfig = DEFAULT_AUTONOMY,
     ledger: HashChainLedger | None = None,
 ) -> SkillStatus:
-    """Deprecated alias for :func:`maybe_advance_shadow_to_candidate`."""
+    """Deprecated alias for :func:`maybe_advance_shadow_to_candidate`.
+
+    Prefer ``maybe_advance_shadow_to_candidate`` — this advances shadow → candidate only;
+    golden-gated ``promote_to_approved`` remains required for ``approved``.
+    """
 
     return maybe_advance_shadow_to_candidate(
         store,

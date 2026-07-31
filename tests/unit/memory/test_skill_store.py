@@ -128,3 +128,26 @@ def test_write_candidate_skips_existing_version(tmp_path: Path) -> None:
     store.write_version(v)
     store.write_candidate(v)
     assert store.get_status("prewritten", 1).lifecycle == "candidate"
+
+
+@pytest.mark.parametrize("lifecycle", ["approved", "quarantined", "shadow"])
+def test_write_candidate_refuses_demoting_protected_lifecycles(
+    tmp_path: Path, lifecycle: str
+) -> None:
+    store = SkillStore(tmp_path / "skills")
+    v = _minimal_version(f"protect-{lifecycle}")
+    store.write_version(v)
+    if lifecycle == "approved":
+        seed_approved_for_tests(store, v, active=True)
+    else:
+        store.write_status(
+            SkillStatus(
+                skill_id=v.skill_id,
+                version=v.version,
+                lifecycle=lifecycle,  # type: ignore[arg-type]
+                active=False,
+            )
+        )
+    with pytest.raises(ApprovedLifecycleError, match="refusing to demote"):
+        store.write_candidate(v)
+    assert store.get_status(v.skill_id, v.version).lifecycle == lifecycle

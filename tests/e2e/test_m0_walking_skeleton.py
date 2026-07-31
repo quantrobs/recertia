@@ -99,20 +99,17 @@ def test_resume_mid_retry_loop_does_not_reexecute_prior_attempts(tmp_path: Path)
     workdir.mkdir()
     runs_root = tmp_path / "runs"
     script = ["python3 -c \"open('attempt_marker.txt','w').write('ran')\""]
-    from contracts.criteria import SensitivityProof
+    from contracts.criteria import mint_rejecting_proof
 
-    never_passes = TaskCriterion(
+    never_base = TaskCriterion(
         id="never",
         kind="command",
         run="test -f this-file-is-never-created.txt",
         source="caller",
         weight=1.0,
-        sensitivity_proof=SensitivityProof(
-            criterion_id="never",
-            negative_fixture="empty workspace",
-            rejected=True,
-            checked_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        ),
+    )
+    never_passes = never_base.model_copy(
+        update={"sensitivity_proof": mint_rejecting_proof(never_base, fingerprint="m0-never")}
     )
     task = _task(workdir)
 
@@ -154,20 +151,17 @@ def test_always_failing_criteria_terminates_at_record_dead_end(tmp_path: Path) -
 
     workdir = tmp_path / "workspace"
     workdir.mkdir()
-    from contracts.criteria import SensitivityProof
+    from contracts.criteria import mint_rejecting_proof
 
-    always_fails = TaskCriterion(
+    always_base = TaskCriterion(
         id="never",
         kind="command",
         run="test -f this-file-is-never-created.txt",
         source="caller",
         weight=1.0,
-        sensitivity_proof=SensitivityProof(
-            criterion_id="never",
-            negative_fixture="empty workspace",
-            rejected=True,
-            checked_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        ),
+    )
+    always_fails = always_base.model_copy(
+        update={"sensitivity_proof": mint_rejecting_proof(always_base, fingerprint="m0-never")}
     )
     orch = GraphOrchestrator(tmp_path / "runs")
     try:
@@ -198,7 +192,7 @@ def test_retry_always_starts_from_a_clean_snapshot(tmp_path: Path) -> None:
     workdir = tmp_path / "workspace"
     workdir.mkdir()
     (workdir / "marker.txt").write_text("pristine")
-    from contracts.criteria import SensitivityProof
+    from contracts.criteria import mint_rejecting_proof
 
     # Script: on every attempt, assert marker.txt still reads "pristine" (fails loudly if a
     # previous attempt's mutation leaked through), then mutate the workspace, then fail a
@@ -207,18 +201,15 @@ def test_retry_always_starts_from_a_clean_snapshot(tmp_path: Path) -> None:
         "python3 -c \"assert open('marker.txt').read() == 'pristine'\"",
         "python3 -c \"open('mutated.txt','w').write('leftover')\"",
     ]
-    never_passes = TaskCriterion(
+    never_base = TaskCriterion(
         id="never",
         kind="command",
         run="test -f this-file-is-never-created.txt",
         source="caller",
         weight=1.0,
-        sensitivity_proof=SensitivityProof(
-            criterion_id="never",
-            negative_fixture="empty workspace",
-            rejected=True,
-            checked_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        ),
+    )
+    never_passes = never_base.model_copy(
+        update={"sensitivity_proof": mint_rejecting_proof(never_base, fingerprint="m0-never")}
     )
     orch = GraphOrchestrator(tmp_path / "runs")
     try:

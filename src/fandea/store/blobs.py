@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Protocol
+
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class BlobStore(Protocol):
@@ -15,6 +18,15 @@ class BlobStore(Protocol):
     def exists(self, digest: str) -> bool: ...
 
 
+def normalize_blob_digest(digest: str) -> str:
+    """Require ``sha256:`` + 64 lowercase hex; reject traversal / absolute forms."""
+
+    key = digest if digest.startswith("sha256:") else f"sha256:{digest}"
+    if not _DIGEST_RE.fullmatch(key):
+        raise ValueError(f"invalid blob digest: {digest!r}")
+    return key
+
+
 class FilesystemBlobStore:
     """``blobs/ab/abcd…`` layout; key is ``sha256:<hex>``."""
 
@@ -23,8 +35,15 @@ class FilesystemBlobStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, digest: str) -> Path:
-        hexdig = digest.removeprefix("sha256:")
-        return self.root / hexdig[:2] / hexdig
+        key = normalize_blob_digest(digest)
+        hexdig = key.removeprefix("sha256:")
+        root = self.root.resolve()
+        path = (root / hexdig[:2] / hexdig).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise FileNotFoundError(digest) from exc
+        return path
 
     def put(self, data: bytes, *, content_type: str = "application/octet-stream") -> str:
         digest = "sha256:" + hashlib.sha256(data).hexdigest()
@@ -42,4 +61,7 @@ class FilesystemBlobStore:
         return path.read_bytes()
 
     def exists(self, digest: str) -> bool:
-        return self._path(digest).exists()
+        try:
+            return self._path(digest).exists()
+        except (ValueError, FileNotFoundError):
+            return False

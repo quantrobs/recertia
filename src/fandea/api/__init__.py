@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,17 +21,28 @@ from contracts.budget import Budget
 from contracts.common import Arm
 from contracts.criteria import TaskCriterion
 from contracts.run import Task
-from fandea.api.auth import ApiKeyStore, Principal, require_scope
+from fandea.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
 from fandea.graph.engine import GraphOrchestrator
-from fandea.store.blobs import FilesystemBlobStore
+from fandea.store.blobs import FilesystemBlobStore, normalize_blob_digest
 from fandea.telemetry import get_telemetry, render_dashboard
 
 DEFAULT_ROOT = Path(".fandea")
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _validate_run_id(run_id: str) -> str:
+    if not _RUN_ID_RE.fullmatch(run_id):
+        raise HTTPException(
+            status_code=400,
+            detail="run_id must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+        )
+    return run_id
 
 
 def _tenant_blob_root(root: Path, tenant_id: str) -> Path:
     """Resolve a tenant blob directory and refuse path escape."""
 
+    validate_tenant_id(tenant_id)
     base = (root / "blobs").resolve()
     candidate = (base / tenant_id).resolve()
     try:
@@ -37,6 +50,78 @@ def _tenant_blob_root(root: Path, tenant_id: str) -> Path:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="invalid tenant blob root") from exc
     return candidate
+
+
+def _workspaces_root(root: Path) -> Path:
+    return (root / "workspaces").resolve()
+
+
+def _canonical_run_workdir(root: Path, tenant_id: str, run_id: str) -> Path:
+    """Always resolve under ``root/workspaces/<tenant_id>/<run_id>``; reject escapes."""
+
+    validate_tenant_id(tenant_id)
+    run_id = _validate_run_id(run_id)
+    base = _workspaces_root(root)
+    candidate = (base / tenant_id / run_id).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="workdir escapes workspaces root") from exc
+    return candidate
+
+
+def _resolve_create_workdir(root: Path, tenant_id: str, run_id: str, workdir: str | None) -> Path:
+    """Map optional caller ``workdir`` under the canonical run workspace only.
+
+    Absolute paths and ``..`` escapes are rejected. Relative values are resolved under
+    ``root/workspaces/<tenant_id>/<run_id>``.
+    """
+
+    base = _canonical_run_workdir(root, tenant_id, run_id)
+    if workdir is None or workdir == "":
+        return base
+    ref = Path(workdir)
+    if ref.is_absolute():
+        raise HTTPException(
+            status_code=400,
+            detail="workdir must be relative to the run workspace (absolute paths rejected)",
+        )
+    candidate = (base / ref).resolve()
+    try:
+        candidate.relative_to(base)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="workdir escapes run workspace") from exc
+    return candidate
+
+
+def _workdir_meta_path(root: Path, tenant_id: str, run_id: str) -> Path:
+    return root / "runs" / tenant_id / run_id / "workdir.json"
+
+
+def _persist_workdir(root: Path, tenant_id: str, run_id: str, workdir: Path) -> None:
+    meta = _workdir_meta_path(root, tenant_id, run_id)
+    meta.parent.mkdir(parents=True, exist_ok=True)
+    meta.write_text(
+        json.dumps({"workdir": str(workdir.resolve())}) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _load_persisted_workdir(root: Path, tenant_id: str, run_id: str) -> Path | None:
+    meta = _workdir_meta_path(root, tenant_id, run_id)
+    if not meta.exists():
+        return None
+    try:
+        payload = json.loads(meta.read_text(encoding="utf-8"))
+        stored = Path(str(payload["workdir"])).resolve()
+    except (json.JSONDecodeError, KeyError, OSError, TypeError):
+        return None
+    base = _canonical_run_workdir(root, tenant_id, run_id)
+    try:
+        stored.relative_to(base)
+    except ValueError:
+        return None
+    return stored
 
 
 class RunCreate(BaseModel):
@@ -69,7 +154,8 @@ def create_app(*, root: Path | None = None) -> FastAPI:
     root.mkdir(parents=True, exist_ok=True)
     key_store = ApiKeyStore(root / "api_keys.sqlite")
     blobs_by_tenant: dict[str, FilesystemBlobStore] = {}
-    runs: dict[str, RunRecord] = {}
+    # Keyed by (tenant_id, run_id) so tenants cannot collide on run_id.
+    runs: dict[tuple[str, str], RunRecord] = {}
     app = FastAPI(title="Fandea", version="0.1.0")
 
     @app.get("/health")
@@ -80,16 +166,14 @@ def create_app(*, root: Path | None = None) -> FastAPI:
     def create_run(
         body: RunCreate, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
-        run_id = body.run_id or f"run-{uuid4().hex[:12]}"
-        if run_id in runs:
+        run_id = _validate_run_id(body.run_id or f"run-{uuid4().hex[:12]}")
+        run_key = (principal.tenant_id, run_id)
+        if run_key in runs:
             raise HTTPException(status_code=409, detail="run_id already exists")
 
-        workdir = (
-            Path(body.workdir)
-            if body.workdir
-            else root / "workspaces" / principal.tenant_id / run_id
-        )
+        workdir = _resolve_create_workdir(root, principal.tenant_id, run_id, body.workdir)
         workdir.mkdir(parents=True, exist_ok=True)
+        _persist_workdir(root, principal.tenant_id, run_id, workdir)
 
         task = Task(
             task_id=run_id,
@@ -138,7 +222,7 @@ def create_app(*, root: Path | None = None) -> FastAPI:
             state=state,
             created_at=datetime.now(timezone.utc),
         )
-        runs[run_id] = rec
+        runs[run_key] = rec
         get_telemetry().emit(
             "run.finished",
             tenant_id=principal.tenant_id,
@@ -148,23 +232,29 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         return rec
 
     @app.get("/v1/runs/{run_id}", response_model=RunRecord)
-    def get_run(
-        run_id: str, principal: Principal = Depends(require_scope("runs", key_store))
-    ) -> RunRecord:
-        if run_id in runs and runs[run_id].tenant_id == principal.tenant_id:
-            return runs[run_id]
+    def get_run(run_id: str, principal: Principal = Depends(require_scope("runs", key_store))) -> RunRecord:
+        run_id = _validate_run_id(run_id)
+        run_key = (principal.tenant_id, run_id)
+        if run_key in runs:
+            return runs[run_key]
         loaded = _load_from_checkpoints(root, principal.tenant_id, run_id)
         if loaded is None:
             raise HTTPException(status_code=404, detail="run not found")
-        runs[run_id] = loaded
+        runs[run_key] = loaded
         return loaded
 
     @app.post("/v1/runs/{run_id}/resume", response_model=RunRecord)
     def resume_run(
         run_id: str, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
-        workdir = root / "workspaces" / principal.tenant_id / run_id
-        workdir.mkdir(parents=True, exist_ok=True)
+        run_id = _validate_run_id(run_id)
+        run_key = (principal.tenant_id, run_id)
+        # Resume MUST reuse the persisted create workdir — never invent a new path.
+        workdir = _load_persisted_workdir(root, principal.tenant_id, run_id)
+        if workdir is None:
+            workdir = _canonical_run_workdir(root, principal.tenant_id, run_id)
+        if not workdir.exists():
+            raise HTTPException(status_code=404, detail="run workdir not found")
         orch = GraphOrchestrator(root / "runs" / principal.tenant_id)
         try:
             state = orch.resume(run_id, workdir=workdir)
@@ -175,20 +265,16 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         finally:
             orch.close()
 
-        existing = runs.get(run_id)
+        existing = runs.get(run_key)
         rec = _record_from_state(
             run_id=run_id,
             request=existing.request if existing else state.task.request,
-            task_class=(
-                existing.task_class
-                if existing
-                else (state.task.task_class or "repo-chore")
-            ),
+            task_class=(existing.task_class if existing else (state.task.task_class or "repo-chore")),
             tenant_id=principal.tenant_id,
             state=state,
             created_at=existing.created_at if existing else datetime.now(timezone.utc),
         )
-        runs[run_id] = rec
+        runs[run_key] = rec
         return rec
 
     @app.post("/v1/blobs")
@@ -207,13 +293,16 @@ def create_app(*, root: Path | None = None) -> FastAPI:
     def get_blob(
         digest: str, principal: Principal = Depends(require_scope("blobs", key_store))
     ) -> dict[str, Any]:
+        try:
+            key = normalize_blob_digest(digest)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="blob not found") from exc
         blobs = blobs_by_tenant.setdefault(
             principal.tenant_id, FilesystemBlobStore(_tenant_blob_root(root, principal.tenant_id))
         )
-        key = digest if digest.startswith("sha256:") else f"sha256:{digest}"
         try:
             data = blobs.get(key)
-        except FileNotFoundError as exc:
+        except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(status_code=404, detail="blob not found") from exc
         return {"digest": key, "size": len(data), "text": data.decode(errors="replace")[:8000]}
 

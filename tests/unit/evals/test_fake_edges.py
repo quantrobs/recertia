@@ -104,6 +104,23 @@ def test_unused_bound_outputs_when_consumer_skips_binding() -> None:
     assert fake_edge_checks(skill, _transcript(produced=True, consumed=False)) == [False]
 
 
+def test_partial_transcript_skips_unrun_bindings() -> None:
+    skill = _skill_with_edge()
+    partial = {
+        "run_id": "r1",
+        "attempt_no": 1,
+        "events": [
+            {"kind": "step_start", "payload": {"step_id": "produce", "input_bindings": []}},
+        ],
+    }
+    assert unused_bound_outputs(skill, partial) == []
+    assert fake_edge_checks(skill, partial) == []
+    assert fake_edge_failure_count(skill, [partial] * 5) == 0
+    assert not propose_parallelise(
+        "bound-demo", 1, skill=skill, transcripts=[partial] * 5, threshold=5
+    )
+
+
 def test_real_edge_when_produced_and_consumed() -> None:
     skill = _skill_with_edge()
     assert unused_bound_outputs(skill, _transcript(produced=True, consumed=True)) == []

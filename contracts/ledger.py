@@ -14,7 +14,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-LedgerAction = Literal["write", "promote", "quarantine_version", "deprecate", "policy_change"]
+LedgerAction = Literal[
+    "write",
+    "advance_to_candidate",
+    "quarantine_version",
+    "deprecate",
+    "policy_change",
+]
 
 
 class LedgerEntry(BaseModel):

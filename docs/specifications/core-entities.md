@@ -206,9 +206,10 @@ control baseline MUST NOT be subtracted here: selection into a particular skill 
 
 ### 2.5 Lifecycle values
 
-`draft` → `candidate` → `shadow` → `approved` → `deprecated`, plus `benched`, `needs_recert`,
-and terminal `quarantined`. All transitions are `SkillStatus` events, never edits to
-`SkillVersion`.
+`draft` → `candidate` → `shadow` → `candidate` (on shadow evidence) → `approved`
+(via golden-gated `promote_to_approved`) → `deprecated`, plus `benched`, `needs_recert`,
+and terminal `quarantined`. Shadow never writes `approved` directly. All transitions are
+`SkillStatus` events, never edits to `SkillVersion`.
 
 | State | Retrievable | Notes |
 | --- | --- | --- |

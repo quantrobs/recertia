@@ -150,6 +150,12 @@ class _SafeEval(ast.NodeVisitor):
             if node.attr not in _ALLOWED_PATH_ATTRS:
                 raise UnsafeAssertionError(f"disallowed path attribute: {node.attr!r}")
             attr = getattr(value, node.attr)
+            # Bound methods are always truthy; require an explicit Call (e.g. .exists()).
+            if callable(attr):
+                raise UnsafeAssertionError(
+                    f"path attribute {node.attr!r} must be called "
+                    f"(e.g. .{node.attr}()), not used bare"
+                )
             return attr
         raise UnsafeAssertionError("attribute access is only allowed on workdir paths")
 

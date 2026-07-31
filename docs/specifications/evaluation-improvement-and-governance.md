@@ -59,7 +59,7 @@ class LedgerEntry(BaseModel):
     prev_hash: str
     entry_hash: str            # sha256 over canonical entry minus entry_hash
     actor: str                 # run id, job name, or human id
-    action: Literal["write", "promote", "quarantine_version", "deprecate", "policy_change"]
+    action: Literal["write", "advance_to_candidate", "quarantine_version", "deprecate", "policy_change"]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver
     at: datetime

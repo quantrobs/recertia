@@ -96,17 +96,38 @@ def consumed_bindings(events: Iterable[dict[str, Any]]) -> set[tuple[str, str, s
     return found
 
 
+def ran_steps(events: Iterable[dict[str, Any]]) -> set[str]:
+    """Step ids that appear on a ``step_start`` event (actually executed this run)."""
+
+    found: set[str] = set()
+    for event in events:
+        if event.get("kind") != "step_start":
+            continue
+        payload = event.get("payload") or {}
+        step_id = payload.get("step_id")
+        if isinstance(step_id, str):
+            found.add(step_id)
+    return found
+
+
 def unused_bound_outputs(
     skill: SkillVersion,
     transcript: dict[str, Any] | Sequence[dict[str, Any]],
 ) -> list[BoundOutput]:
-    """Bound outputs that the transcript never shows as both produced and consumed."""
+    """Bound outputs that ran on both ends but never carried produced+consumed data.
+
+    Partial transcripts (producer or consumer never started) are not scored — they must
+    not accumulate as fake-edge failures for ``propose_parallelise``.
+    """
 
     events = _events(transcript)
     produced = produced_outputs(events)
     consumed = consumed_bindings(events)
+    started = ran_steps(events)
     unused: list[BoundOutput] = []
     for edge in iter_bound_outputs(skill):
+        if edge.source_step not in started or edge.consumer_step not in started:
+            continue
         produced_ok = (edge.source_step, edge.output) in produced
         consumed_ok = edge.key in consumed
         if not (produced_ok and consumed_ok):
@@ -118,13 +139,21 @@ def fake_edge_checks(
     skill: SkillVersion,
     transcript: dict[str, Any] | Sequence[dict[str, Any]],
 ) -> list[bool]:
-    """Per declared binding: ``True`` when the edge carried data this run, else ``False``.
+    """Per scored binding: ``True`` when the edge carried data this run, else ``False``.
 
+    Bindings whose producer or consumer never ran are omitted (not a failure).
     Empty skill bindings yield an empty list (rate 0 downstream).
     """
 
+    events = _events(transcript)
+    started = ran_steps(events)
     unused = {edge.key for edge in unused_bound_outputs(skill, transcript)}
-    return [edge.key not in unused for edge in iter_bound_outputs(skill)]
+    scored = [
+        edge
+        for edge in iter_bound_outputs(skill)
+        if edge.source_step in started and edge.consumer_step in started
+    ]
+    return [edge.key not in unused for edge in scored]
 
 
 def fake_edge_failure_count(

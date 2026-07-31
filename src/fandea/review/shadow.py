@@ -11,7 +11,6 @@ from uuid import uuid4
 
 from contracts.criteria import CriterionResult, TaskCriterion
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
-from contracts.stats import PredictiveTrust, SkillStats
 from fandea.evals.store import EvalStore
 from fandea.memory.procedural.active_set import ShadowSlot, select_shadow_slots
 from fandea.memory.procedural.store import SkillStore
@@ -35,28 +34,17 @@ def record_shadow_outcome(
     success: bool,
     run_id: str | None = None,
 ) -> ShadowResult:
-    """Update predictive trust for an offline slot; result is never caller-visible."""
+    """Record an offline shadow outcome without bumping predictive trust.
+
+    Shadow evidence lives in eval-store observations / contribution samples only;
+    ``predictive_trust.applications`` / ``successes`` track caller-visible applies.
+    """
 
     status = store.get_status(skill_id, version)
     if status.lifecycle not in ("shadow", "approved", "benched"):
         raise ValueError(f"shadow outcomes only for shadow/approved/benched; got {status.lifecycle}")
-    stats = store.get_stats(skill_id, version)
-    apps = stats.predictive_trust.applications + 1
-    succs = stats.predictive_trust.successes + (1 if success else 0)
-    last_used = datetime.now(timezone.utc)
-    store.write_stats(
-        SkillStats(
-            skill_id=skill_id,
-            version=version,
-            predictive_trust=PredictiveTrust(
-                applications=apps,
-                successes=succs,
-                last_used_at=last_used,
-                decayed_score=stats.predictive_trust.decayed_score,
-            ),
-            contribution=stats.contribution,
-        )
-    )
+    # Do not write SkillStats here — scheduling persists arm=shadow observations via
+    # ``persist_shadow_observation``; contribution is recomputed from those samples.
     return ShadowResult(
         skill_id=skill_id,
         version=version,

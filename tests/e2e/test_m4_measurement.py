@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 
 from contracts.budget import Budget
-from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
+from contracts.criteria import (
+    SensitivityProof,
+    SkillCertificationCriterion,
+    TaskCriterion,
+    mint_rejecting_proof,
+)
 from contracts.eval import BinomialSample
 from contracts.run import Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
@@ -84,11 +89,11 @@ def test_control_baselines_persist_across_snapshots(tmp_path: Path) -> None:
 
 def test_intentionally_bad_skill_blocked_by_regression_gate(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
-    proof = SensitivityProof(
-        criterion_id="ok",
-        negative_fixture="empty",
-        rejected=True,
-        checked_at=datetime.now(timezone.utc),
+    base = SkillCertificationCriterion(
+        id="ok",
+        kind="command",
+        run="test -f MUST_EXIST.txt",
+        preregistered=True,
     )
     bad = SkillVersion(
         skill_id="intentionally-bad",
@@ -105,12 +110,12 @@ def test_intentionally_bad_skill_blocked_by_regression_gate(tmp_path: Path) -> N
             )
         ],
         certification_criteria=[
-            SkillCertificationCriterion(
-                id="ok",
-                kind="command",
-                run="test -f MUST_EXIST.txt",
-                sensitivity_proof=proof,
-                preregistered=True,
+            base.model_copy(
+                update={
+                    "sensitivity_proof": mint_rejecting_proof(
+                        base, fingerprint="m4-intentionally-bad"
+                    )
+                }
             )
         ],
         provenance=Provenance(

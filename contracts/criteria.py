@@ -12,7 +12,9 @@ Two measurement questions, two types, two timelines — and they never merge:
 
 from __future__ import annotations
 
-from datetime import datetime
+import hashlib
+import json
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -28,6 +30,73 @@ _REQUIRED_FIELDS_BY_KIND: dict[str, tuple[str, ...]] = {
     "metric": ("metric", "op", "threshold"),
     "judge": ("rubric",),
 }
+
+# Executable fields shared by both criterion types — bind proofs across Task/Skill forms.
+_EVIDENCE_HASH_FIELDS: tuple[str, ...] = (
+    "id",
+    "kind",
+    "run",
+    "expect_exit",
+    "expr",
+    "target",
+    "schema_ref",
+    "metric",
+    "op",
+    "threshold",
+    "rubric",
+    "isolation",
+    "lens",
+    "timeout_s",
+    "weight",
+)
+
+
+def sensitivity_evidence_hash(
+    criterion: "_CriterionFields", negative_fingerprint: str
+) -> str:
+    """Hash the executable criterion definition bound to a negative-fixture fingerprint."""
+
+    data = criterion.model_dump(mode="json", exclude_none=False)
+    payload = {key: data.get(key) for key in _EVIDENCE_HASH_FIELDS}
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded + b"\0" + negative_fingerprint.encode()).hexdigest()
+
+
+def sensitivity_proof_binds(
+    criterion: "_CriterionFields", proof: "SensitivityProof | None" = None
+) -> bool:
+    """True when ``proof`` rejects and its evidence_hash matches a recomputation.
+
+    Caller-minted ``rejected=True`` without a matching hash is not a valid proof.
+    """
+
+    bound = proof if proof is not None else criterion.sensitivity_proof
+    if bound is None or not bound.rejected or not bound.evidence_hash:
+        return False
+    checked = bound.checked_against or ""
+    if not checked.startswith("sha256:"):
+        return False
+    fingerprint = checked[len("sha256:") :]
+    return bound.evidence_hash == sensitivity_evidence_hash(criterion, fingerprint)
+
+
+def mint_rejecting_proof(
+    criterion: "_CriterionFields",
+    *,
+    negative_fixture: str = "empty",
+    fingerprint: str = "test-neg",
+    checked_at: datetime | None = None,
+) -> SensitivityProof:
+    """Build a hash-bound rejecting proof for tests/seeds (does not re-run the criterion)."""
+
+    return SensitivityProof(
+        criterion_id=criterion.id,
+        negative_fixture=negative_fixture,
+        rejected=True,
+        checked_at=checked_at or datetime(2026, 1, 1, tzinfo=timezone.utc),
+        checked_against=f"sha256:{fingerprint}",
+        evidence_hash=sensitivity_evidence_hash(criterion, fingerprint),
+    )
 
 
 class SensitivityProof(BaseModel):
@@ -100,9 +169,13 @@ class _CriterionFields(BaseModel):
 
     @property
     def is_preregistered_and_proven(self) -> bool:
-        """A required criterion counts toward promotion only with a rejecting proof (specs §15)."""
+        """A required criterion counts toward promotion only with a verified proof (specs §15).
 
-        return bool(self.sensitivity_proof and self.sensitivity_proof.rejected)
+        ``rejected`` alone is forgeable; the evidence hash must recompute against
+        ``checked_against`` and the executable criterion definition.
+        """
+
+        return sensitivity_proof_binds(self)
 
 
 class TaskCriterion(_CriterionFields):
