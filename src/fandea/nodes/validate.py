@@ -1,20 +1,33 @@
 """``validate``: score locked criteria against the attempt (specs §4, §15.2, §26.3).
 
-Supports ``command``, ``assertion``, and ``judge``. Judges run in an isolated
-artifact+rubric context with ``context_hash`` recorded so isolation is testable.
+Supports ``command``, ``assertion``, ``schema``, ``metric``, and ``judge``. Judges run in
+an isolated artifact+rubric context with ``context_hash`` recorded so isolation is testable.
 """
 
 from __future__ import annotations
 
 import functools
+import json
+import operator
 from pathlib import Path
+from typing import Any
 
-from contracts.criteria import CriterionResult, TaskCriterion
+from contracts.criteria import CriterionResult, SkillCertificationCriterion, TaskCriterion
 from contracts.failure import FailureSignal
 from contracts.run import RunState
 from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
 from fandea.validation.judge import assert_distinct_lenses, evaluate_judge
+
+CriterionLike = TaskCriterion | SkillCertificationCriterion
+
+_OPS = {
+    "lt": operator.lt,
+    "lte": operator.le,
+    "gt": operator.gt,
+    "gte": operator.ge,
+    "eq": operator.eq,
+}
 
 
 def validate(state: RunState, ctx: NodeContext) -> NodeOutcome:
@@ -83,16 +96,24 @@ def score_criteria(
     return results, failure_signal, downgrade_notes
 
 
-def _score_criterion_dict(criterion: TaskCriterion, ctx: NodeContext) -> dict:
+def _score_criterion_dict(criterion: CriterionLike, ctx: NodeContext) -> dict:
     return _score_criterion(criterion, ctx).model_dump(mode="json")
 
 
-def _score_criterion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
+def _score_criterion(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
     if criterion.kind == "command":
         return _run_command(criterion, ctx)
     if criterion.kind == "assertion":
         return _run_assertion(criterion, ctx)
+    if criterion.kind == "schema":
+        return _run_schema(criterion, ctx)
+    if criterion.kind == "metric":
+        return _run_metric(criterion, ctx)
     if criterion.kind == "judge":
+        if not isinstance(criterion, TaskCriterion):
+            raise ValueError(
+                f"judge criterion {criterion.id!r} can only be scored as a TaskCriterion"
+            )
         if ctx.verifier_model is None:
             raise ValueError(
                 f"judge criterion {criterion.id!r} requires an independent verifier model"
@@ -101,11 +122,11 @@ def _score_criterion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionRes
             raise ValueError("solver model cannot judge its own artifact")
         return evaluate_judge(criterion, workdir=ctx.workdir, model=ctx.verifier_model)
     raise ValueError(
-        f"validate does not yet support kind={criterion.kind!r} for criterion {criterion.id!r}"
+        f"validate does not support kind={criterion.kind!r} for criterion {criterion.id!r}"
     )
 
 
-def _run_command(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
+def _run_command(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
     assert criterion.run is not None
     from fandea.solver.container import run_configured_command
     from fandea.solver.sandbox import SandboxError
@@ -126,7 +147,7 @@ def _run_command(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
     )
 
 
-def _run_assertion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResult:
+def _run_assertion(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
     assert criterion.expr is not None
     ns = {"workdir": ctx.workdir, "Path": Path}
     try:
@@ -145,3 +166,85 @@ def _run_assertion(criterion: TaskCriterion, ctx: NodeContext) -> CriterionResul
         output_excerpt=excerpt[:2000],
         errored=errored,
     )
+
+
+def _resolve_path(workdir: Path, ref: str) -> Path:
+    path = Path(ref)
+    if path.is_absolute():
+        return path
+    return workdir / path
+
+
+def _load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _run_schema(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
+    assert criterion.target is not None and criterion.schema_ref is not None
+    try:
+        import jsonschema
+    except ImportError as exc:  # pragma: no cover - optional in non-dev installs
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="schema",
+            passed=False,
+            weight=criterion.weight,
+            output_excerpt=f"jsonschema unavailable: {exc}",
+            errored=True,
+        )
+    target_path = _resolve_path(ctx.workdir, criterion.target)
+    schema_path = _resolve_path(ctx.workdir, criterion.schema_ref)
+    try:
+        instance = _load_json(target_path)
+        schema = _load_json(schema_path)
+        jsonschema.validate(instance=instance, schema=schema)
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="schema",
+            passed=True,
+            weight=criterion.weight,
+            output_excerpt=f"schema ok: {criterion.target} ⊨ {criterion.schema_ref}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="schema",
+            passed=False,
+            weight=criterion.weight,
+            output_excerpt=f"schema error: {exc}"[:2000],
+            errored=not isinstance(exc, jsonschema.ValidationError),
+        )
+
+
+def _run_metric(criterion: CriterionLike, ctx: NodeContext) -> CriterionResult:
+    assert criterion.metric is not None and criterion.op is not None and criterion.threshold is not None
+    metrics_path = ctx.workdir / "metrics.json"
+    try:
+        if not metrics_path.exists():
+            raise FileNotFoundError("metrics.json missing in workdir")
+        payload = _load_json(metrics_path)
+        if not isinstance(payload, dict) or criterion.metric not in payload:
+            raise KeyError(f"metric {criterion.metric!r} not present in metrics.json")
+        raw = payload[criterion.metric]
+        value = float(raw)
+        cmp = _OPS[criterion.op]
+        passed = bool(cmp(value, float(criterion.threshold)))
+        excerpt = (
+            f"metric {criterion.metric}={value} {criterion.op} {criterion.threshold} => {passed}"
+        )
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="metric",
+            passed=passed,
+            weight=criterion.weight,
+            output_excerpt=excerpt[:2000],
+        )
+    except Exception as exc:  # noqa: BLE001
+        return CriterionResult(
+            criterion_id=criterion.id,
+            kind="metric",
+            passed=False,
+            weight=criterion.weight,
+            output_excerpt=f"metric error: {exc}"[:2000],
+            errored=True,
+        )

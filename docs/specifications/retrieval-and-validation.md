@@ -10,7 +10,12 @@ plane:
 2. **Merge** — reciprocal rank fusion, `k=60`.
 3. **Filter** — drop any candidate failing a `precondition` (including environment
    fingerprint mismatch), not in the **active set** (§24), in a lifecycle other than
-   `approved`/`shadow`, or in a scope not readable by the task.
+   `approved`/`shadow`, or in a scope not readable by the task. Preconditions are
+   `file_exists` / `path_glob` / `env_present` / `tool_available` / registered read-only
+   `probe` checks with budget and evidence — retrieve MUST NOT spawn arbitrary shell
+   (`command_succeeds` is not a precondition kind). Bounded shadow/exploration slots for
+   `benched` or inactive `approved` versions (§24.1) are offline-only and MUST NOT enter
+   this application candidate list.
 4. **Rerank** — cross-encoder or model rerank of the top 10 against the task text.
 5. **Score floor** — discard candidates below `min_score` (default 0.55). An empty
    candidate list is a valid and healthy outcome.

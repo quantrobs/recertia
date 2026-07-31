@@ -15,11 +15,12 @@ from contracts.status import SkillStatus
 from fandea.evals.store import EvalStore
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.active_set import recompute_active_set, select_shadow_slots
+from fandea.memory.procedural.seeds import seed_approved_for_tests
 from fandea.memory.procedural.store import SkillStore
 from fandea.review.autonomy_config import DEFAULT_AUTONOMY, HARSH_AUTONOMY
 from fandea.review.lifecycle import (
     LifecycleError,
-    maybe_auto_promote_from_shadow,
+    maybe_advance_shadow_to_candidate,
     maybe_bench_on_contribution,
     quarantine_on_failures,
     restore_benched,
@@ -74,6 +75,9 @@ def _skill(
 
 
 def _seed(store: SkillStore, version: SkillVersion, *, lifecycle: str = "shadow") -> None:
+    if lifecycle == "approved":
+        seed_approved_for_tests(store, version, active=False)
+        return
     store.write_version(version)
     store.write_status(
         SkillStatus(skill_id=version.skill_id, version=1, lifecycle=lifecycle, active=False)  # type: ignore[arg-type]
@@ -143,7 +147,7 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
         shadow=(10, 10),
         suppression=(5, 10),
     )
-    approved = maybe_auto_promote_from_shadow(
+    approved = maybe_advance_shadow_to_candidate(
         store, "shadow-winner", 1, eval_store=eval_store, ledger=ledger
     )
     assert approved.lifecycle == "candidate"
@@ -162,7 +166,7 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
         suppression=(10, 10),
     )
     with pytest.raises(LifecycleError, match="refusing auto-promote"):
-        maybe_auto_promote_from_shadow(store, "zero-lift", 1, eval_store=zero_eval_store)
+        maybe_advance_shadow_to_candidate(store, "zero-lift", 1, eval_store=zero_eval_store)
     eval_store.close()
     zero_eval_store.close()
 
@@ -253,10 +257,7 @@ def test_active_cap_pressure(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
     for i in range(6):
         sid = f"cap-{i}"
-        _seed(store, _skill(sid), lifecycle="approved")
-        store.write_status(
-            SkillStatus(skill_id=sid, version=1, lifecycle="approved", active=True)
-        )
+        seed_approved_for_tests(store, _skill(sid), active=True)
         store.write_stats(
             SkillStats(
                 skill_id=sid,
@@ -292,3 +293,57 @@ def test_shadow_slots_are_bounded_and_never_expand_active_cap(tmp_path: Path) ->
     assert len(slots) == HARSH_AUTONOMY.shadow_slots_per_task_class
     assert {slot.reason for slot in slots} <= {"benched", "newly_approved"}
     assert all(not status.active for _version, status, _stats in store.iter_loaded())
+
+
+def test_shadow_scheduling_job_persists_offline_outcomes(tmp_path: Path) -> None:
+    from fandea.jobs.workers import schedule_shadow_evaluations
+    from fandea.review.shadow import schedule_shadow_slots
+
+    store = SkillStore(tmp_path / "skills")
+    eval_store = EvalStore(tmp_path / "shadow-evals.sqlite")
+    for i in range(3):
+        _seed(store, _skill(f"bench-shadow-{i}"), lifecycle="benched")
+    for i in range(2):
+        sid = f"approved-inactive-{i}"
+        _seed(store, _skill(sid), lifecycle="approved")
+        store.write_status(
+            SkillStatus(skill_id=sid, version=1, lifecycle="approved", active=False)
+        )
+
+    before_active = {
+        (v.skill_id, v.version): s.active for v, s, _st in store.iter_loaded()
+    }
+    results = schedule_shadow_slots(
+        store,
+        eval_store=eval_store,
+        config=HARSH_AUTONOMY,
+        snapshot_id="m5-shadow",
+    )
+    assert results
+    assert len(results) == HARSH_AUTONOMY.shadow_slots_per_task_class
+    assert all(r.visible_to_caller is False for r in results)
+    assert all(r.success for r in results)  # certification run="true"
+    after_active = {
+        (v.skill_id, v.version): s.active for v, s, _st in store.iter_loaded()
+    }
+    assert after_active == before_active
+
+    for result in results:
+        stats = store.get_stats(result.skill_id, result.version)
+        assert stats.predictive_trust.applications >= 1
+        assert stats.predictive_trust.successes >= 1
+
+    shadow_rows = [
+        row
+        for row in eval_store.metric_rows(snapshot_id="m5-shadow")
+        if row.get("arm") == "shadow"
+    ]
+    assert len(shadow_rows) == len(results)
+    assert all(row.get("skill_id") for row in shadow_rows)
+
+    proposals = schedule_shadow_evaluations(
+        store, eval_store=eval_store, config=HARSH_AUTONOMY, snapshot_id="m5-shadow-job"
+    )
+    assert proposals
+    assert all(p.payload.get("visible_to_caller") is False for p in proposals)
+    eval_store.close()

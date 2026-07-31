@@ -29,7 +29,8 @@ else hand-maintains a competing structural definition:
    `Branch`, `FailureSignal`, `FailureVerdict`, `MergeAudit`, ...), using Pydantic's own
    validators (`Field` constraints, `model_validator`) to encode every MUST that a structural
    schema can express: required fields, enums, cross-field constraints (`loop.max_iterations`
-   required when `loop` is present; `depends_on` referencing existing step ids).
+   required when `loop` is present; `input_bindings` referencing existing predecessor step ids
+   and declared outputs; derived step DAGs with no free-floating `depends_on`).
 2. **`schema/*.schema.json` is generated, never hand-edited.** `scripts/generate_schemas.py`
    calls `model_json_schema()` on each public contract model and writes the result. A CI check
    (`tests/contracts/test_schema_generation.py`) regenerates into a temp directory and diffs

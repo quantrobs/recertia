@@ -1,4 +1,9 @@
-"""Contribution estimates vs task-class control baselines (specs §24.2, M5)."""
+"""Per-skill contribution from shadow vs suppression (specs §24.2, M5).
+
+Class-level retrieval lift lives on ``RetrievalAblationEffect``; this module estimates
+one skill's effect from randomized shadow/suppression samples — not by subtracting a
+task-class control baseline from a selected skill (refactor-plan S4).
+"""
 
 from __future__ import annotations
 

@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import subprocess
+import tempfile
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable
+from uuid import uuid4
 
+from contracts.criteria import CriterionResult, TaskCriterion
+from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.stats import PredictiveTrust, SkillStats
+from fandea.evals.store import EvalStore
+from fandea.memory.procedural.active_set import ShadowSlot, select_shadow_slots
 from fandea.memory.procedural.store import SkillStore
+from fandea.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
 
 
 @dataclass
@@ -14,6 +25,7 @@ class ShadowResult:
     version: int
     success: bool
     visible_to_caller: bool = False
+    run_id: str | None = None
 
 
 def record_shadow_outcome(
@@ -22,6 +34,7 @@ def record_shadow_outcome(
     version: int,
     *,
     success: bool,
+    run_id: str | None = None,
 ) -> ShadowResult:
     """Update predictive trust for an offline slot; result is never caller-visible."""
 
@@ -31,17 +44,140 @@ def record_shadow_outcome(
     stats = store.get_stats(skill_id, version)
     apps = stats.predictive_trust.applications + 1
     succs = stats.predictive_trust.successes + (1 if success else 0)
+    last_used = datetime.now(timezone.utc)
     store.write_stats(
         SkillStats(
             skill_id=skill_id,
             version=version,
-            predictive_trust=PredictiveTrust(applications=apps, successes=succs),
+            predictive_trust=PredictiveTrust(
+                applications=apps,
+                successes=succs,
+                last_used_at=last_used,
+                decayed_score=stats.predictive_trust.decayed_score,
+            ),
             contribution=stats.contribution,
         )
     )
-    return ShadowResult(skill_id=skill_id, version=version, success=success, visible_to_caller=False)
+    return ShadowResult(
+        skill_id=skill_id,
+        version=version,
+        success=success,
+        visible_to_caller=False,
+        run_id=run_id,
+    )
 
 
 def enter_shadow(store: SkillStore, skill_id: str, version: int) -> None:
     status = store.get_status(skill_id, version)
     store.write_status(status.model_copy(update={"lifecycle": "shadow", "active": False}))
+
+
+def evaluate_shadow_offline(store: SkillStore, slot: ShadowSlot, *, workdir: Path) -> bool:
+    """Score required non-judge command criteria in an isolated workdir (never caller-visible)."""
+
+    version = store.get_version(slot.skill_id, slot.version)
+    workdir.mkdir(parents=True, exist_ok=True)
+    for criterion in version.certification_criteria:
+        if criterion.kind != "command" or not criterion.is_required:
+            continue
+        assert criterion.run is not None
+        proc = subprocess.run(
+            criterion.run,
+            shell=True,
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            timeout=criterion.timeout_s,
+            check=False,
+        )
+        if proc.returncode != criterion.expect_exit:
+            return False
+    return True
+
+
+def persist_shadow_observation(
+    eval_store: EvalStore,
+    *,
+    slot: ShadowSlot,
+    success: bool,
+    snapshot_id: str,
+    run_id: str | None = None,
+) -> None:
+    """Append an arm=shadow observation derived from a locked offline RunState."""
+
+    rid = run_id or f"shadow-{slot.skill_id}-v{slot.version}-{uuid4().hex[:12]}"
+    criterion = TaskCriterion(
+        id="shadow-offline",
+        kind="command",
+        run="true",
+        source="caller",
+        preregistered=True,
+    )
+    now = datetime.now(timezone.utc)
+    state = RunState(
+        run_id=rid,
+        task=Task(
+            task_id=rid,
+            request=f"offline shadow slot for {slot.skill_id}@v{slot.version}",
+            task_class=slot.task_class,
+            submitted_at=now,
+            is_eval_fixture=False,
+        ),
+        manifest=RunManifest(index_snapshot_id=snapshot_id, criteria_hash="shadow-offline"),
+        arm="shadow",
+        criteria=[criterion],
+        criteria_locked_at=now,
+        chosen=SkillCandidateRef(
+            skill_id=slot.skill_id, version=slot.version, score=1.0, shadow=True
+        ),
+        attempt_no=1,
+        results=[
+            CriterionResult(
+                criterion_id=criterion.id, kind="command", passed=success, weight=1.0
+            )
+        ],
+        terminal="solved" if success else "unsolved",
+    )
+    eval_store.append_run(state)
+
+
+def schedule_shadow_slots(
+    store: SkillStore,
+    *,
+    eval_store: EvalStore | None = None,
+    config: AutonomyConfig = DEFAULT_AUTONOMY,
+    snapshot_id: str = "shadow-schedule",
+    evaluate: Callable[[ShadowSlot, Path], bool] | None = None,
+) -> list[ShadowResult]:
+    """Select bounded offline slots, evaluate without caller-visible effects, persist outcomes."""
+
+    slots = select_shadow_slots(store, config=config)
+    evaluate = evaluate or (lambda slot, workdir: evaluate_shadow_offline(store, slot, workdir=workdir))
+    results: list[ShadowResult] = []
+    for slot in slots:
+        # Snapshot active flags so a shadow pass cannot leak into the caller-visible set.
+        before_active = {
+            (v.skill_id, v.version): s.active for v, s, _st in store.iter_loaded()
+        }
+        with tempfile.TemporaryDirectory(prefix="fandea-shadow-") as tmp:
+            success = evaluate(slot, Path(tmp))
+        run_id = f"shadow-{slot.skill_id}-v{slot.version}-{uuid4().hex[:12]}"
+        result = record_shadow_outcome(
+            store, slot.skill_id, slot.version, success=success, run_id=run_id
+        )
+        if eval_store is not None:
+            persist_shadow_observation(
+                eval_store,
+                slot=slot,
+                success=success,
+                snapshot_id=snapshot_id,
+                run_id=run_id,
+            )
+        after_active = {
+            (v.skill_id, v.version): s.active for v, s, _st in store.iter_loaded()
+        }
+        if after_active != before_active:
+            raise RuntimeError("shadow scheduling must not alter SkillStatus.active")
+        assert result.visible_to_caller is False
+        results.append(result)
+    return results

@@ -11,7 +11,7 @@ class ResourceClaim(BaseModel):
     """A declared claim on something shared outside the workspace.
 
     Two units conflict when they claim the same ``id`` and at least one ``mode`` is ``write``
-    or ``exclusive`` — whether or not a ``depends_on`` edge exists between them.
+    or ``exclusive`` — whether or not an ``input_bindings``-derived dependency exists between them.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -18,7 +18,10 @@ causal_lift = first_attempt_success(treatment) - first_attempt_success(control)
 ```
 
 Reported with a Wilson confidence interval and sample counts. A lift claim whose interval
-includes zero MUST be reported as "not established" rather than as an improvement.
+includes zero MUST be reported as "not established" rather than as an improvement. This
+class-level contrast is `RetrievalAblationEffect` (§24.2). Per-skill retirement uses a
+separate shadow-versus-suppression `Contribution`; the control arm MUST NOT be reused as a
+per-skill `baseline_success`.
 
 ## 20. Improvement job contracts
 
@@ -41,7 +44,7 @@ argue from run evidence rather than from reading the skill:
 
 | Proposal | Evidence required | Effect |
 | --- | --- | --- |
-| `parallelise` | A `depends_on` edge that failed the fake-edge test (§26.1) across ≥5 runs: the later step never read the earlier step's output, and their claims do not overlap | Removes the edge, producing a new skill version |
+| `parallelise` | An `input_bindings` entry whose bound input was unused across ≥5 runs, and whose steps' claims do not overlap (§26.1) | Removes the binding, producing a new skill version |
 | `serialise` | ≥2 `merge` verdicts or a resource conflict rate above `conflict_threshold` (default 0.1) on the same wave | Adds an edge or widens a claim to `exclusive`, producing a new skill version |
 
 Both go through the normal promotion gate, so a wrongly removed edge shows up as a golden-set
@@ -106,7 +109,7 @@ Enforcement requirements:
 
 | Metric | Definition |
 | --- | --- |
-| `skill_contribution` | Per-skill `ĉ(s)`: mean first-attempt success when applied, minus the control-arm baseline for its task class (§24) |
+| `skill_contribution` | Per-skill `ĉ(s)`: shadow success rate minus this skill's suppressed success rate (§24.2) |
 | `active_cap_pressure` | Task classes at `active_cap` ÷ task classes with skills |
 | `retirement_reversal_rate` | Benched versions later restored to `approved` ÷ versions benched |
 | `curation_gap` | First-attempt success of `human_authored` + `mined_from_human_artifact` skills minus `self_distilled` skills, per task class |
@@ -123,7 +126,7 @@ Concurrency and verification integrity:
 | `merge_recovery_rate` | Incomplete merges resolved by re-dispatch ÷ incomplete merges |
 | `resource_conflict_rate` | Step waves that blocked on a claim ÷ waves with ≥2 steps |
 | `parallel_speedup` | Serial step duration ÷ observed wall-clock duration per skill; the only justification for step DAGs, so it is reported per skill, not in aggregate |
-| `fake_edge_rate` | `depends_on` edges failing the fake-edge test ÷ declared edges — a measure of how conservatively the distiller writes graphs |
+| `fake_edge_rate` | `input_bindings` unused at runtime ÷ declared bindings — leftover serialisation after store-time edges are already data-carrying by construction |
 | `judge_isolation_violations` | Judge invocations whose context hash included solver-transcript content; a non-zero value is a release blocker, not a metric to trend |
 
 `parallel_speedup` and `merge_gap_rate` are read together or not at all. Speedup with a

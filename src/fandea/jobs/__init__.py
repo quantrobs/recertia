@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Callable, Literal
 
 from contracts.skill import SkillVersion
-from contracts.status import SkillStatus
 from fandea.memory.procedural.store import SkillStore
 from fandea.review import ReviewService
 
@@ -79,20 +78,10 @@ class JobRunner:
         Promotion remains an external golden-gate step outside the job plane.
         """
 
-        self.store.write_version(draft)
-        self.store.write_status(
-            SkillStatus(
-                skill_id=draft.skill_id,
-                version=draft.version,
-                lifecycle="candidate",
-                active=False,
-            )
-        )
+        self.store.write_candidate(draft)
         if self.reviewer is not None:
             decision = self.reviewer.decide(draft, run_id=f"job-{proposal.kind}")
             if decision.outcome != "approved":
                 return f"rejected:{decision.note}"
-        # Even with a reviewer approve, jobs cannot skip the golden gate.
-        raise JobError(
-            "jobs cannot write approved; proposals must pass the golden-set promote gate"
-        )
+            return f"candidate:{draft.skill_id}@v{draft.version}:review-ok"
+        return f"candidate:{draft.skill_id}@v{draft.version}"

@@ -1,7 +1,7 @@
 [project]
 name = "fandea"
 version = "0.1.0"
-description = "Fandea: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/fandea/ is the M0 walking skeleton (docs/implementation-plan.md)."
+description = "Fandea: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/fandea/ implements M0–M9 (docs/implementation-plan.md)."
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9,<3",

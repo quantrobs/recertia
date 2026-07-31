@@ -12,10 +12,8 @@ from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
 from contracts.run import Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
-from contracts.stats import SkillStats
-from contracts.status import SkillStatus
 from fandea.graph.engine import GraphOrchestrator
-from fandea.jobs import JobBudget, JobError, JobRunner
+from fandea.jobs import JobBudget, JobRunner
 from fandea.jobs.workers import (
     curator_active_set_and_dedup,
     draft_from_mine_proposal,
@@ -31,6 +29,7 @@ from fandea.memory.procedural.composition import (
     quarantine_child_blocks_parents,
     resolve_uses,
 )
+from fandea.memory.procedural.seeds import seed_approved_for_tests
 from fandea.memory.procedural.store import SkillStore
 from fandea.nodes.context import NodeContext
 from fandea.nodes.plan import plan
@@ -218,16 +217,16 @@ def test_jobs_propose_but_cannot_skip_golden_gate(tmp_path: Path) -> None:
     )
     assert result.proposals
     draft = draft_from_mine_proposal(result.proposals[0])
-    with pytest.raises(JobError, match="cannot write approved"):
-        runner.submit_proposal(result.proposals[0], draft)
+    submitted = runner.submit_proposal(result.proposals[0], draft)
+    assert submitted.startswith("candidate:")
+    assert store.get_status(draft.skill_id, draft.version).lifecycle == "candidate"
+    assert store.get_status(draft.skill_id, draft.version).active is False
 
 
 def test_recertifier_and_parallelise_proposals(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
     v = _skill("needs-tool")
-    store.write_version(v)
-    store.write_status(SkillStatus(skill_id="needs-tool", version=1, lifecycle="approved", active=True))
-    store.write_stats(SkillStats(skill_id="needs-tool", version=1))
+    seed_approved_for_tests(store, v, active=True)
     props = recertify_stale(store, tool_upgraded="pytest")
     assert props
     assert store.get_status("needs-tool", 1).lifecycle == "needs_recert"
@@ -244,13 +243,7 @@ def test_composition_and_quarantine_blocks_parents(tmp_path: Path) -> None:
     child = _skill("child-skill")
     parent = _skill("parent-skill", uses=[SkillUse(skill_id="child-skill", version=1)])
     for ver in (child, parent):
-        store.write_version(ver)
-        store.write_status(
-            SkillStatus(
-                skill_id=ver.skill_id, version=1, lifecycle="approved", active=True
-            )
-        )
-        store.write_stats(SkillStats(skill_id=ver.skill_id, version=1))
+        seed_approved_for_tests(store, ver, active=True)
     resolved = resolve_uses(store, parent)
     assert resolved[0].skill_id == "child-skill"
     assert mean_composition_depth(store) >= 0.5

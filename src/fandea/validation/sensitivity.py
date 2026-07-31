@@ -103,5 +103,23 @@ def _default_runner(
         assert criterion.expr is not None
         ns = {"workdir": workdir, "Path": Path}
         return bool(eval(criterion.expr, {"__builtins__": {}}, ns))  # noqa: S307
-    # Judges / metrics / schemas cannot author a mechanical proof here — treat as not rejected.
+    if criterion.kind in ("schema", "metric"):
+        from fandea.graph.ops import OperationLedger
+        from fandea.ledger import HashChainLedger
+        from fandea.nodes.context import NodeContext
+        from fandea.nodes.validate import _score_criterion
+        from fandea.workspace import WorkspaceManager
+
+        # Mechanical proof against the negative fixture workdir — same runners as validate.
+        ctx = NodeContext(
+            run_id="sensitivity",
+            attempt_no=0,
+            node="sensitivity",
+            workdir=workdir,
+            workspaces=WorkspaceManager(workdir / ".snapshots"),
+            ledger=HashChainLedger(workdir / ".ledger.jsonl"),
+            ops=OperationLedger(workdir / ".ops.db"),
+        )
+        return _score_criterion(criterion, ctx).passed
+    # Judges cannot author a mechanical proof here — treat as not rejected.
     return True

@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from contracts.fact import Fact
 from contracts.scope import RedactionReport, Scope, ScopePromotion, is_upscope
 from contracts.skill import SkillVersion
-from contracts.stats import SkillStats
-from contracts.status import SkillStatus
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.allocate import allocate_and_write
 from fandea.memory.procedural.hygiene import scan_skill
@@ -117,15 +115,7 @@ def promote_skill_scope(
     new_intent, report = redact_skill_text(version.intent)
     draft = version.model_copy(update={"scope": to_scope, "intent": new_intent, "version": 1})
     stamped = allocate_and_write(store, draft)
-    store.write_status(
-        SkillStatus(
-            skill_id=stamped.skill_id,
-            version=stamped.version,
-            lifecycle="candidate",
-            active=False,
-        )
-    )
-    store.write_stats(SkillStats(skill_id=stamped.skill_id, version=stamped.version))
+    store.write_candidate(stamped)
     record = ScopePromotion(
         artifact_kind="skill",
         artifact_id=f"{stamped.skill_id}@v{stamped.version}",

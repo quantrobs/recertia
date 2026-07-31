@@ -1,5 +1,6 @@
-"""Fandea's runtime (M0 walking skeleton). See docs/implementation-plan.md.
+"""Fandea's runtime (M0–M9). See docs/implementation-plan.md.
 
 Data shapes come from ``contracts/`` (ADR-0009); this package supplies the mechanism that
-walks a ``RunState`` through the graph, not any new normative type of its own.
+walks a ``RunState`` through the graph, memory planes, jobs, and operators — not new
+normative types of its own.
 """

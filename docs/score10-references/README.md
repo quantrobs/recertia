@@ -12,5 +12,6 @@ in [`../../research/preprints-self-improving-agents.xlsx`](../../research/prepri
 
 Machine-readable form: [`score10-references.json`](score10-references.json).
 Spreadsheet export: [`../../research/preprints-score10-reference-lists.xlsx`](../../research/preprints-score10-reference-lists.xlsx).
+JSON export: [`../../research/preprints-score10-reference-lists.scored.json`](../../research/preprints-score10-reference-lists.scored.json).
 
 How these papers changed the design is recorded in [`../references.md`](../references.md) §1.

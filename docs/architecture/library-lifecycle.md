@@ -42,10 +42,11 @@ delivered +0.0pp ([`references.md`](../references.md) §1.1), so self-distilled 
 evidence to reach `approved`. This is a calibration of trust to measured reliability, not a
 philosophical position about machine authorship.
 
-Trust is a smoothed success ratio, so one lucky application cannot mint a high-trust skill. But a
-ratio is not causal evidence, which is why trust is reported alongside a **causal lift estimate**
-from the ablation arm (§11.4). A skill applied to easy tasks will show high trust and zero lift;
-only the second number distinguishes a useful skill from a lucky one.
+Trust is a smoothed success ratio (`PredictiveTrust`), so one lucky application cannot mint a
+high-trust skill. But a ratio is not causal evidence, which is why trust is reported alongside
+a **class-level retrieval ablation** (§11.4) and a **per-skill contribution** from randomized
+shadow versus suppression (§7.2). A skill applied to easy tasks will show high trust and zero
+per-skill lift; only the separated effect estimates distinguish a useful skill from a lucky one.
 
 ### 7.2 Bounded active set and retirement
 
@@ -54,10 +55,13 @@ The library is capped, and skills are retired on measured contribution. See
 
 | Mechanism | Rule | Default |
 | --- | --- | --- |
-| **Active cap** | Only `active` skills are retrievable; skills compete for slots per task class | 50 |
-| **Contribution** | `ĉ(s) =` mean success with the skill applied, minus the control-arm baseline for that task class; success counted from required non-`judge` criteria only | — |
-| **Evidence floor** | No retirement decision before this many applications | 30 |
+| **Active cap** | Only `active` skills are retrievable for application; skills compete for slots per task class | 50 |
+| **Predictive trust** | Observational calibration `(successes+1)/(applications+2)` — not a causal effect | — |
+| **Retrieval ablation** | Class-level effect of retrieval available vs suppressed (randomized at the retrieval boundary) | — |
+| **Contribution** | `ĉ(s) =` shadow success rate minus this skill's suppressed success rate; success from required non-`judge` criteria only | — |
+| **Evidence floor** | No retirement decision before this many shadow applications | 30 |
 | **Retirement threshold** | Bench when `ĉ(s) ≤ −τ` and the evidence floor is met | `τ = 0.10` |
+| **Shadow / exploration slots** | Bounded offline slots for `benched` and inactive `approved` versions; never expand the active set | 3 / class |
 | **Low evidence** | Score-demote in ranking; never drop | — |
 
 Three properties this buys, each answering a specific failure:
@@ -66,12 +70,13 @@ Three properties this buys, each answering a specific failure:
 than a bounded margin below the no-memory baseline. With an unbounded library and no retirement
 rule, that bound does not exist at all — which is the configuration the earlier draft had.
 
-**Retirement that measures the right thing.** Contribution is lift over solving *without* the
-skill, not a raw success ratio. The control arm (§11.4) supplies the baseline, so the measurement
-machinery already in the design does double duty here. And it is scored from required non-`judge`
-criteria only: a false-pass-biased model judge does not add noise to retirement, it *switches
-retirement off* ([`references.md`](../references.md) §1.8), so a skill whose only required criteria
-are model-scored has `contribution = null` rather than a flattering estimate.
+**Retirement that measures the right thing.** Contribution is this skill's lift under
+randomized shadow versus suppression, not a raw success ratio and not a class-level control
+baseline subtracted from a selected skill. Class-level retrieval help is a separate
+`RetrievalAblationEffect`. And contribution is scored from required non-`judge` criteria only: a
+false-pass-biased model judge does not add noise to retirement, it *switches retirement off*
+([`references.md`](../references.md) §1.8), so a skill whose only required criteria are
+model-scored has `contribution = null` rather than a flattering estimate.
 
 **Protection against over-pruning.** Aggressive retirement is not a conservative choice: in the
 one ablation that tested it, harsh settings performed *below* the no-skill floor
@@ -80,6 +85,8 @@ and reversible benching rather than deletion. An earlier draft of this design cu
 trust ratio after three applications, which is precisely the harmful setting.
 
 Benching is reversible and lossless: history is retained, and a benched skill returns to `active`
-when evidence improves or the Curator revises it. Because a cap means good skills can be benched
-by competition rather than by poor performance, `active_cap_pressure` is tracked so a chronically
-saturated cap is visible instead of silently discarding value.
+when evidence improves or the Curator revises it. Because a benched version is not in the active
+retrieval set, bounded shadow/exploration slots exist so it can still gather restoration
+evidence offline. Because a cap means good skills can be benched by competition rather than by
+poor performance, `active_cap_pressure` is tracked so a chronically saturated cap is visible
+instead of silently discarding value.

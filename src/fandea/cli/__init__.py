@@ -1,1 +1,5 @@
-"""``fandea`` command-line interface (M0: ``run``, ``runs show``, ``ledger verify``)."""
+"""``fandea`` command-line interface."""
+
+from fandea.cli.main import app
+
+__all__ = ["app"]

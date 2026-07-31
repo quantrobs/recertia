@@ -31,6 +31,9 @@ class FailureSignal(BaseModel):
     ``classify_failure``'s only precondition is that a ``FailureSignal`` exists on the run
     state (ADR-0008); this replaces the old, unsatisfiable-for-most-classes precondition of
     "some required criterion failed."
+
+    ``class_hint`` is an optional structured producer signal (e.g. budget preflight via
+    ``budget_excess``). When set, ``classify_failure`` prefers it over detail substring matching.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -38,6 +41,7 @@ class FailureSignal(BaseModel):
     source: Literal["orchestrator", "solver", "validator", "join"]
     detail: str
     at: datetime
+    class_hint: FailureClass | None = None
 
 
 class FailureVerdict(BaseModel):

@@ -5,8 +5,6 @@ from __future__ import annotations
 from contracts.fact import Fact
 from contracts.run import RunState
 from contracts.skill import SkillVersion
-from contracts.stats import SkillStats
-from contracts.status import SkillStatus
 from fandea.memory.procedural.hygiene import require_clean
 from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
@@ -22,18 +20,10 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
         if ctx.store is None:
             raise ValueError("store node requires SkillStore on NodeContext")
 
-        ctx.store.write_version(version)
         # Task-plane code is allowed to persist a reviewable candidate only.
         # `promote_to_approved` is the sole state transition to approved and
         # runs the golden regression gate before writing that lifecycle.
-        status = SkillStatus(
-            skill_id=version.skill_id,
-            version=version.version,
-            lifecycle="candidate",
-            active=False,
-        )
-        ctx.store.write_status(status)
-        ctx.store.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
+        ctx.store.write_candidate(version)
 
         written_facts: list[str] = []
         if ctx.facts is not None:
@@ -42,8 +32,8 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
                 stored = ctx.facts.write(fact)
                 written_facts.append(stored.fact_id)
 
-        if ctx.retriever is not None and hasattr(ctx.retriever, "index"):
-            ctx.retriever.index.rebuild(ctx.store.iter_loaded())
+        if ctx.retriever is not None:
+            ctx.retriever.rebuild(ctx.store.iter_loaded())
 
         entry = ctx.ledger.append(
             actor=ctx.run_id,

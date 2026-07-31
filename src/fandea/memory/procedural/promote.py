@@ -12,12 +12,7 @@ from pathlib import Path
 
 from contracts.skill import SkillVersion
 from contracts.status import Certification, SkillStatus
-from fandea.evals.golden import (
-    GoldenReport,
-    GoldenResult,
-    run_golden_for_skill,
-    run_task_class_gate,
-)
+from fandea.evals.golden import GoldenReport, GoldenResult, select_and_run_gate
 from fandea.memory.procedural.active_set import assign_active_on_approval
 from fandea.memory.procedural.lint import lint_skill
 from fandea.memory.procedural.store import SkillStore
@@ -101,7 +96,7 @@ def promote_to_approved(
     violations = lint_skill(ver, approved, stats, store=store)
     if violations:
         raise PromotionError(f"approved profile violations: {violations}")
-    store.write_status(approved)
+    store._write_status_unchecked(approved)
     return approved
 
 
@@ -113,22 +108,17 @@ def _run_regression(
     runs_root: Path,
     require_task_class_gate: bool,
 ) -> GoldenReport:
-    if require_task_class_gate or (golden_root is not None and golden_dir is None):
-        if golden_root is None:
-            raise PromotionError("task-class regression gate requires golden_root")
-        report = run_task_class_gate(
-            ver, golden_root, runs_root=runs_root, task_class=ver.task_class
+    try:
+        return select_and_run_gate(
+            ver,
+            runs_root=runs_root,
+            golden_root=golden_root,
+            golden_dir=golden_dir,
+            require_task_class_gate=require_task_class_gate,
+            require_fixture=True,
         )
-        if golden_dir is not None and golden_dir.is_dir():
-            own = run_golden_for_skill(ver, golden_dir, runs_root=runs_root)
-            if not any(r.golden_path == own.golden_path for r in report.results):
-                report.results.append(own)
-        return report
-
-    if golden_dir is None:
-        raise PromotionError("promote_to_approved requires golden_dir or golden_root")
-    result = run_golden_for_skill(ver, golden_dir, runs_root=runs_root)
-    return GoldenReport(results=[result])
+    except ValueError as exc:
+        raise PromotionError(str(exc)) from exc
 
 
 def _portable_ref(log_path: Path, repo_root: Path | None) -> str:

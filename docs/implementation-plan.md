@@ -29,17 +29,17 @@ is in [`references.md`](references.md).
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| Language | Python 3.12 | Tooling and model-SDK ecosystem |
+| Language | Python ≥3.11 | Matches `requires-python` in `pyproject.toml` |
 | Packaging | `uv` + `pyproject.toml` | Fast, lockfile-based |
 | Contracts | Pydantic v2 | Runtime validation of graph state and memory documents |
-| API | FastAPI + Uvicorn | Matches Pydantic models |
-| Persistence | SQLite (`sqlite-vec`, FTS5) → Postgres (`pgvector`) | Driver-swap upgrade path |
+| API | FastAPI + Uvicorn | Optional extra (`api`); matches Pydantic models |
+| Persistence | SQLite (`sqlite-vec`, FTS5) → Postgres (`pgvector`) | Driver-swap upgrade path; Postgres via optional extra |
 | Canonical memory | JSON in git: `skills/`, `facts/`, `policy/` | Review = pull request; rollback = revert |
 | Workspaces | Git worktrees or overlay copies, content-addressed snapshots | Per-attempt isolation (specs §17) |
 | Job scheduling | APScheduler in v1 → external scheduler | Improvement plane jobs (specs §20) |
 | Sandbox | Subprocess with rlimits in v1; container isolation before any non-`read` tool ships | |
-| Tests | `pytest`, `pytest-asyncio`, `hypothesis` for state-machine invariants | |
-| Lint/type | `ruff`, `mypy --strict` on `src/` | |
+| Tests | `pytest` (+ `jsonschema` for contract checks) | See `pyproject.toml` `[project.optional-dependencies].dev` |
+| Lint/type | `ruff`, `mypy` on `contracts/` and `src/fandea/` | Not `--strict`; config in `pyproject.toml` |
 | Tracing | OpenTelemetry → local collector | |
 
 ## Repository layout
@@ -54,7 +54,8 @@ fandea/
 ├── contracts/                  # normative structural source (ADR-0009); Pydantic models
 ├── schema/                     # JSON Schema, generated from contracts/ — never hand-edited
 ├── skills/<skill_id>/v<N>/     # version.json (immutable, git), status.json, stats.json (ADR-0007)
-├── facts/<scope>/<slug>.json       # semantic memory, canonical
+├── facts/                          # semantic memory; empty until first FactStore write
+│   └── <scope>/<slug>.json         # created on first write (see facts/README.md)
 ├── policy/                          # T2 config, versioned and reviewed
 ├── src/fandea/
 │   ├── graph/                 # engine: registry, router, checkpoints, budgets, fan-out
@@ -265,7 +266,8 @@ established" on real traffic still passes M4.
 - Auto-promotion on the shadow thresholds; quarantine on consecutive field failures.
 - **Bounded active set** per task class with `benched` as a reversible state, incumbent-displacement
   grace periods, and `active_cap_pressure` tracking.
-- **Contribution estimates** against the M4 control baselines, with Wilson intervals.
+- **Contribution estimates** from randomized shadow versus suppression (separate from class-level
+  retrieval ablation), with Wilson/Newcombe intervals.
 - **Retirement** on `estimate <= -retirement_threshold` past `evidence_floor`, ledger-recorded, with
   parents of a benched child marked `needs_recert`.
 - Curation prior in ranking; higher evidence bar for `self_distilled` promotion.
@@ -319,8 +321,8 @@ rather than split anyway.
 - **Curator:** active-set recomputation and retirement first, then extract-child, split,
   tighten-precondition, merge, compact. Deduplication is last because a consistent authoring prior
   largely subsumes it ([`references.md`](references.md) §1.2).
-- **Step-graph proposals:** `parallelise` removes edges that failed the fake-edge test across ≥5
-  runs; `serialise` adds edges or widens claims after repeated merge failures or conflicts. Both
+- **Step-graph proposals:** `parallelise` removes unused `input_bindings` across ≥5 runs;
+  `serialise` adds bindings or widens claims after repeated merge failures or conflicts. Both
   are ordinary versioned diffs behind the golden-set gate, which is what makes concurrency a
   learned property of a skill rather than a guess the distiller made once.
 - **Practice:** curriculum targeting `predicted_success ∈ [0.2, 0.8]`, fed by one-off clusters
@@ -405,7 +407,7 @@ Three ordering constraints are worth stating, because getting them backwards is 
 | Layer | Approach |
 | --- | --- |
 | Unit | Nodes as pure `(state) -> (delta, route)` functions with fake services |
-| Property | Hypothesis over the state machine: budgets never exceeded, no unbounded cycles, no retry on a dirty workspace, `results_history` monotonic |
+| Property | Hypothesis-style state-machine checks where added: budgets never exceeded, no unbounded cycles, no retry on a dirty workspace, `results_history` monotonic |
 | Contract | Every `skills/**/*.json` and `facts/**/*.json` validated in CI; placeholder binding and `uses` acyclicity checked |
 | Boundary | Import-graph test proving run and job code cannot reach T3 modules |
 | Replay | Recorded transcripts drive nodes deterministically, no live models |
@@ -419,7 +421,8 @@ budget; no `approved` skill has only `judge` criteria; every required criterion 
 proof; every `loop` has `max_iterations`; the `uses` graph is acyclic with depth ≤ 3; eval
 fixtures never appear in skill provenance; `ablation_rate` is unreachable from run and job code;
 `active_cap` and `retirement_threshold` are finite and non-zero; no retirement occurs below the
-evidence floor; every step's `depends_on` resolves within an acyclic graph; every `judge`
+evidence floor; every step's `input_bindings` resolve to declared predecessor outputs within an
+acyclic graph; every `judge`
 criterion is `fresh_context` and every judge result carries a context hash containing no
 transcript content; no step wave contains two conflicting claims; every fan-in emits a merge
 audit; and no synthesis executes on an audit with missing inputs. Per this refactor
@@ -460,5 +463,6 @@ backends, store driver-swap (SQLite + Postgres/pgvector dialect), vector index A
 (sqlite-vec when loaded), FastAPI surface, blob store, OTel JSONL export + dashboard JSON,
 skill scope promotion, layered fan-in, practice curricula, and second-domain lift reporting.
 
-Remaining work is optional hygiene (R4 doc split), secondary debt S1/S2/S4/S5, and research
-outcomes in [`assumptions.md`](assumptions.md) under real traffic.
+R0–R4 and secondary debt S1/S2/S4/S5 are done. Remaining work is research outcomes in
+[`assumptions.md`](assumptions.md) under real traffic, plus live-system soak (Docker/Postgres)
+outside offline CI.

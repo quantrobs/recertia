@@ -18,13 +18,13 @@ Tracked per task class over library snapshots:
 | `abstention_precision` | Were abstentions actually the unsolvable ones |
 | `recert_pass_rate` | Is the library rotting |
 | `mean_composition_depth` | Is abstraction happening, or is the library just growing |
-| `skill_contribution` | Per-skill lift over the control baseline; the retirement input (§7.2) |
+| `skill_contribution` | Per-skill shadow−suppression lift; the retirement input (§7.2) |
 | `active_cap_pressure` | Share of task classes at their cap; high pressure means value is being benched by competition |
 | `retirement_reversal_rate` | Benched skills later restored; a high rate means retirement is too aggressive |
 | `curation_gap` | First-attempt success of human-authored and mined skills minus self-distilled ones; tests the SkillsBench finding in our domain |
 | `merge_gap_rate` | Fan-ins that lost an input; the number that says whether parallelism is honest |
 | `parallel_speedup` | Serial step time over observed wall clock, per skill; the only justification for step graphs |
-| `fake_edge_rate` | Declared dependencies that carry no data; how much latency the distiller invents |
+| `fake_edge_rate` | Declared bindings whose bound inputs go unused at runtime; leftover serialisation after store-time edges are data-carrying |
 | `judge_isolation_violations` | Judge invocations that saw solver reasoning; a release blocker at any value above zero |
 
 A library change that raises size without moving `first_attempt_success`, `causal_lift`, or

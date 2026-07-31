@@ -90,3 +90,60 @@ def test_run_reports_unreservable_portfolio_budget_without_routing_error(tmp_pat
     assert "terminal=unsolved" in result.output
     assert "failure_class=budget" in result.output
     assert "RoutingError" not in result.output
+
+
+def test_skills_promote_via_cli(tmp_path: Path) -> None:
+    from fandea.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft
+    from fandea.memory.procedural.store import SkillStore
+
+    version = next(s for s in SEED_SKILLS if s.skill_id == "add-gitignore-entry")
+    # Golden gate requires hashed rejecting sensitivity evidence on certification criteria.
+    criteria = []
+    for c in version.certification_criteria:
+        proof = c.sensitivity_proof
+        if proof is not None and proof.evidence_hash is None:
+            proof = proof.model_copy(update={"evidence_hash": "sha256:test-promote-evidence"})
+        criteria.append(c.model_copy(update={"sensitivity_proof": proof}))
+    version = version.model_copy(update={"certification_criteria": criteria})
+
+    store = SkillStore(tmp_path / "skills")
+    store.write_version(version)
+    store.write_status(seed_status_draft(version))
+    store.write_stats(seed_stats(version))
+
+    golden = tmp_path / "golden"
+    (golden / "workspace").mkdir(parents=True)
+    (golden / "workspace" / ".gitignore").write_text("*.egg-info/\n.venv/\n")
+    (golden / "task.json").write_text(
+        json.dumps(
+            {
+                "request": "Add *.pyc to the repository .gitignore",
+                "task_class": "repo-chore",
+                "expected_skill_id": "add-gitignore-entry",
+            }
+        )
+        + "\n"
+    )
+    (golden / "expect.json").write_text(json.dumps({"terminal": "solved"}) + "\n")
+
+    result = runner.invoke(
+        app,
+        [
+            "skills",
+            "promote",
+            "add-gitignore-entry",
+            "--version",
+            "1",
+            "--skills-root",
+            str(tmp_path / "skills"),
+            "--golden-dir",
+            str(golden),
+            "--runs-root",
+            str(tmp_path / "runs"),
+            "--log-dir",
+            str(tmp_path / "logs"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "lifecycle=approved" in result.output
+    assert store.get_status("add-gitignore-entry", 1).lifecycle == "approved"

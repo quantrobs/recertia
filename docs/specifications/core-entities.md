@@ -23,8 +23,8 @@ The immutability of `SkillVersion` is the load-bearing rule. Evolution MUST prod
 version `N+1` with `supersedes: N`; nothing may edit version `N` in place. Rollback is
 therefore always available and always cheap. That rule now applies to a document that holds
 **only** identity, intent, steps, certification criteria, provenance, and the one-time hygiene
-gate — `lifecycle`, `active`, `trust`, and `contribution` live on `SkillStatus` and `SkillStats`
-instead, which change on their own cadence without violating anything (ADR-0007).
+gate — `lifecycle`, `active`, `predictive_trust`, and `contribution` live on `SkillStatus` and
+`SkillStats` instead, which change on their own cadence without violating anything (ADR-0007).
 
 ## 2. Skill contracts
 
@@ -60,17 +60,32 @@ Canonical form is JSON at `skills/<skill_id>/v<version>/version.json`, validated
   ],
   "preconditions": [
     { "kind": "file_exists", "value": "pyproject.toml" },
-    { "kind": "command_succeeds", "value": "python -c 'import tomllib'" }
+    { "kind": "probe", "value": "python_module_available",
+      "arguments": { "module": "tomllib" } }
   ],
   "steps": [
-    { "id": "locate", "tool": "grep", "intent": "Find the current pin for {{package}}.", "depends_on": [] },
+    { "id": "locate", "tool": "grep", "intent": "Find the current pin for {{package}}.",
+      "outputs": [{ "name": "current_pin", "type": "string", "value_from": "stdout" }] },
     { "id": "changelog", "tool": "fetch", "intent": "Read the upstream changelog for breaking changes.",
-      "depends_on": [], "resources": [{ "kind": "rate_limit", "id": "pypi", "mode": "write" }] },
+      "outputs": [{ "name": "notes", "type": "string", "value_from": "stdout" }],
+      "resources": [{ "kind": "rate_limit", "id": "pypi", "mode": "write" }] },
     { "id": "edit", "tool": "edit_file", "intent": "Raise the pin to {{target_version}}.",
-      "depends_on": ["locate"], "resources": [{ "kind": "file", "id": "pyproject.toml", "mode": "write" }] },
-    { "id": "sync", "tool": "shell", "intent": "Regenerate the lockfile.", "depends_on": ["edit"] },
-    { "id": "repair", "tool": "agent_subtask", "intent": "Fix breakage surfaced by the type checker and tests.",
-      "depends_on": ["sync", "changelog"],
+      "input_bindings": [
+        { "input": "current_pin", "source_step": "locate", "output": "current_pin" }
+      ],
+      "outputs": [{ "name": "changed", "type": "number", "value_from": "exit_code" }],
+      "resources": [{ "kind": "file", "id": "pyproject.toml", "mode": "write" }] },
+    { "id": "sync", "tool": "shell", "intent": "Regenerate the lockfile.",
+      "input_bindings": [
+        { "input": "changed", "source_step": "edit", "output": "changed" }
+      ],
+      "outputs": [{ "name": "synced", "type": "number", "value_from": "exit_code" }] },
+    { "id": "repair", "tool": "agent_subtask",
+      "intent": "Fix breakage surfaced by the type checker and tests.",
+      "input_bindings": [
+        { "input": "sync_status", "source_step": "sync", "output": "synced" },
+        { "input": "changelog", "source_step": "changelog", "output": "notes" }
+      ],
       "loop": { "until": "criteria_pass", "max_iterations": 3 } }
   ],
   "certification_criteria": [
@@ -137,20 +152,24 @@ always rebuilt from the run store. Losing this record is a rebuild, not a data-l
 {
   "skill_id": "bump-python-dep",
   "version": 3,
-  "trust": { "applications": 14, "successes": 12, "last_used_at": "2026-07-30T15:22:11Z",
-             "lift_estimate": 0.22, "lift_samples": 9 },
-  "contribution": { "applications": 14, "successes": 12, "baseline_success": 0.55,
-                     "interval_low": 0.02, "interval_high": 0.38,
-                     "last_evaluated_at": "2026-07-30T15:22:11Z" }
+  "predictive_trust": { "applications": 14, "successes": 12,
+                        "last_used_at": "2026-07-30T15:22:11Z" },
+  "contribution": { "applications": 14, "successes": 12,
+                    "suppressed_applications": 9, "suppressed_successes": 5,
+                    "interval_low": 0.02, "interval_high": 0.38,
+                    "last_evaluated_at": "2026-07-30T15:22:11Z" }
 }
 ```
 
-`trust.score` is not stored: it is derived on read, `(successes + 1) / (applications + 2)`, so a
-single lucky application cannot mint a high-trust skill (`0.8125` for the values above). Trust is
-reported alongside `lift_estimate`, since a ratio is not causal evidence (§19).
-`contribution.estimate` is likewise derived: `successes/applications - baseline_success`, or
-`null` when `applications == 0` or `baseline_success` is unset — see §24.2 for when `null` is the
-only honest answer.
+`predictive_trust.score` is not stored: it is derived on read,
+`(successes + 1) / (applications + 2)`, so a single lucky application cannot mint a high-trust
+skill (`0.8125` for the values above). Predictive trust is calibration, not a causal effect —
+class-level retrieval lift lives on `RetrievalAblationEffect` (§19 / §24.2), and per-skill
+retirement input lives on `contribution`.
+`contribution.estimate` is derived:
+`successes/applications − suppressed_successes/suppressed_applications`, or `null` when either
+arm lacks observations — see §24.2 for when `null` is the only honest answer. A task-class
+control baseline MUST NOT be subtracted here: selection into a particular skill is not random.
 
 ### 2.4 Field rules
 
@@ -158,12 +177,15 @@ only honest answer.
   with only model-judged criteria MUST NOT reach `approved`.
 - `steps[].loop.max_iterations` MUST be present when `loop` is present. Unbounded step
   loops are invalid.
-- `steps[].depends_on` MUST reference existing step ids and MUST form a DAG. A dependency is
-  valid only when the step consumes the referenced step's output; ordering-only edges are
-  invalid (§26.1).
+- Step dependencies are derived exclusively from `steps[].input_bindings`. Each binding MUST
+  name an existing predecessor step and an output that predecessor declares; the resulting graph
+  MUST be a DAG. Free-floating ordering edges (`depends_on` as authoring input) are invalid —
+  edges are data-carrying by construction (§26.1).
 - `certification_criteria[].isolation` MUST be `fresh_context` for `judge` criteria (§26.3).
 - `preconditions` are evaluated by `retrieve` **before** a candidate is offered to `plan`.
-  A candidate failing any precondition MUST be dropped, not down-ranked.
+  A candidate failing any precondition MUST be dropped, not down-ranked. Allowed kinds are
+  `file_exists`, `path_glob`, `env_present`, `tool_available`, and registered read-only `probe`
+  entries — never arbitrary shell via a `command_succeeds` kind (§5).
 - `parameters[].name` MUST match every `{{placeholder}}` used in `steps` and
   `certification_criteria`; unbound placeholders are a validation error at store time.
 - Required certification criteria (`weight >= 1.0`) MUST carry a valid `sensitivity_proof` to
@@ -193,7 +215,7 @@ and terminal `quarantined`. All transitions are `SkillStatus` events, never edit
 | `draft`, `candidate` | No | Awaiting validation or promotion |
 | `shadow` | Comparison only | MUST NOT affect the caller's result |
 | `approved` **and** in the active set | Yes | The only state eligible for direct application |
-| `benched` | No | Retained in full with history; reversible (§24) |
+| `benched` | No (active retrieval) | Eligible for bounded offline shadow/exploration slots (§24.1); reversible |
 | `needs_recert` | No | Until recertification passes |
 | `deprecated`, `quarantined` | No | Terminal |
 

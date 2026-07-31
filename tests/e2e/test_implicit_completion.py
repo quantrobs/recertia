@@ -13,8 +13,6 @@ from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.fact import Fact, FactProvenance
 from contracts.run import RunState, Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
-from contracts.stats import SkillStats
-from contracts.status import SkillStatus
 from fandea.api import create_app
 from fandea.evals.second_domain import research_synthesis_lift, second_domain_fixture_ready
 from fandea.graph.ops import OperationLedger
@@ -26,6 +24,7 @@ from fandea.jobs.workers import (
 )
 from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.promote import promote_to_approved
+from fandea.memory.procedural.seeds import seed_approved_for_tests
 from fandea.memory.procedural.store import SkillStore
 from fandea.memory.scope import (
     promote_fact_scope,
@@ -159,9 +158,7 @@ def test_skill_scope_promotion_and_tenant_isolation(tmp_path: Path) -> None:
     facts = FactStore(tmp_path / "facts")
     ledger = HashChainLedger(tmp_path / "ledger.jsonl")
     v = _skill("scoped-skill", scope="project")
-    store.write_version(v)
-    store.write_status(SkillStatus(skill_id="scoped-skill", version=1, lifecycle="approved", active=True))
-    store.write_stats(SkillStats(skill_id="scoped-skill", version=1))
+    seed_approved_for_tests(store, v, active=True)
     stamped, rec = promote_skill_scope(store, v, to_scope="org", reviewer="alice", ledger=ledger)
     assert stamped.scope == "org"
     assert stamped.version == 2
@@ -195,10 +192,19 @@ def test_fastapi_health_runs_blobs_dashboard(tmp_path: Path, monkeypatch) -> Non
     headers = {"X-API-Key": issued.secret}
     assert client.get("/health").json()["status"] == "ok"
     created = client.post(
-        "/v1/runs", json={"request": "do chore", "task_class": "repo-chore"}, headers=headers
+        "/v1/runs",
+        json={
+            "request": "do chore",
+            "task_class": "repo-chore",
+            "budget": {"max_attempts": 1},
+            "script": ["true"],
+        },
+        headers=headers,
     )
     assert created.status_code == 200
-    run_id = created.json()["run_id"]
+    payload = created.json()
+    run_id = payload["run_id"]
+    assert payload.get("terminal") is not None
     assert client.get(f"/v1/runs/{run_id}", headers=headers).status_code == 200
     put = client.post(
         "/v1/blobs", json={"data": "snap", "content_type": "text/plain"}, headers=headers
@@ -246,9 +252,8 @@ def test_practice_curriculum_and_miner_then_golden_promote(tmp_path: Path) -> No
     mined = mine_from_repo_hints(store, hints=["Add CI workflow from HISTORY"])
     draft = draft_from_mine_proposal(mined[0])
     runner = JobRunner(store, golden_root=None)
-    with pytest.raises(Exception, match="cannot write approved"):
-        runner.submit_proposal(mined[0], draft)
-    # Candidate was written by submit before the raise; promote via golden gate.
+    result = runner.submit_proposal(mined[0], draft)
+    assert result.startswith("candidate:")
     assert store.get_status(draft.skill_id, 1).lifecycle == "candidate"
 
     # External golden-gate path: fixture for this mined skill, then promote succeeds.

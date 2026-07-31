@@ -7,9 +7,15 @@ import pytest
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.status import SkillStatus
 from fandea.memory.procedural.hygiene import require_clean, scan_skill
-from fandea.memory.procedural.seeds import add_gitignore_entry, seed_stats, seed_status_draft
-from fandea.memory.procedural.store import ImmutabilityError, SkillStore
+from fandea.memory.procedural.seeds import (
+    add_gitignore_entry,
+    seed_approved_for_tests,
+    seed_stats,
+    seed_status_draft,
+)
+from fandea.memory.procedural.store import ApprovedLifecycleError, ImmutabilityError, SkillStore
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -81,3 +87,44 @@ def test_round_trip_status_stats(tmp_path: Path) -> None:
     store.write_stats(seed_stats(v))
     assert store.get_version(v.skill_id, v.version).title == v.title
     assert store.get_status(v.skill_id, v.version).lifecycle == "draft"
+
+
+def test_write_candidate_writes_version_status_stats(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    v = _minimal_version("cand-skill")
+    store.write_candidate(v)
+    assert store.get_status("cand-skill", 1).lifecycle == "candidate"
+    assert store.get_status("cand-skill", 1).active is False
+    assert store.get_stats("cand-skill", 1).skill_id == "cand-skill"
+
+
+def test_write_status_rejects_approved_transition(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    v = _minimal_version("gate-skill")
+    store.write_candidate(v)
+    with pytest.raises(ApprovedLifecycleError, match="promote_to_approved"):
+        store.write_status(
+            SkillStatus(skill_id="gate-skill", version=1, lifecycle="approved", active=True)
+        )
+    assert store.get_status("gate-skill", 1).lifecycle == "candidate"
+
+
+def test_seed_approved_for_tests_bypasses_gate(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    v = _minimal_version("seed-approved")
+    status = seed_approved_for_tests(store, v, active=True)
+    assert status.lifecycle == "approved"
+    assert store.get_status("seed-approved", 1).active is True
+    # Already-approved updates (e.g. active toggle) remain allowed.
+    store.write_status(
+        SkillStatus(skill_id="seed-approved", version=1, lifecycle="approved", active=False)
+    )
+    assert store.get_status("seed-approved", 1).active is False
+
+
+def test_write_candidate_skips_existing_version(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    v = _minimal_version("prewritten")
+    store.write_version(v)
+    store.write_candidate(v)
+    assert store.get_status("prewritten", 1).lifecycle == "candidate"

@@ -26,7 +26,7 @@ from contracts.skill import (
     StepLoop,
     StepOutput,
 )
-from contracts.stats import Contribution, PredictiveTrust, SkillStats
+from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
 from contracts.status import Certification, SkillStatus
 
 _NOW = datetime(2026, 7, 30, 15, 22, 11, tzinfo=timezone.utc)
@@ -206,4 +206,19 @@ def bump_python_dep_stats() -> SkillStats:
             interval_high=0.38,
             last_evaluated_at=_NOW,
         ),
+    )
+
+
+def repo_chore_retrieval_ablation() -> RetrievalAblationEffect:
+    """Class-level retrieval effect companion to ``bump_python_dep_stats`` (S4 separation)."""
+
+    return RetrievalAblationEffect(
+        task_class="repo-chore",
+        retrieval_enabled=40,
+        retrieval_enabled_successes=28,
+        retrieval_suppressed=40,
+        retrieval_suppressed_successes=20,
+        interval_low=0.02,
+        interval_high=0.38,
+        last_evaluated_at=_NOW,
     )
