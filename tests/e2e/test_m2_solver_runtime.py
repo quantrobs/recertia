@@ -11,8 +11,7 @@ from contracts.criteria import SensitivityProof, SkillCertificationCriterion, Ta
 from contracts.resources import ResourceClaim
 from contracts.run import Task
 from contracts.skill import Hygiene, InputBinding, Provenance, SkillVersion, Step, StepOutput
-from contracts.stats import SkillStats
-from contracts.status import Certification, SkillStatus
+from contracts.status import Certification
 from fandea.governance.sandbox import ApprovalGate
 from fandea.graph.engine import GraphOrchestrator
 from fandea.memory.affordance import AffordanceStore
@@ -96,21 +95,21 @@ def _skill(
 
 
 def _approve(store: SkillStore, version: SkillVersion) -> None:
-    store.write_version(version)
-    status = assign_active_on_approval(
-        SkillStatus(
-            skill_id=version.skill_id,
-            version=version.version,
-            lifecycle="approved",
-            certification=Certification(
-                model_validated_on="m2-test",
-                tool_fingerprint={"python": "3.12"},
-                recert_status="fresh",
-            ),
-        )
+    from fandea.memory.procedural.seeds import seed_approved_for_tests
+
+    seed_approved_for_tests(
+        store,
+        version,
+        active=True,
+        certification=Certification(
+            model_validated_on="m2-test",
+            tool_fingerprint={"python": "3.12"},
+            recert_status="fresh",
+        ),
     )
+    # Ensure active assignment matches prior helper behavior.
+    status = assign_active_on_approval(store.get_status(version.skill_id, version.version))
     store.write_status(status)
-    store.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
 
 
 def _m2_stack(tmp_path: Path, store: SkillStore | None = None):

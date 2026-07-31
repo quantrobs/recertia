@@ -13,10 +13,18 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if signal is None:
         raise ValueError("classify_failure requires a FailureSignal on the run state (ADR-0008)")
 
-    if state.spent.attempts >= state.budget.max_attempts or "budget exhausted" in signal.detail:
+    if (
+        signal.class_hint == "budget"
+        or state.spent.attempts >= state.budget.max_attempts
+        or "budget exhausted" in signal.detail
+    ):
         evidence = (
-            f"spent.attempts={state.spent.attempts} >= "
-            f"budget.max_attempts={state.budget.max_attempts}"
+            signal.detail
+            if signal.class_hint == "budget" or "budget exhausted" in signal.detail
+            else (
+                f"spent.attempts={state.spent.attempts} >= "
+                f"budget.max_attempts={state.budget.max_attempts}"
+            )
         )
         failure = FailureVerdict(
             failure_class="budget",

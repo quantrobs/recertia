@@ -22,15 +22,31 @@ reported with the failing task ids.
 
 ## 9. HTTP API
 
-Versioned under `/v1`. JSON only. All mutating calls accept `Idempotency-Key`.
+Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `blobs`, `metrics`, `admin`).
+
+### Implemented (offline)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/v1/runs` | Submit a task; returns `run_id` (async by default) |
-| `GET` | `/v1/runs/{run_id}` | Status, terminal state, route log, spend |
+| `GET` | `/health` | Liveness |
+| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync, offline; same path as `fandea run`). Body: `request`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Returns terminal state + `route_log`. |
+| `GET` | `/v1/runs/{run_id}` | Status / terminal / route log (memory + checkpoint fallback) |
+| `POST` | `/v1/runs/{run_id}/resume` | Resume from last checkpoint |
+| `POST` | `/v1/blobs` · `GET` `/v1/blobs/{digest}` | Content-addressed blob put/get |
+| `GET` | `/v1/metrics/dashboard` | Telemetry dashboard panels |
+
+`POST /v1/runs` is **not** enqueue-only: it drives the graph to a terminal (or error) before responding.
+
+### CLI-only today (not yet HTTP)
+
+`fandea skills search`, `fandea skills promote`, `fandea lift`, `fandea ledger verify` — use the CLI. Lift and skills search are intentionally not duplicated on HTTP yet.
+
+### Aspirational (not implemented)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
 | `GET` | `/v1/runs/{run_id}/transcript` | Structured transcript |
 | `POST` | `/v1/runs/{run_id}/cancel` | Cooperative cancel at next node boundary |
-| `POST` | `/v1/runs/{run_id}/resume` | Resume from last checkpoint |
 | `GET` | `/v1/skills` | List/filter by `task_class`, `lifecycle`, `tag` |
 | `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full skill version |
 | `POST` | `/v1/skills/search` | Retrieval debug endpoint: scores and drop reasons |
@@ -45,10 +61,7 @@ Versioned under `/v1`. JSON only. All mutating calls accept `Idempotency-Key`.
 | `GET` | `/v1/policy` · `POST` `/v1/policy/proposals` | Read policy config; propose a T2 change, which requires human approval (§22) |
 | `GET` | `/v1/ledger/verify` | Verify the integrity chain (§21) |
 
-`POST /v1/skills/search` is not a convenience: retrieval is the primary failure surface,
-so its scores and drop reasons must be inspectable without running a task.
-
-Error envelope:
+Error envelope (target shape; current handlers may return FastAPI `{detail: ...}`):
 
 ```json
 { "error": { "code": "budget_exhausted", "message": "...", "run_id": "01JD...", "retryable": false } }
@@ -56,30 +69,39 @@ Error envelope:
 
 ## 10. CLI
 
+### Implemented
+
 ```bash
-fandea run "Bump requests to 2.32 and fix fallout"   # submit + stream
-fandea run --file task.yaml --budget attempts=6
-fandea runs show <run_id> [--route-log] [--transcript]
+fandea run --spec task.json [--runs-root .fandea] [--run-id ...] [--ablation]
+fandea resume <run_id> [--runs-root .fandea] [--spec task.json]
+fandea runs show <run_id> [--route-log]
+fandea skills lint [--skills-root skills]
+fandea skills search "dependency bump" --explain
+fandea skills promote <skill_id> --version N --golden-dir PATH
+# or: --golden-root PATH [--require-task-class-gate]
+fandea ledger verify [--runs-root .fandea]
+fandea lift --task-class repo-chore
+fandea keys issue|revoke|list
+```
+
+### Aspirational (not implemented)
+
+```bash
 fandea skills list [--task-class repo-chore] [--lifecycle candidate]
 fandea skills show bump-python-dep@3
-fandea skills search "dependency bump" --explain      # scores + drop reasons
-fandea skills lint                                    # schema + placeholder binding
 fandea review queue
 fandea review approve <decision_id> --note "..."
 fandea eval run --task-class repo-chore --snapshot HEAD
 fandea metrics --task-class repo-chore --compare HEAD~5..HEAD
-
 fandea memory query "dependency bump" --planes skills,facts,cases --explain
 fandea facts list --scope project
-fandea cases show <case_id>                           # includes dead ends
-fandea jobs run curator --dry-run                     # proposals only, never promotes
+fandea cases show <case_id>
+fandea jobs run curator --dry-run
 fandea jobs run practice --task-class repo-chore --budget cost=5.00
 fandea jobs run recertify --stale-days 30
 fandea proposals queue
 fandea policy show
 fandea policy propose retrieval.min_score=0.60 --eval-compare
-fandea ledger verify
-fandea lift --task-class repo-chore                   # treatment vs control (§19)
 ```
 
 ## 11. Metrics definitions

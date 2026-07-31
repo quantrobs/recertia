@@ -116,7 +116,10 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
     exhausted = budget_excess(state.budget, spent, BudgetReservation(), BudgetReservation())
     if exhausted is not None:
         signal = FailureSignal(
-            source="solver", detail=f"parent budget exceeded by branches: {exhausted}", at=now()
+            source="solver",
+            detail=f"parent budget exceeded by branches: {exhausted}",
+            at=now(),
+            class_hint="budget",
         )
         new_state = state.model_copy(
             update={
@@ -270,19 +273,19 @@ def _solve_script_via_tools(
         else None
     )
     for op_seq, command in enumerate(script):
-        if state.spent.tool_calls + op_seq >= state.budget.max_tool_calls:
+        requested = BudgetReservation(tool_calls=op_seq + 1)
+        exhausted = budget_excess(state.budget, state.spent, state.reserved, requested)
+        if exhausted is not None:
             signal = FailureSignal(
                 source="solver",
-                detail=(
-                    "budget exhausted before tool dispatch: "
-                    f"max_tool_calls={state.budget.max_tool_calls}"
-                ),
+                detail=f"budget exhausted before tool dispatch: {exhausted}",
                 at=now(),
+                class_hint="budget",
             )
             return NodeOutcome(
                 state=state.model_copy(update={"failure_signal": signal}),
                 route="pre_validation_failure_signal",
-                note="tool-call budget exhausted",
+                note=f"tool-call budget exhausted: {exhausted}",
             )
         def _run(cmd: str = command, seq: int = op_seq) -> dict:
             if writer:

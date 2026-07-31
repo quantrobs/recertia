@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from contracts.eval import BinomialSample, MetricReport
+from contracts.skill import SkillVersion
+from fandea.evals.fake_edges import fake_edge_checks as derive_fake_edge_checks
 from fandea.evals.statistics import brier_score, causal_lift, mean, rate
 
 
@@ -26,6 +28,8 @@ def build_metric_report(
     merge_audits: Sequence[dict[str, Any]] | None = None,
     step_waves: Sequence[dict[str, Any]] | None = None,
     fake_edge_checks: Sequence[bool] | None = None,
+    skill: SkillVersion | None = None,
+    transcripts: Sequence[dict[str, Any]] | None = None,
     judge_isolation_violations: int = 0,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
@@ -107,13 +111,18 @@ def build_metric_report(
         unavailable["parallel_speedup"] = "no step_waves supplied"
 
     fake = None
-    if fake_edge_checks is not None:
-        if not fake_edge_checks:
+    checks = list(fake_edge_checks) if fake_edge_checks is not None else None
+    if checks is None and skill is not None and transcripts is not None:
+        checks = []
+        for transcript in transcripts:
+            checks.extend(derive_fake_edge_checks(skill, transcript))
+    if checks is not None:
+        if not checks:
             fake = 0.0
         else:
-            fake = sum(1 for ok in fake_edge_checks if not ok) / len(fake_edge_checks)
+            fake = sum(1 for ok in checks if not ok) / len(checks)
     else:
-        unavailable["fake_edge_rate"] = "typed edge binding not yet available (refactor-plan)"
+        unavailable["fake_edge_rate"] = "no fake edge observations supplied"
 
     return MetricReport(
         snapshot_id=snapshot_id,

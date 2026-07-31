@@ -114,24 +114,14 @@ class ReviewService:
 
     def _run_gate(self, version: SkillVersion) -> "GoldenReport":
         # Lazy import: fandea.evals.golden imports GraphOrchestrator, which imports nodes/review.
-        from fandea.evals.golden import GoldenReport, run_golden_for_skill, run_task_class_gate
+        from fandea.evals.golden import select_and_run_gate
 
         assert self.golden_root is not None
-        report = GoldenReport()
-        skill_dir = self.golden_root / version.task_class / version.skill_id
-        if skill_dir.is_dir() and (skill_dir / "task.json").exists():
-            report.results.append(
-                run_golden_for_skill(version, skill_dir, runs_root=self.runs_root)
-            )
-            return report
-        if (self.golden_root / version.task_class / ".full_class").exists():
-            return run_task_class_gate(
-                version,
-                self.golden_root,
-                runs_root=self.runs_root,
-                task_class=version.task_class,
-            )
-        return report
+        return select_and_run_gate(
+            version,
+            golden_root=self.golden_root,
+            runs_root=self.runs_root,
+        )
 
     def _write_decision(
         self,

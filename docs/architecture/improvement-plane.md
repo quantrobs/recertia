@@ -34,13 +34,12 @@ skills (§6), **splitting** overloaded skills whose criteria fail in uncorrelate
 **tightening** preconditions that produced wrong retrievals, **merging** near-duplicates, and
 **compacting** version chains. Every proposal is a diff, gated by the golden-set regression run.
 
-Two proposals act on step graphs rather than skill content. **Parallelise** removes a
-`depends_on` edge that failed the fake-edge test across repeated runs — the later step never
-read the earlier step's output and their claims do not overlap. **Serialise** does the
-reverse, adding an edge or widening a claim after repeated merge failures or resource
-conflicts on the same wave. This is the loop that makes concurrency a learned property: the
-distiller writes edges conservatively from a single transcript, and the Curator relaxes or
-tightens them once many runs have shown which orderings were real.
+Two proposals act on step graphs rather than skill content. **Parallelise** removes an
+`input_bindings` entry whose bound input was unused across repeated runs — and whose steps'
+claims do not overlap. **Serialise** does the reverse, adding a binding or widening a claim
+after repeated merge failures or resource conflicts on the same wave. This is the loop that
+makes concurrency a learned property: the distiller writes bindings from a single transcript,
+and the Curator relaxes or tightens them once many runs have shown which consumptions were real.
 
 Deduplication sits late in that list deliberately: with a consistent authoring prior in place,
 explicit deduplication was found to be largely subsumed by the prior itself

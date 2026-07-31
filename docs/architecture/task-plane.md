@@ -112,9 +112,10 @@ Two kinds of fan-out, with different join semantics:
 Decomposition is the "diamond" — fan out, reduce, synthesise — and it was missing from the
 first draft, which could only race strategies against each other, never split work
 ([`references.md`](../references.md) §1.7). The test for whether a split is legitimate is the
-**fake-edge test**: a dependency is real only if the later step consumes what the earlier one
-produced. Steps ordered merely because someone wrote them in that order are sequential for no
-reason, and that ordering is usually where latency hides (§6.1).
+same as for skill steps: a dependency is real only if the later unit consumes what the earlier
+one produced. Store-time `input_bindings` make that structural for skill DAGs; steps ordered
+merely because someone wrote them in that order are sequential for no reason, and that ordering
+is usually where latency hides (§6.1).
 
 Constraints on both kinds: branches get disjoint workspaces **and** non-overlapping write
 claims on shared resources (§5.6), the parent budget is divided rather than multiplied, `join`

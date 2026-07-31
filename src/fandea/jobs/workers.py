@@ -7,8 +7,10 @@ from pathlib import Path
 
 from contracts.criteria import SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from fandea.evals.store import EvalStore
 from fandea.jobs import Proposal
 from fandea.memory.procedural.store import SkillStore
+from fandea.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
 from fandea.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
 
 
@@ -97,20 +99,7 @@ def enqueue_mined_candidate(store: SkillStore, proposal: Proposal) -> SkillVersi
     """Persist a mined draft as ``candidate`` only — promotion stays behind the golden gate."""
 
     draft = draft_from_mine_proposal(proposal)
-    store.write_version(draft)
-    from contracts.stats import SkillStats
-    from contracts.status import SkillStatus
-
-    store.write_status(
-        SkillStatus(
-            skill_id=draft.skill_id,
-            version=draft.version,
-            lifecycle="candidate",
-            active=False,
-        )
-    )
-    store.write_stats(SkillStats(skill_id=draft.skill_id, version=draft.version))
-    return draft
+    return store.write_candidate(draft)
 
 
 
@@ -132,8 +121,80 @@ def recertify_stale(store: SkillStore, *, tool_upgraded: str | None = None) -> l
     return proposals
 
 
-def propose_parallelise(skill_id: str, version: int, *, fake_edge_failures: int) -> list[Proposal]:
-    if fake_edge_failures < 5:
+def schedule_shadow_evaluations(
+    store: SkillStore,
+    *,
+    eval_store: EvalStore | None = None,
+    config: AutonomyConfig | None = None,
+    snapshot_id: str = "shadow-job",
+) -> list[Proposal]:
+    """Job wrapper: bounded offline shadow slots with no caller-visible side effects."""
+
+    from fandea.review.shadow import schedule_shadow_slots
+
+    cfg = config or DEFAULT_AUTONOMY
+    results = schedule_shadow_slots(
+        store, eval_store=eval_store, config=cfg, snapshot_id=snapshot_id
+    )
+    return [
+        Proposal(
+            kind="curate",
+            skill_id=result.skill_id,
+            version=result.version,
+            rationale=(
+                f"offline shadow slot {'passed' if result.success else 'failed'}; "
+                "not visible to callers"
+            ),
+            payload={
+                "shadow": True,
+                "success": result.success,
+                "visible_to_caller": result.visible_to_caller,
+                "run_id": result.run_id,
+            },
+        )
+        for result in results
+    ]
+
+
+def propose_parallelise(
+    skill_id: str,
+    version: int,
+    *,
+    fake_edge_failures: int | None = None,
+    skill: SkillVersion | None = None,
+    transcripts: list[dict] | None = None,
+    threshold: int = 5,
+) -> list[Proposal]:
+    """Propose removing input bindings that failed the fake-edge test (≥``threshold`` runs).
+
+    Prefer deriving failure counts from ``skill`` + historical ``transcripts`` when supplied;
+    otherwise use an explicit ``fake_edge_failures`` total.
+    """
+
+    from fandea.evals.fake_edges import edges_failing_threshold, fake_edge_failure_count
+
+    remove: list[dict[str, str]] = []
+    if skill is not None and transcripts is not None:
+        failing = edges_failing_threshold(skill, transcripts, threshold=threshold)
+        if not failing:
+            return []
+        remove = [
+            {
+                "consumer_step": edge.consumer_step,
+                "source_step": edge.source_step,
+                "output": edge.output,
+                "input": edge.binding.input,
+            }
+            for edge in failing
+        ]
+        fake_edge_failures = fake_edge_failure_count(skill, transcripts)
+    elif fake_edge_failures is None:
+        return []
+    elif fake_edge_failures < threshold:
+        return []
+
+    assert fake_edge_failures is not None
+    if fake_edge_failures < threshold and not remove:
         return []
     return [
         Proposal(
@@ -141,7 +202,11 @@ def propose_parallelise(skill_id: str, version: int, *, fake_edge_failures: int)
             skill_id=skill_id,
             version=version + 1,
             rationale=f"remove fake edges after {fake_edge_failures} failures",
-            payload={"remove_input_binding": True},
+            payload={
+                "remove_input_binding": True,
+                "bindings": remove,
+                "fake_edge_failures": fake_edge_failures,
+            },
         )
     ]
 

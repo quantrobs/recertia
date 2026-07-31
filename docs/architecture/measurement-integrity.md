@@ -48,5 +48,7 @@ destructive tasks) runs with retrieval suppressed as a control. That control is 
 against the most comfortable failure mode: a library that grows, metrics that drift upward
 for unrelated reasons, and nobody able to tell the difference.
 
-The control arm also supplies the per-task-class baseline `p0` that per-skill contribution is
-measured against (§7.2), so the same sampling serves both measurement and retirement.
+The control arm supplies the class-level `RetrievalAblationEffect` that answers whether
+retrieval helps this task class. Per-skill retirement uses a separate randomized
+shadow-versus-suppression contrast (§7.2) — not a class baseline subtracted from a selected
+skill — so the same measurement program serves both questions without conflating them.

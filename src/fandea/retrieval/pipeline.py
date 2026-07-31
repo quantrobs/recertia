@@ -64,8 +64,19 @@ def reciprocal_rank_fusion(
 
 class Retriever:
     def __init__(self, index: SkillIndex, config: RetrievalConfig | None = None) -> None:
-        self.index = index
+        self._index = index
         self.config = config or RetrievalConfig()
+
+    @property
+    def index(self) -> SkillIndex:
+        """Backing index for operators/CLI; task-plane code should use :meth:`rebuild`."""
+
+        return self._index
+
+    def rebuild(self, entries: list[tuple]) -> str:
+        """Rebuild the retrieval index from loaded skill rows (store-node hook)."""
+
+        return self._index.rebuild(entries)  # type: ignore[arg-type]
 
     def search(
         self,
@@ -79,13 +90,13 @@ class Retriever:
         cfg = self.config
         env_fingerprint = env_fingerprint or {}
         readable_scopes = readable_scopes or {"run", "project", "org", "global"}
-        explanation = RetrievalExplanation(query=query, snapshot_id=self.index.snapshot_id())
+        explanation = RetrievalExplanation(query=query, snapshot_id=self._index.snapshot_id())
 
         if suppress:
             return MemoryBundle(suppressed=True), explanation
 
-        lexical = self.index.lexical_top_k(query, cfg.lexical_top_k)
-        vector = self.index.vector_top_k(query, cfg.vector_top_k)
+        lexical = self._index.lexical_top_k(query, cfg.lexical_top_k)
+        vector = self._index.vector_top_k(query, cfg.vector_top_k)
         explanation.lexical_hits = lexical
         explanation.vector_hits = vector
 
@@ -94,7 +105,7 @@ class Retriever:
 
         survivors: list[tuple[str, int, float, dict]] = []
         for sid, ver, rrf_score in merged:
-            row = self.index.get_row(sid, ver)
+            row = self._index.get_row(sid, ver)
             if row is None:
                 continue
             drop = self._filter_row(row, workdir, env_fingerprint, readable_scopes, explanation)

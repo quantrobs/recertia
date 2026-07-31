@@ -26,6 +26,10 @@ class ImmutabilityError(Exception):
     """Raised when a caller attempts to overwrite an existing ``SkillVersion``."""
 
 
+class ApprovedLifecycleError(Exception):
+    """Raised when a caller attempts to write ``lifecycle=approved`` outside the promote path."""
+
+
 class SkillStore:
     def __init__(self, skills_root: Path | str) -> None:
         self.root = Path(skills_root)
@@ -52,7 +56,51 @@ class SkillStore:
             fh.write(payload)
         return dest
 
+    def write_candidate(self, version: SkillVersion) -> SkillVersion:
+        """Persist a reviewable candidate: version + ``candidate`` status + default stats.
+
+        Writes ``version.json`` when missing (callers that already allocated via
+        ``allocate_and_write`` skip that step). Always writes ``lifecycle=candidate``,
+        ``active=False`` — never approved.
+        """
+
+        dest = self.version_dir(version.skill_id, version.version) / "version.json"
+        if not dest.exists():
+            self.write_version(version)
+        self.write_status(
+            SkillStatus(
+                skill_id=version.skill_id,
+                version=version.version,
+                lifecycle="candidate",
+                active=False,
+            )
+        )
+        self.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
+        return version
+
     def write_status(self, status: SkillStatus) -> Path:
+        """Write status. Transitions *into* ``approved`` are rejected (use promote path).
+
+        Updates to an already-approved record (e.g. active-set toggles) are allowed.
+        """
+
+        dest_dir = self.version_dir(status.skill_id, status.version)
+        if not (dest_dir / "version.json").exists():
+            raise FileNotFoundError(
+                f"cannot write status for {status.skill_id}@v{status.version}: version.json missing"
+            )
+        if status.lifecycle == "approved":
+            existing = self._read_status_if_present(status.skill_id, status.version)
+            if existing is None or existing.lifecycle != "approved":
+                raise ApprovedLifecycleError(
+                    f"refusing to write lifecycle=approved for "
+                    f"{status.skill_id}@v{status.version}; use promote_to_approved"
+                )
+        return self._write_status_unchecked(status)
+
+    def _write_status_unchecked(self, status: SkillStatus) -> Path:
+        """Persist status without the approved-lifecycle gate (promote / test seeder only)."""
+
         dest_dir = self.version_dir(status.skill_id, status.version)
         if not (dest_dir / "version.json").exists():
             raise FileNotFoundError(
@@ -61,6 +109,12 @@ class SkillStore:
         dest = dest_dir / "status.json"
         dest.write_text(status.model_dump_json(indent=2) + "\n", encoding="utf-8")
         return dest
+
+    def _read_status_if_present(self, skill_id: str, version: int) -> SkillStatus | None:
+        path = self.version_dir(skill_id, version) / "status.json"
+        if not path.exists():
+            return None
+        return SkillStatus.model_validate_json(path.read_text(encoding="utf-8"))
 
     def write_stats(self, stats: SkillStats) -> Path:
         dest_dir = self.version_dir(stats.skill_id, stats.version)

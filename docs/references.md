@@ -116,7 +116,7 @@ Section numbers in the right-hand column refer to the [specifications index](spe
 
 | Claim | Our response |
 | --- | --- |
-| The **fake-edge test**: a dependency is real only if the later step consumes the earlier one's output; steps ordered by habit serialise for nothing | Skill `steps` became a DAG with `depends_on`, so independent steps run concurrently and only data-carrying edges serialise (§26.1) |
+| The **fake-edge test**: a dependency is real only if the later step consumes the earlier one's output; steps ordered by habit serialise for nothing | Skill step edges are derived from typed `input_bindings` onto named predecessor `outputs`, so independent steps run concurrently and free-floating `depends_on` cannot be authored (§26.1) |
 | Fan-out for **decomposition** — split, reduce, synthesise — is distinct from racing strategies | Added `decomposition` branches alongside the existing `portfolio` kind, with all-must-complete join semantics (§18) |
 | **A worker and its verifier must never share a context**, or the check is agreement in a different font | `judge` criteria now require `fresh_context`, and the producing model instance may not score its own artifact (§26.3) |
 | **Split the checking three ways** — correct, current, is the source real — since different lenses catch what identical ones miss | Multiple `judge` criteria must use distinct `lens` values (§26.3) |
@@ -147,12 +147,14 @@ The system still looks healthy: contribution stays high, the active set looks cu
 library drifts below the no-skill floor with nobody watching, because the mechanism that was
 supposed to notice has been switched off.
 
-**Change made:** contribution estimates (§24) are computed from required non-`judge` criteria
-only. A skill whose only required criteria are model-scored has `contribution = null` and
-MUST NOT be retired (or protected from retirement) on contribution grounds — the same rule the
-ablation arm already applies when a task class has no control samples. Judge isolation (§26.3)
-remains necessary but is no longer treated as sufficient: an isolated judge that is still
-false-pass-biased would disable the curator just as quietly.
+**Change made:** contribution estimates (§24.2) are computed from required non-`judge`
+criteria only, on the per-skill shadow-versus-suppression contrast — not by subtracting a
+class control baseline from a selected skill. A skill whose only required criteria are
+model-scored has `contribution = null` and MUST NOT be retired (or protected from retirement)
+on contribution grounds — the same honesty rule that applies when either randomization arm
+lacks observations. Judge isolation (§26.3) remains necessary but is no longer treated as
+sufficient: an isolated judge that is still false-pass-biased would disable the curator just
+as quietly.
 
 ## 2. Skill libraries and lifecycle management
 
@@ -214,7 +216,7 @@ and **append-only hash chains** (tamper-evident logging, the basis of the proven
 
 The full applicability scoring of ~117 preprints against Fandea's non-negotiables lives in
 [`../research/preprints-self-improving-agents.xlsx`](../research/preprints-self-improving-agents.xlsx)
-(also `.xls`),
+(machine-readable: [`../research/preprints-self-improving-agents.scored.json`](../research/preprints-self-improving-agents.scored.json)),
 with sheets for the rubric, every entry's score and rationale, the core/high cut (7–10), and the
 distribution. Score-10 papers are already absorbed above; the remaining score-9 papers are next
 reading, not yet design-shaping, and are listed so they do not get lost behind the spreadsheet:

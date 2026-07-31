@@ -20,7 +20,7 @@ class LifecycleError(Exception):
     """Illegal or refused lifecycle transition."""
 
 
-def maybe_auto_promote_from_shadow(
+def maybe_advance_shadow_to_candidate(
     store: SkillStore,
     skill_id: str,
     version: int,
@@ -29,7 +29,10 @@ def maybe_auto_promote_from_shadow(
     config: AutonomyConfig = DEFAULT_AUTONOMY,
     ledger: HashChainLedger | None = None,
 ) -> SkillStatus:
-    """Approve from shadow only when lift and sample thresholds clear (no human)."""
+    """Advance shadow → candidate when lift and sample thresholds clear (no human).
+
+    Does not write ``approved``; golden-gated ``promote_to_approved`` remains required.
+    """
 
     status = store.get_status(skill_id, version)
     if status.lifecycle != "shadow":
@@ -100,6 +103,27 @@ def maybe_auto_promote_from_shadow(
             at=datetime.now(timezone.utc),
         )
     return candidate
+
+
+def maybe_auto_promote_from_shadow(
+    store: SkillStore,
+    skill_id: str,
+    version: int,
+    *,
+    eval_store: EvalStore,
+    config: AutonomyConfig = DEFAULT_AUTONOMY,
+    ledger: HashChainLedger | None = None,
+) -> SkillStatus:
+    """Deprecated alias for :func:`maybe_advance_shadow_to_candidate`."""
+
+    return maybe_advance_shadow_to_candidate(
+        store,
+        skill_id,
+        version,
+        eval_store=eval_store,
+        config=config,
+        ledger=ledger,
+    )
 
 
 def quarantine_on_failures(

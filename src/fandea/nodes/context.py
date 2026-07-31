@@ -8,14 +8,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Protocol, TypeVar
 
 from contracts.ledger import LedgerAction, LedgerEntry
-from contracts.run import RunState
+from contracts.run import MemoryBundle, RunState
+from contracts.skill import SkillVersion
+from contracts.stats import SkillStats
+from contracts.status import SkillStatus
 
 if TYPE_CHECKING:
     from fandea.memory.affordance import AffordanceStore
     from fandea.memory.episodic import EpisodicStore
-    from fandea.memory.procedural.store import SkillStore
     from fandea.memory.semantic import FactStore
-    from fandea.retrieval.pipeline import Retriever
+    from fandea.retrieval.pipeline import RetrievalExplanation
     from fandea.review import ReviewService
     from fandea.solver.apply import SkillApplicator
     from fandea.solver.model import ModelClient
@@ -53,6 +55,37 @@ class LedgerCapability(Protocol):
     ) -> LedgerEntry: ...
 
 
+class RetrieverCapability(Protocol):
+    """Search + index rebuild without exposing the backing ``SkillIndex``."""
+
+    def search(
+        self,
+        query: str,
+        *,
+        workdir: Path,
+        env_fingerprint: dict[str, str] | None = None,
+        readable_scopes: set[str] | None = None,
+        suppress: bool = False,
+    ) -> tuple[MemoryBundle, RetrievalExplanation]: ...
+
+    def rebuild(
+        self,
+        entries: list[tuple[SkillVersion, SkillStatus, SkillStats]],
+    ) -> str: ...
+
+
+class SkillStoreCapability(Protocol):
+    """T0-facing skill library writes: candidates only (approved lifecycle is gated elsewhere)."""
+
+    def write_candidate(self, version: SkillVersion) -> SkillVersion: ...
+
+    def get_version(self, skill_id: str, version: int) -> SkillVersion: ...
+
+    def get_status(self, skill_id: str, version: int) -> SkillStatus: ...
+
+    def iter_loaded(self) -> list[tuple[SkillVersion, SkillStatus, SkillStats]]: ...
+
+
 @dataclass
 class NodeOutcome:
     """Updated state + chosen route predicate name (must be legal per contracts.graph)."""
@@ -74,10 +107,10 @@ class NodeContext:
     ledger: LedgerCapability
     ops: OperationRunner
     script: list[str] | None = None
-    retriever: "Retriever | None" = None
-    store: "SkillStore | None" = None
+    retriever: RetrieverCapability | None = None
+    store: SkillStoreCapability | None = None
     env_fingerprint: dict[str, str] = field(default_factory=dict)
-    # M2 services
+    # Solver / memory services
     tools: "ToolRuntime | None" = None
     model: "ModelClient | None" = None
     # Independent verifier identity; a solver model must never judge its own artifact.
@@ -86,7 +119,7 @@ class NodeContext:
     applicator: "SkillApplicator | None" = None
     episodic: "EpisodicStore | None" = None
     affordances: "AffordanceStore | None" = None
-    # M3 services
+    # Distillation / review services
     facts: "FactStore | None" = None
     reviewer: "ReviewService | None" = None
     one_off_log: Path | None = None

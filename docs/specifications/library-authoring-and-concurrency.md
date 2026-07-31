@@ -10,44 +10,88 @@ Contracts implementing [ADR-0006](../adr/0006-bounded-library-and-retirement.md)
 | --- | --- |
 | Retrievability | Only skills in the active set are retrievable for application |
 | Cap | `active_cap` per task class, default 50; MUST be finite |
-| Selection | Rank `approved` versions by `contribution`, then `trust.decayed_score`, then recency; the top `active_cap` are `active` |
+| Selection | Rank `approved` versions by `contribution.estimate`, then `predictive_trust`, then recency; the top `active_cap` are `active` |
 | Overflow | Versions outside the cap become `benched`, not deleted |
 | Re-evaluation | The Curator recomputes the active set on schedule and after any promotion |
 | Newly approved skills | Enter active with a protected grace period of `evidence_floor` applications, so a new skill is not benched before it can be measured |
+| Shadow / exploration slots | Up to `shadow_slots_per_task_class` (default 3) offline slots per class for `benched` and inactive `approved` versions; these MUST NOT expand the caller-visible active set or affect the caller's result |
 
 The grace period matters: without it, a cap plus a contribution ranking would permanently favour
-incumbents, and no new skill could ever accumulate the evidence needed to displace one.
+incumbents, and no new skill could ever accumulate the evidence needed to displace one. Shadow
+slots are how a benched version gathers restoration evidence without becoming retrievable for
+application.
 
-### 24.2 Contribution estimate
+### 24.2 Three separated quantities
 
-Lives on `SkillStats.contribution` (§2.3), per [ADR-0007](../adr/0007-skill-identity-status-and-stats-split.md):
-derived, rebuildable, T0. `estimate` is a computed property, never a stored field, so it cannot
-drift from the two numbers it is computed from.
+Per [ADR-0007](../adr/0007-skill-identity-status-and-stats-split.md) and the S4 split, three
+quantities answer three different questions. Mixing them was the bug: subtracting a task-class
+control baseline from a non-randomly selected skill attributes library-level lift to one skill.
+
+| Quantity | Lives on | Answers | Randomized at |
+| --- | --- | --- | --- |
+| `PredictiveTrust` | `SkillStats.predictive_trust` | Calibration: how often did this skill succeed when applied? | — (observational) |
+| `RetrievalAblationEffect` | Eval store, keyed by `task_class` | Does making retrieval available help this class? | Retrieval boundary (treatment vs control) |
+| `Contribution` | `SkillStats.contribution` | Does *this* skill help vs suppressing it? | Per-skill shadow vs suppression |
+
+`estimate` on both effect models is a computed property, never a stored field.
 
 ```python
-class Contribution(BaseModel):
-    applications: int = 0              # trials counted toward the evidence floor
+class PredictiveTrust(BaseModel):
+    applications: int = 0
     successes: int = 0
-    baseline_success: float | None = None   # control-arm first-attempt success for the task class
-    interval_low: float | None = None       # Wilson interval on the difference
+    last_used_at: datetime | None = None
+    decayed_score: float | None = None
+
+    @property
+    def score(self) -> float:
+        return (self.successes + 1) / (self.applications + 2)
+
+class RetrievalAblationEffect(BaseModel):
+    task_class: str
+    retrieval_enabled: int = 0
+    retrieval_enabled_successes: int = 0
+    retrieval_suppressed: int = 0
+    retrieval_suppressed_successes: int = 0
+    interval_low: float | None = None
     interval_high: float | None = None
     last_evaluated_at: datetime | None = None
 
     @property
     def estimate(self) -> float | None:
-        # ĉ(s) = successes/applications - baseline_success; None when inestimable (see below).
-        if self.applications == 0 or self.baseline_success is None:
+        if self.retrieval_enabled == 0 or self.retrieval_suppressed == 0:
             return None
-        return (self.successes / self.applications) - self.baseline_success
+        return (
+            self.retrieval_enabled_successes / self.retrieval_enabled
+            - self.retrieval_suppressed_successes / self.retrieval_suppressed
+        )
+
+class Contribution(BaseModel):
+    applications: int = 0                 # shadow trials
+    successes: int = 0
+    suppressed_applications: int = 0
+    suppressed_successes: int = 0
+    interval_low: float | None = None     # Wilson/Newcombe interval on the difference
+    interval_high: float | None = None
+    last_evaluated_at: datetime | None = None
+
+    @property
+    def estimate(self) -> float | None:
+        # ĉ(s) = shadow success rate − this skill's suppressed success rate.
+        if self.applications == 0 or self.suppressed_applications == 0:
+            return None
+        return (
+            (self.successes / self.applications)
+            - (self.suppressed_successes / self.suppressed_applications)
+        )
 ```
 
-Rules: only `treatment`-arm applications count toward `applications`; `environment`, `tool`,
-`budget`, and `merge` failure classes are excluded from the denominator (§16); success is scored
-from **required non-`judge` criteria only**, because a false-pass-biased model judge silently
-disables contribution-based retirement (`references.md` §1.8); `baseline_success` comes from the
-ablation arm (§19) under the same non-`judge` scoring; when a task class has no control samples,
-or a skill has no required non-`judge` criterion, contribution is `null` and the skill MUST NOT
-be retired (or protected from retirement) on contribution grounds.
+Rules: success on both arms is scored from **required non-`judge` criteria only**, because a
+false-pass-biased model judge silently disables contribution-based retirement
+(`references.md` §1.8); `environment`, `tool`, `budget`, and `merge` failure classes are
+excluded from denominators (§16); when either shadow or suppression arm lacks observations, or a
+skill has no required non-`judge` criterion, contribution is `null` and the skill MUST NOT be
+retired (or protected from retirement) on contribution grounds. Class-level
+`RetrievalAblationEffect` MUST NOT be used as a per-skill `baseline_success` substitute.
 
 ### 24.3 Retirement
 
@@ -111,17 +155,17 @@ Contracts for the graph-execution rules in `architecture/task-plane.md` §5.6 an
 
 | Rule | Detail |
 | --- | --- |
-| Declaration | Every step declares `depends_on`; an empty list means no predecessor is required |
-| Validity | An edge is valid only if the step consumes the referenced step's output. Ordering-only edges MUST be removed, not declared |
-| Structure | The step graph MUST be acyclic and all referenced ids MUST exist; both checked at store time |
-| Execution | Steps whose dependencies are satisfied run concurrently, subject to §26.2 |
-| Authoring | The authoring prior (§25.1) instructs the distiller to emit only data-carrying edges |
-| Curation | The Curator MAY propose removing an edge; such a proposal MUST show that the dependent step's output is unchanged when the edge is dropped |
+| Declaration | Dependencies are derived exclusively from `input_bindings`; there is no free-floating `depends_on` authoring field |
+| Validity | Each binding MUST name a predecessor step id and an output that predecessor declares. Ordering-only edges cannot be authored |
+| Structure | The derived step graph MUST be acyclic; unknown source steps or undeclared outputs fail at store time |
+| Execution | Steps whose derived dependencies are satisfied run concurrently, subject to §26.2 |
+| Authoring | The authoring prior (§25.1) instructs the distiller to emit bindings only when a later step consumes a named earlier output |
+| Curation | The Curator MAY propose removing a binding; such a proposal MUST show that the dependent step's outcome is unchanged when the binding is dropped |
 
 Concurrency is bounded by `max_parallel_steps` (default 8) so a wide skill cannot exhaust
 tool-runtime capacity.
 
-Execution proceeds in **waves**: the scheduler takes all steps whose dependencies are
+Execution proceeds in **waves**: the scheduler takes all steps whose derived dependencies are
 satisfied and whose claims do not conflict with a running step, dispatches up to
 `max_parallel_steps` of them, and waits for the wave before computing the next. Waves are
 recorded in `state.step_waves` in order, which keeps a parallel attempt as replayable as a
@@ -147,7 +191,7 @@ class ResourceConflict(BaseModel):
 | Rule | Detail |
 | --- | --- |
 | Conflict | Two units conflict when they claim the same `id` and at least one mode is `write` or `exclusive` |
-| Effect | Conflicting units MUST NOT run concurrently, even with no `depends_on` between them and even in separate workspaces |
+| Effect | Conflicting units MUST NOT run concurrently, even with no `input_bindings`-derived edge between them and even in separate workspaces |
 | Scope | Applies to steps within a skill, to branches under fan-out, and to concurrent runs sharing an external system |
 | Undeclared claims | A tool that touches a shared resource without declaring it is a defect; the tool registry (T3) is where claims are declared |
 | Rate limits | Modelled as a `rate_limit` resource with `write` mode, so contention serialises rather than failing under load |

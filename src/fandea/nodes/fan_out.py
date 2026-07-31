@@ -57,6 +57,7 @@ def fan_out(state: RunState, ctx: NodeContext) -> NodeOutcome:
                         source="orchestrator",
                         detail=f"budget exhausted before fan-out reservation: {exhausted}",
                         at=now(),
+                        class_hint="budget",
                     )
                 }
             ),

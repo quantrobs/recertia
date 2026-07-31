@@ -9,6 +9,6 @@
   "notes": [
     "Prefer parameterised shell steps over opaque model calls when the transcript is shell-shaped.",
     "Every reusable draft needs at least one required non-judge criterion with a rejecting sensitivity proof.",
-    "Do not invent depends_on edges from transcript order alone."
+    "Emit input_bindings only when a later step consumes a named earlier output; do not invent ordering-only edges from transcript order."
   ]
 }

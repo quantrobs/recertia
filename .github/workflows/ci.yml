@@ -10,6 +10,9 @@ on:
   pull_request:
     paths:
       - "contracts/**"
+      - "docs/**"
+      - "facts/**"
+      - "research/**"
       - "src/**"
       - "scripts/**"
       - "tests/**"

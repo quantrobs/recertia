@@ -8,8 +8,68 @@ from __future__ import annotations
 
 from contracts.run import RunState
 from contracts.skill import SkillVersion
-from contracts.stats import SkillStats
+from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
 from contracts.status import SkillStatus
+
+
+def validate_predictive_trust(trust: PredictiveTrust, *, label: str = "predictive_trust") -> list[str]:
+    """Coherence of observed success calibration (not a causal effect)."""
+
+    violations: list[str] = []
+    if trust.successes > trust.applications:
+        violations.append(f"{label}.successes exceeds applications")
+    if trust.decayed_score is not None and not (0.0 <= trust.decayed_score <= 1.0):
+        violations.append(f"{label}.decayed_score must be in [0, 1] when set")
+    return violations
+
+
+def validate_contribution(contribution: Contribution, *, label: str = "contribution") -> list[str]:
+    """Per-skill shadow-versus-suppression shape (retirement input; Blind Curator fix)."""
+
+    violations: list[str] = []
+    if contribution.successes > contribution.applications:
+        violations.append(f"{label}.successes exceeds applications")
+    if contribution.suppressed_successes > contribution.suppressed_applications:
+        violations.append(f"{label}.suppressed_successes exceeds suppressed_applications")
+    # estimate is derived: both randomized arms required; half-filled counts are allowed
+    # but must not invent an interval without both arms.
+    if contribution.applications == 0 or contribution.suppressed_applications == 0:
+        if contribution.interval_low is not None or contribution.interval_high is not None:
+            violations.append(
+                f"{label} interval requires both shadow and suppression observations"
+            )
+    elif (
+        contribution.interval_low is not None
+        and contribution.interval_high is not None
+        and contribution.interval_low > contribution.interval_high
+    ):
+        violations.append(f"{label} interval_low exceeds interval_high")
+    return violations
+
+
+def validate_retrieval_ablation(effect: RetrievalAblationEffect) -> list[str]:
+    """Class-level retrieval availability effect (separate from per-skill contribution)."""
+
+    violations: list[str] = []
+    if effect.retrieval_enabled_successes > effect.retrieval_enabled:
+        violations.append("retrieval_enabled_successes exceeds retrieval_enabled")
+    if effect.retrieval_suppressed_successes > effect.retrieval_suppressed:
+        violations.append("retrieval_suppressed_successes exceeds retrieval_suppressed")
+    if effect.retrieval_enabled == 0 or effect.retrieval_suppressed == 0:
+        if effect.interval_low is not None or effect.interval_high is not None:
+            violations.append(
+                "retrieval ablation interval requires both enabled and suppressed arms"
+            )
+    return violations
+
+
+def validate_skill_stats(stats: SkillStats) -> list[str]:
+    """MUSTs for the three separated measurement quantities on ``SkillStats`` (S4)."""
+
+    violations: list[str] = []
+    violations.extend(validate_predictive_trust(stats.predictive_trust))
+    violations.extend(validate_contribution(stats.contribution))
+    return violations
 
 
 def validate_candidate_skill(version: SkillVersion, status: SkillStatus) -> list[str]:
@@ -39,6 +99,7 @@ def validate_approved_skill(
     """MUSTs for a version to legitimately hold ``lifecycle == 'approved'`` (specs §2.1, §8, §24)."""
 
     violations = validate_candidate_skill(version, status)
+    violations.extend(validate_skill_stats(stats))
     if status.lifecycle != "approved":
         violations.append(f"lifecycle is {status.lifecycle!r}, not approved")
     if all(c.kind == "judge" for c in version.certification_criteria):

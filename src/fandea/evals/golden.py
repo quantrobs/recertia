@@ -214,6 +214,60 @@ def run_task_class_gate(
     return report
 
 
+def select_and_run_gate(
+    version: SkillVersion,
+    *,
+    runs_root: Path,
+    golden_root: Path | None = None,
+    golden_dir: Path | None = None,
+    require_task_class_gate: bool = False,
+    require_fixture: bool = False,
+) -> GoldenReport:
+    """Select applicable golden fixture(s) and run them (shared by review + promote).
+
+    Promote callers pass ``require_fixture=True`` so missing inputs raise ``ValueError``.
+    Review callers omit that flag and receive an empty report when nothing applies.
+    """
+
+    prefer_task_class = require_task_class_gate or (
+        require_fixture and golden_root is not None and golden_dir is None
+    )
+    if prefer_task_class:
+        if golden_root is None:
+            raise ValueError("task-class regression gate requires golden_root")
+        report = run_task_class_gate(
+            version, golden_root, runs_root=runs_root, task_class=version.task_class
+        )
+        if golden_dir is not None and golden_dir.is_dir():
+            own = run_golden_for_skill(version, golden_dir, runs_root=runs_root)
+            if not any(r.golden_path == own.golden_path for r in report.results):
+                report.results.append(own)
+        return report
+
+    if golden_dir is not None:
+        result = run_golden_for_skill(version, golden_dir, runs_root=runs_root)
+        return GoldenReport(results=[result])
+
+    if golden_root is not None:
+        skill_dir = golden_root / version.task_class / version.skill_id
+        if skill_dir.is_dir() and (skill_dir / "task.json").exists():
+            return GoldenReport(
+                results=[run_golden_for_skill(version, skill_dir, runs_root=runs_root)]
+            )
+        if (golden_root / version.task_class / ".full_class").exists():
+            return run_task_class_gate(
+                version,
+                golden_root,
+                runs_root=runs_root,
+                task_class=version.task_class,
+            )
+        return GoldenReport()
+
+    if require_fixture:
+        raise ValueError("promote_to_approved requires golden_dir or golden_root")
+    return GoldenReport()
+
+
 def run_seed_library_gate(
     store: SkillStore,
     golden_root: Path,
