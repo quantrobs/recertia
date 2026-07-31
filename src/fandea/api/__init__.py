@@ -1,8 +1,8 @@
 """FastAPI surface: health, runs (GraphOrchestrator), metrics dashboard, blob digests.
 
 ``POST /v1/runs`` executes offline via ``GraphOrchestrator.start`` (same path as
-``fandea run``), not an enqueue-only stub. Optional CLI-parity fields: ``criteria``,
-``script``, ``budget``, ``workdir``, ``arm``.
+``fandea run``), not an enqueue-only stub. Optional CLI-parity fields: ``goal``,
+``criteria``, ``script``, ``budget``, ``workdir``, ``arm``.
 """
 
 from __future__ import annotations
@@ -15,11 +15,12 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from contracts.budget import Budget
 from contracts.common import Arm
 from contracts.criteria import TaskCriterion
+from contracts.goal import Goal
 from contracts.run import Task
 from fandea.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
 from fandea.graph.engine import GraphOrchestrator
@@ -125,7 +126,8 @@ def _load_persisted_workdir(root: Path, tenant_id: str, run_id: str) -> Path | N
 
 
 class RunCreate(BaseModel):
-    request: str = Field(min_length=1)
+    goal: Goal | None = None
+    request: str | None = None
     task_class: str = "repo-chore"
     criteria: list[dict[str, Any]] | None = None
     script: list[str] | None = None
@@ -134,10 +136,16 @@ class RunCreate(BaseModel):
     run_id: str | None = None
     arm: Arm = "treatment"
 
+    @model_validator(mode="after")
+    def _require_goal_or_request(self) -> "RunCreate":
+        if self.goal is None and (self.request is None or not self.request.strip()):
+            raise ValueError("Provide goal or non-empty request")
+        return self
+
 
 class RunRecord(BaseModel):
     run_id: str
-    request: str
+    request: str | None = None
     task_class: str
     status: str
     created_at: datetime
@@ -147,6 +155,7 @@ class RunRecord(BaseModel):
     attempt_no: int | None = None
     arm: str | None = None
     route_log: list[dict[str, Any]] | None = None
+    has_goal: bool = False
 
 
 def create_app(*, root: Path | None = None) -> FastAPI:
@@ -175,10 +184,15 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         workdir.mkdir(parents=True, exist_ok=True)
         _persist_workdir(root, principal.tenant_id, run_id, workdir)
 
+        request = body.request
+        if body.goal is not None and body.goal.context and not request:
+            request = body.goal.context
+
         task = Task(
             task_id=run_id,
-            request=body.request,
-            task_class=body.task_class,
+            goal=body.goal,
+            request=request,
+            task_class=body.task_class or (body.goal.task_class if body.goal else None),
             submitted_at=datetime.now(timezone.utc),
             submitted_by=principal.key_id,
         )
@@ -216,11 +230,12 @@ def create_app(*, root: Path | None = None) -> FastAPI:
 
         rec = _record_from_state(
             run_id=run_id,
-            request=body.request,
-            task_class=body.task_class,
+            request=request,
+            task_class=task.task_class or "repo-chore",
             tenant_id=principal.tenant_id,
             state=state,
             created_at=datetime.now(timezone.utc),
+            has_goal=body.goal is not None,
         )
         runs[run_key] = rec
         get_telemetry().emit(
@@ -273,6 +288,7 @@ def create_app(*, root: Path | None = None) -> FastAPI:
             tenant_id=principal.tenant_id,
             state=state,
             created_at=existing.created_at if existing else datetime.now(timezone.utc),
+            has_goal=existing.has_goal if existing else (state.task.goal is not None),
         )
         runs[run_key] = rec
         return rec
@@ -322,11 +338,12 @@ def create_app(*, root: Path | None = None) -> FastAPI:
 def _record_from_state(
     *,
     run_id: str,
-    request: str,
+    request: str | None,
     task_class: str,
     tenant_id: str,
     state: Any,
     created_at: datetime,
+    has_goal: bool = False,
 ) -> RunRecord:
     terminal = state.terminal
     status = terminal if terminal else "running"
@@ -352,6 +369,7 @@ def _record_from_state(
         attempt_no=state.attempt_no,
         arm=state.arm,
         route_log=route_log,
+        has_goal=has_goal,
     )
 
 
@@ -369,6 +387,7 @@ def _load_from_checkpoints(root: Path, tenant_id: str, run_id: str) -> RunRecord
             tenant_id=tenant_id,
             state=state,
             created_at=datetime.now(timezone.utc),
+            has_goal=state.task.goal is not None,
         )
     finally:
         orch.close()
