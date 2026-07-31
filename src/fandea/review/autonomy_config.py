@@ -16,6 +16,7 @@ class AutonomyConfig:
     evidence_floor: int = 30
     retirement_threshold: float = 0.05
     active_cap_per_task_class: int = 50
+    shadow_slots_per_task_class: int = 3
     incumbent_grace_applications: int = 5
     curation_prior_self_distilled: float = 0.85  # higher bar: scale required lift
 

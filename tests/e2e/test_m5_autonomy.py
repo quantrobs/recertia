@@ -10,11 +10,11 @@ import pytest
 from contracts.criteria import CriterionResult, SensitivityProof, SkillCertificationCriterion, TaskCriterion
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
-from contracts.stats import Contribution, SkillStats, Trust
+from contracts.stats import Contribution, PredictiveTrust, SkillStats
 from contracts.status import SkillStatus
 from fandea.evals.store import EvalStore
 from fandea.ledger import HashChainLedger
-from fandea.memory.procedural.active_set import recompute_active_set
+from fandea.memory.procedural.active_set import recompute_active_set, select_shadow_slots
 from fandea.memory.procedural.store import SkillStore
 from fandea.review.autonomy_config import DEFAULT_AUTONOMY, HARSH_AUTONOMY
 from fandea.review.lifecycle import (
@@ -86,8 +86,8 @@ def _record_evidence(
     *,
     skill_id: str,
     prefix: str,
-    treatment: tuple[int, int],
-    control: tuple[int, int],
+    shadow: tuple[int, int],
+    suppression: tuple[int, int],
 ) -> None:
     criterion = TaskCriterion(id="non-judge", kind="command", run="true", source="caller")
 
@@ -110,16 +110,21 @@ def _record_evidence(
                     if chosen
                     else None
                 ),
+                suppressed_skill=(
+                    SkillCandidateRef(skill_id=skill_id, version=1, score=1.0)
+                    if arm == "control"
+                    else None
+                ),
                 attempt_no=1,
                 results=[CriterionResult(criterion_id=criterion.id, kind="command", passed=success)],
                 terminal="solved" if success else "unsolved",
             )
         )
 
-    successes, trials = treatment
+    successes, trials = shadow
     for index in range(trials):
-        append(f"{prefix}-t-{index}", "treatment", index < successes, True)
-    successes, trials = control
+        append(f"{prefix}-s-{index}", "shadow", index < successes, True)
+    successes, trials = suppression
     for index in range(trials):
         append(f"{prefix}-c-{index}", "control", index < successes, False)
 
@@ -135,8 +140,8 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
         eval_store,
         skill_id="shadow-winner",
         prefix="winner",
-        treatment=(10, 10),
-        control=(5, 10),
+        shadow=(10, 10),
+        suppression=(5, 10),
     )
     approved = maybe_auto_promote_from_shadow(
         store, "shadow-winner", 1, eval_store=eval_store, ledger=ledger
@@ -153,8 +158,8 @@ def test_shadow_auto_promote_requires_lift(tmp_path: Path) -> None:
         zero_eval_store,
         skill_id="zero-lift",
         prefix="zero",
-        treatment=(10, 10),
-        control=(10, 10),
+        shadow=(10, 10),
+        suppression=(10, 10),
     )
     with pytest.raises(LifecycleError, match="refusing auto-promote"):
         maybe_auto_promote_from_shadow(store, "zero-lift", 1, eval_store=zero_eval_store)
@@ -183,7 +188,7 @@ def test_bench_respects_evidence_floor_and_is_restorable(tmp_path: Path) -> None
         SkillStats(
             skill_id="neg-contrib",
             version=1,
-            trust=Trust(applications=5, successes=0),
+            predictive_trust=PredictiveTrust(applications=5, successes=0),
             contribution=Contribution(applications=5, successes=0),
         )
     )
@@ -197,8 +202,8 @@ def test_bench_respects_evidence_floor_and_is_restorable(tmp_path: Path) -> None
         eval_store,
         skill_id="neg-contrib",
         prefix="negative",
-        treatment=(5, 40),
-        control=(32, 40),
+        shadow=(5, 40),
+        suppression=(32, 40),
     )
     benched = maybe_bench_on_contribution(
         store, "neg-contrib", 1, eval_store=eval_store, ledger=ledger
@@ -225,8 +230,8 @@ def test_harsh_config_over_prunes_vs_defaults(tmp_path: Path) -> None:
                 eval_store,
                 skill_id=sid,
                 prefix=sid,
-                treatment=(10, 25),
-                control=(13, 25),
+                shadow=(10, 25),
+                suppression=(13, 25),
             )
             cfg = HARSH_AUTONOMY if config_name == "harsh" else DEFAULT_AUTONOMY
             try:
@@ -256,9 +261,12 @@ def test_active_cap_pressure(tmp_path: Path) -> None:
             SkillStats(
                 skill_id=sid,
                 version=1,
-                trust=Trust(applications=10 + i, successes=5 + i),
+                predictive_trust=PredictiveTrust(applications=10 + i, successes=5 + i),
                 contribution=Contribution(
-                    applications=10 + i, successes=5 + i, baseline_success=0.3
+                    applications=10 + i,
+                    successes=5 + i,
+                    suppressed_applications=10,
+                    suppressed_successes=3,
                 ),
             )
         )
@@ -272,3 +280,15 @@ def test_active_cap_pressure(tmp_path: Path) -> None:
     )
     assert actives <= HARSH_AUTONOMY.active_cap_per_task_class + HARSH_AUTONOMY.incumbent_grace_applications
     assert pressure["repo-chore"] > 0
+
+
+def test_shadow_slots_are_bounded_and_never_expand_active_cap(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    for i in range(5):
+        _seed(store, _skill(f"benched-{i}"), lifecycle="benched")
+    for i in range(5):
+        _seed(store, _skill(f"approved-{i}"), lifecycle="approved")
+    slots = select_shadow_slots(store, config=HARSH_AUTONOMY)
+    assert len(slots) == HARSH_AUTONOMY.shadow_slots_per_task_class
+    assert {slot.reason for slot in slots} <= {"benched", "newly_approved"}
+    assert all(not status.active for _version, status, _stats in store.iter_loaded())

@@ -44,6 +44,6 @@ system specifies precisely.
 - Node implementations must be pure with respect to state: `(state) -> (delta, route)`.
   All I/O goes through injected services, so nodes are unit-testable without a model.
 - We carry the maintenance cost of the engine. Accepted because the surface is narrow and
-  frozen by the state schema in `specifications.md`.
+  frozen by the state schema in `specifications/graph-execution.md`.
 - If the engine's scope grows beyond routing, persistence, and budgets, that is the
   signal to revisit this decision rather than to keep extending it.

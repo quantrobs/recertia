@@ -10,7 +10,7 @@ from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
 from contracts.resources import ResourceClaim
 from contracts.run import Task
-from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import Hygiene, InputBinding, Provenance, SkillVersion, Step, StepOutput
 from contracts.stats import SkillStats
 from contracts.status import Certification, SkillStatus
 from fandea.governance.sandbox import ApprovalGate
@@ -20,7 +20,14 @@ from fandea.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
 from fandea.memory.procedural.active_set import assign_active_on_approval
 from fandea.memory.procedural.store import SkillStore
 from fandea.solver.apply import SkillApplicator
-from fandea.solver.tools import ClaimScheduler, Tool, ToolRegistry, ToolRuntime, default_registry
+from fandea.solver.tools import (
+    ClaimScheduler,
+    Tool,
+    ToolRegistry,
+    ToolResult,
+    ToolRuntime,
+    default_registry,
+)
 from fandea.solver.transcript import TranscriptStore, TranscriptWriter
 from fandea.workspace import WorkspaceManager
 
@@ -476,3 +483,75 @@ def test_replay_reconstructs_wave_composition_without_model_calls(tmp_path: Path
     assert set(wave_events[0]["payload"]["step_ids"]) == {"a", "b"}
     # No model events in an apply-only transcript.
     assert not any(e["kind"] == "model" for e in recorded["events"])
+
+
+def test_bound_step_output_is_the_only_dependency_and_is_recorded(tmp_path: Path) -> None:
+    """A data binding creates the edge and leaves evidence in the transcript."""
+
+    registry = ToolRegistry()
+    seen: list[dict] = []
+    registry.register(
+        Tool(name="produce", side_effect="pure"),
+        lambda _inputs, _workdir: ToolResult(tool="produce", ok=True, stdout="payload"),
+    )
+
+    def consume(inputs: dict, _workdir: Path) -> ToolResult:
+        seen.append(inputs)
+        return ToolResult(tool="consume", ok=True)
+
+    registry.register(Tool(name="consume", side_effect="pure"), consume)
+    applicator = SkillApplicator(ToolRuntime(registry), WorkspaceManager(tmp_path / "snaps"))
+    version = _skill(
+        "bound-output",
+        [
+            Step(
+                id="produce",
+                tool="produce",
+                intent="Produce the value for the consumer.",
+                outputs=[StepOutput(name="value", type="string")],
+            ),
+            Step(
+                id="consume",
+                tool="consume",
+                intent="Consume the producer's output value.",
+                input_bindings=[
+                    InputBinding(input="value", source_step="produce", output="value")
+                ],
+            ),
+        ],
+        cert_cmd="true",
+    )
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    store = TranscriptStore(tmp_path / "transcripts")
+    result = applicator.apply(
+        version,
+        params={},
+        workdir=workdir,
+        run_id="bound-run",
+        attempt_no=1,
+        transcript=TranscriptWriter(store, "bound-run", 1),
+    )
+
+    assert result.ok
+    assert [wave.wave.step_ids for wave in result.waves] == [["produce"], ["consume"]]
+    assert seen == [{"value": "payload"}]
+    events = store.read(result.transcript_ref)["events"]  # type: ignore[arg-type]
+    assert any(
+        event["kind"] == "step_output"
+        and event["payload"] == {
+            "step_id": "produce",
+            "output": "value",
+            "type": "string",
+            "value": "payload",
+        }
+        for event in events
+    )
+    consume_start = next(
+        event
+        for event in events
+        if event["kind"] == "step_start" and event["payload"]["step_id"] == "consume"
+    )
+    assert consume_start["payload"]["input_bindings"] == [
+        {"input": "value", "source_step": "produce", "output": "value"}
+    ]

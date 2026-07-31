@@ -11,6 +11,7 @@ from pathlib import Path
 
 from contracts.eval import BinomialSample, ControlBaseline, EvalObservation
 from contracts.run import RunState
+from contracts.stats import RetrievalAblationEffect
 
 
 class ObservationError(ValueError):
@@ -52,6 +53,8 @@ class EvalStore:
                     abstention_confirmed INTEGER,
                     skill_id TEXT,
                     skill_version INTEGER,
+                    suppressed_skill_id TEXT,
+                    suppressed_skill_version INTEGER,
                     valid_non_judge_evidence INTEGER NOT NULL DEFAULT 0,
                     evidence_hash TEXT NOT NULL,
                     recorded_at TEXT NOT NULL,
@@ -69,6 +72,11 @@ class EvalStore:
                     report_id TEXT,
                     UNIQUE(task_class, snapshot_id, report_id)
                 );
+                CREATE TABLE IF NOT EXISTS retrieval_ablation_effects (
+                    task_class TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 CREATE INDEX IF NOT EXISTS idx_obs_snap ON observations(snapshot_id, task_class);
                 CREATE INDEX IF NOT EXISTS idx_obs_skill ON observations(skill_id, skill_version, task_class);
                 CREATE INDEX IF NOT EXISTS idx_base_class ON baselines(task_class, created_at);
@@ -84,6 +92,8 @@ class EvalStore:
                 "abstention_confirmed": "INTEGER",
                 "skill_id": "TEXT",
                 "skill_version": "INTEGER",
+                "suppressed_skill_id": "TEXT",
+                "suppressed_skill_version": "INTEGER",
                 "valid_non_judge_evidence": "INTEGER NOT NULL DEFAULT 0",
                 "evidence_hash": "TEXT NOT NULL DEFAULT ''",
             }
@@ -141,6 +151,12 @@ class EvalStore:
             abstention_confirmed=state.terminal == "abstained" and state.failure is not None,
             skill_id=state.chosen.skill_id if state.chosen else None,
             skill_version=state.chosen.version if state.chosen else None,
+            suppressed_skill_id=(
+                state.suppressed_skill.skill_id if state.suppressed_skill else None
+            ),
+            suppressed_skill_version=(
+                state.suppressed_skill.version if state.suppressed_skill else None
+            ),
             valid_non_judge_evidence=valid_non_judge_evidence,
             evidence_hash=evidence_hash,
         )
@@ -162,9 +178,9 @@ class EvalStore:
                     run_id, task_class, arm, snapshot_id, model_version,
                     first_attempt_success, predicted_success, terminal, fixture_id,
                     is_eval_fixture, strategy, attempt_no, cost_usd, abstention_confirmed,
-                    skill_id, skill_version, valid_non_judge_evidence, evidence_hash,
-                    recorded_at, payload
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    skill_id, skill_version, suppressed_skill_id, suppressed_skill_version,
+                    valid_non_judge_evidence, evidence_hash, recorded_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     obs.run_id,
@@ -183,6 +199,8 @@ class EvalStore:
                     None if obs.abstention_confirmed is None else int(obs.abstention_confirmed),
                     obs.skill_id,
                     obs.skill_version,
+                    obs.suppressed_skill_id,
+                    obs.suppressed_skill_version,
                     int(obs.valid_non_judge_evidence),
                     obs.evidence_hash,
                     obs.recorded_at.isoformat(),
@@ -253,27 +271,59 @@ class EvalStore:
     def contribution_samples(
         self, *, skill_id: str, version: int, task_class: str, snapshot_id: str | None = None
     ) -> tuple[BinomialSample, BinomialSample]:
-        """Return eligible treatment and control samples for one skill decision."""
+        """Return randomized shadow and suppression samples for one skill."""
 
         suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
         params: list[object] = [task_class, skill_id, version]
         if snapshot_id is not None:
             params.append(snapshot_id)
-        treatment = self._sample(
+        shadow = self._sample(
             """
             SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
             FROM observations
             WHERE task_class = ? AND skill_id = ? AND skill_version = ?
-              AND arm = 'treatment' AND is_eval_fixture = 0
+              AND arm = 'shadow' AND is_eval_fixture = 0
               AND valid_non_judge_evidence = 1
             """
             + suffix,
             params,
         )
-        control_params: list[object] = [task_class]
+        suppression_params: list[object] = [task_class, skill_id, version]
         if snapshot_id is not None:
-            control_params.append(snapshot_id)
-        control = self._sample(
+            suppression_params.append(snapshot_id)
+        suppression = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND suppressed_skill_id = ? AND suppressed_skill_version = ?
+              AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            suppression_params,
+        )
+        return shadow, suppression
+
+    def retrieval_ablation_samples(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[BinomialSample, BinomialSample]:
+        """Return class-level retrieval-enabled and retrieval-suppressed samples."""
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        enabled = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'treatment' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            params,
+        )
+        suppressed = self._sample(
             """
             SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
             FROM observations
@@ -281,9 +331,33 @@ class EvalStore:
               AND valid_non_judge_evidence = 1
             """
             + suffix,
-            control_params,
+            params,
         )
-        return treatment, control
+        return enabled, suppressed
+
+    def write_retrieval_ablation(self, effect: RetrievalAblationEffect) -> None:
+        """Persist the one class-level retrieval effect, separate from skill stats."""
+
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO retrieval_ablation_effects (task_class, payload, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    effect.task_class,
+                    effect.model_dump_json(),
+                    effect.last_evaluated_at.isoformat()
+                    if effect.last_evaluated_at
+                    else datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def retrieval_ablation(self, task_class: str) -> RetrievalAblationEffect | None:
+        row = self._conn.execute(
+            "SELECT payload FROM retrieval_ablation_effects WHERE task_class = ?", (task_class,)
+        ).fetchone()
+        return RetrievalAblationEffect.model_validate_json(row["payload"]) if row else None
 
     def metric_rows(
         self, *, task_class: str | None = None, snapshot_id: str | None = None

@@ -99,6 +99,8 @@ class EvalObservation(BaseModel):
     abstention_confirmed: bool | None = None
     skill_id: str | None = None
     skill_version: int | None = Field(default=None, ge=1)
+    suppressed_skill_id: str | None = None
+    suppressed_skill_version: int | None = Field(default=None, ge=1)
     valid_non_judge_evidence: bool = False
     evidence_hash: str | None = None
 

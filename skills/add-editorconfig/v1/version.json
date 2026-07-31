@@ -23,7 +23,6 @@
         "command": "printf 'root = true\\n\\n[*]\\ncharset = utf-8\\nend_of_line = lf\\n\\n[*.py]\\nindent_style = space\\nindent_size = 4\\n' > .editorconfig"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

@@ -13,6 +13,8 @@ class RetrievalConfig:
     rerank_top_n: int = 10
     min_score: float = 0.40
     max_candidates: int = 3
+    probe_budget_units: int = 32
+    """Maximum read-only probe cost spent filtering one retrieval candidate."""
     evidence_floor: int = 30
     low_evidence_factor: float = 0.85
     """Multiply score by this when applications < evidence_floor (demotion, never a hard drop)."""

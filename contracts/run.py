@@ -163,6 +163,10 @@ class RunState(BaseModel):
 
     bundle: MemoryBundle = MemoryBundle()
     chosen: SkillCandidateRef | None = None
+    suppressed_skill: SkillCandidateRef | None = Field(
+        default=None,
+        description="Skill withheld for a randomized per-skill suppression comparison.",
+    )
     strategy: Strategy | None = None
     strategy_reason: str | None = None
     predicted_success: float | None = Field(default=None, ge=0, le=1)
@@ -207,6 +211,12 @@ class RunState(BaseModel):
             self.bundle.skills or self.bundle.facts or self.bundle.cases
         ):
             raise ValueError("arm='control' MUST return an empty, suppressed bundle (specs §5)")
+        return self
+
+    @model_validator(mode="after")
+    def _suppression_requires_control_arm(self) -> "RunState":
+        if self.suppressed_skill is not None and self.arm != "control":
+            raise ValueError("suppressed_skill is only valid for arm='control'")
         return self
 
     @model_validator(mode="after")

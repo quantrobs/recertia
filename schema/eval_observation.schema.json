@@ -164,6 +164,31 @@
       "default": null,
       "title": "Skill Version"
     },
+    "suppressed_skill_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suppressed Skill Id"
+    },
+    "suppressed_skill_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suppressed Skill Version"
+    },
     "valid_non_judge_evidence": {
       "default": false,
       "title": "Valid Non Judge Evidence",

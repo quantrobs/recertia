@@ -1,7 +1,8 @@
 # Fandea Implementation Plan
 
-Build order for the system in [`architecture.md`](architecture.md) against the contracts in
-[`specifications.md`](specifications.md). Milestones are sequenced by dependency and by what
+Build order for the system in the [architecture overview](architecture/overview.md) against the
+contracts in [core entities and skill contracts](specifications/core-entities.md). Milestones are
+sequenced by dependency and by what
 each one lets you *measure*, not by calendar time.
 
 ## Guiding sequencing rules
@@ -100,7 +101,7 @@ full eventual form:
   invocation, ledger append) is keyed by `(run_id, attempt_no, node, op_seq)`; a resumed run
   replays or no-ops already-applied operations rather than re-executing them. Without this,
   "killing the process mid-run and resuming completes it" (below) is a claim with no mechanism.
-- All fifteen nodes stubbed per `specifications.md` §4 (`join` is a no-op stub — it only
+- All fifteen nodes stubbed per `specifications/graph-execution.md` §4 (`join` is a no-op stub — it only
   activates once `fan_out` exists in M6); `solve` is a scripted tool sequence.
 - `validate` runs `command` criteria for real in the subprocess sandbox.
 - **Criteria locking** at `intake` with hash recorded in the run manifest; `TaskCriterion` only

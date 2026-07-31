@@ -38,7 +38,6 @@
         "command": "sed -i 's/[[:space:]]*$//' README.md"
       },
       "optional": false,
-      "depends_on": [],
       "resources": [],
       "loop": null
     }

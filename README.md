@@ -12,8 +12,8 @@ practise, and re-certify what has been learned.
 
 | Document | Contents |
 | --- | --- |
-| [`docs/architecture.md`](docs/architecture.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
-| [`docs/specifications.md`](docs/specifications.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
+| [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
+| [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
 | [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |

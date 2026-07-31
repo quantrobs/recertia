@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from contracts.common import RETRIEVABLE_LIFECYCLES
 from contracts.status import SkillStatus
 from fandea.evals.store import EvalStore
-from fandea.memory.procedural.contribution import estimate_contribution
+from fandea.memory.procedural.contribution import (
+    estimate_contribution,
+    estimate_retrieval_ablation,
+)
 from fandea.memory.procedural.store import SkillStore
 from fandea.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
 
@@ -20,6 +24,52 @@ def assign_active_on_approval(status: SkillStatus) -> SkillStatus:
     if status.lifecycle in RETRIEVABLE_LIFECYCLES:
         return status.model_copy(update={"active": False})
     return status.model_copy(update={"active": False})
+
+
+@dataclass(frozen=True)
+class ShadowSlot:
+    """An offline-only evaluation assignment, never an active retrieval slot."""
+
+    skill_id: str
+    version: int
+    task_class: str
+    reason: str
+
+
+def select_shadow_slots(
+    store: SkillStore, *, config: AutonomyConfig = DEFAULT_AUTONOMY
+) -> list[ShadowSlot]:
+    """Allocate bounded offline slots to benched and inactive approved versions.
+
+    These slots do not alter ``SkillStatus.active`` and therefore cannot expand
+    the caller-visible active cap.
+    """
+
+    by_class: dict[str, list[tuple]] = {}
+    for version, status, stats in store.iter_loaded():
+        if status.lifecycle == "benched" or (
+            status.lifecycle == "approved" and not status.active
+        ):
+            by_class.setdefault(version.task_class, []).append((version, status, stats))
+    slots: list[ShadowSlot] = []
+    for task_class, rows in by_class.items():
+        rows.sort(
+            key=lambda row: (
+                row[2].contribution.applications + row[2].contribution.suppressed_applications,
+                row[0].skill_id,
+                row[0].version,
+            )
+        )
+        for version, status, _stats in rows[: config.shadow_slots_per_task_class]:
+            slots.append(
+                ShadowSlot(
+                    skill_id=version.skill_id,
+                    version=version.version,
+                    task_class=task_class,
+                    reason="benched" if status.lifecycle == "benched" else "newly_approved",
+                )
+            )
+    return slots
 
 
 def recompute_active_set(
@@ -44,27 +94,35 @@ def recompute_active_set(
         approved = [(v, s, st) for v, s, st in rows if s.lifecycle == "approved"]
         evidenced: list[tuple] = []
         if eval_store is not None:
+            retrieval_enabled, retrieval_suppressed = eval_store.retrieval_ablation_samples(
+                task_class=task_class
+            )
+            retrieval_ablation = estimate_retrieval_ablation(
+                task_class=task_class,
+                retrieval_enabled=retrieval_enabled,
+                retrieval_suppressed=retrieval_suppressed,
+            )
+            eval_store.write_retrieval_ablation(retrieval_ablation)
             for version, status, stats in approved:
-                treatment, control = eval_store.contribution_samples(
+                shadow, suppression = eval_store.contribution_samples(
                     skill_id=version.skill_id,
                     version=version.version,
                     task_class=task_class,
                 )
                 contribution = estimate_contribution(
-                    applications=treatment.trials,
-                    successes=treatment.successes,
-                    control=control,
+                    shadow=shadow,
+                    suppression=suppression,
                 )
-                if contribution != stats.contribution:
-                    store.write_stats(stats.model_copy(update={"contribution": contribution}))
+                updated_stats = stats.model_copy(update={"contribution": contribution})
+                if updated_stats != stats:
+                    store.write_stats(updated_stats)
                 if contribution.estimate is not None:
-                    updated_stats = stats.model_copy(update={"contribution": contribution})
                     evidenced.append((version, status, updated_stats))
         # Rank: contribution estimate (None → -inf), then trust score.
         def rank(row: tuple) -> tuple[float, float]:
             _v, _s, st = row
             est = st.contribution.estimate
-            trust = (st.trust.successes + 1) / (st.trust.applications + 2)
+            trust = st.predictive_trust.score
             return (est if est is not None else float("-inf"), trust)
 
         evidenced.sort(key=rank, reverse=True)

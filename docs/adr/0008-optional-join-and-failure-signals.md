@@ -9,9 +9,9 @@
 Two routing contradictions made the graph unrunnable before fan-out exists (M0–M5, per
 `implementation-plan.md`):
 
-**B3 — universal join.** `architecture.md` §5.1 draws `validate → join` unconditionally, for
+**B3 — universal join.** `architecture/task-plane.md` §5.1 draws `validate → join` unconditionally, for
 every run, including the ordinary single-attempt case that M0–M5 exercise exclusively.
-`specifications.md` §4 defines `join` only in terms of branches, portfolio selection, and
+`specifications/graph-execution.md` §4 defines `join` only in terms of branches, portfolio selection, and
 decomposition synthesis — concepts that do not exist until fan-out (M6). Worse, the routing
 predicate tested `merge_audit.complete`, a field `MergeAudit` does not have; it has
 `action ∈ {proceeded, flagged, failed}`. There was no specified route from a successful
@@ -53,8 +53,8 @@ join → classify_failure       : otherwise
 This is Option 1 from the refactor plan, chosen definitively rather than left open: it needs no
 new concept (`ExecutionGroup` of size 1, the alternative considered, would have required every
 M0–M5 node to reason about a fan-out abstraction that does not exist yet for their own sake).
-`architecture.md`'s detailed diagram and `specifications.md` §4 change; `README.md`'s diagram
-does not.
+`architecture/task-plane.md`'s detailed diagram and `specifications/graph-execution.md` §4
+change; `README.md`'s diagram does not.
 
 ### Failures are signalled explicitly, not inferred from a result vector
 
@@ -67,7 +67,8 @@ raised:
 - by `validate`, when a required criterion fails — replacing the old "some required criterion
   failed" precondition with an explicit signal `validate` constructs from exactly that fact, so
   the precondition is checkable without re-deriving it from the result vector every time;
-- by `join`, on a merge gap or resource-claim deadlock (`specifications.md` §26.4).
+- by `join`, on a merge gap or resource-claim deadlock
+  (`specifications/library-authoring-and-concurrency.md` §26.4).
 
 ### Terminals are split by what they act on, and quarantine of a *version* leaves the task graph entirely
 
@@ -82,11 +83,11 @@ Three different things were called "quarantine":
    or a recertification rejection. This is **not** a task-plane decision at all: no single run
    has the aggregate evidence (two consecutive failures, or a recert comparison) to make this
    call. It is a `SkillStatus` transition made by the Recertifier or Curator
-   (`specifications.md` §20), reading across runs. Removing it from the task-plane graph
+   (`specifications/evaluation-improvement-and-governance.md` §20), reading across runs. Removing it from the task-plane graph
    entirely — rather than adding a third graph node, as the refactor plan first sketched — is a
    sharper fix: it stops a single run's `classify_failure` from ever being able to reach into
    governance state it has no standing to change, which is exactly the kind of authority
-   `architecture.md` §14 exists to bound.
+   `architecture/risk-and-governance.md` §14 exists to bound.
 
 The task-plane graph therefore has two failure terminals, not three, and neither can quarantine
 a stored skill version:
@@ -117,8 +118,8 @@ being fixed.
 - `contracts/graph.py`'s route table encodes exactly the edges above and is exhaustively tested
   (`tests/contracts/test_route_completeness.py`): every `FailureClass` has at least one producing
   edge, and every node has at least one legal outgoing route for every reachable state.
-- `specifications.md` §4/§4.1, `architecture.md` §5.1's diagram and node table, and
-  `implementation-plan.md`'s M0 node list are updated to match (fourteen nodes become fifteen:
+- `specifications/graph-execution.md` §4/§4.1, `architecture/task-plane.md` §5.1's diagram and
+  node table, and `implementation-plan.md`'s M0 node list are updated to match (fourteen nodes become fifteen:
   `quarantine` is removed, `record_dead_end` and `reject_draft` are added; `quarantine_version`
   is documented under the Recertifier/Curator in specs §20, not in the node table).
 - `docs/refactor-plan.md` marks B3 and B4 resolved with a link back here.

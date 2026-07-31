@@ -54,6 +54,34 @@
       "title": "Hygiene",
       "type": "object"
     },
+    "InputBinding": {
+      "additionalProperties": false,
+      "description": "Bind one tool input to a named output from a predecessor step.",
+      "properties": {
+        "input": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Input",
+          "type": "string"
+        },
+        "source_step": {
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "title": "Source Step",
+          "type": "string"
+        },
+        "output": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "source_step",
+        "output"
+      ],
+      "title": "InputBinding",
+      "type": "object"
+    },
     "Parameter": {
       "additionalProperties": false,
       "properties": {
@@ -132,9 +160,9 @@
           "enum": [
             "file_exists",
             "path_glob",
-            "command_succeeds",
             "env_present",
-            "tool_available"
+            "tool_available",
+            "probe"
           ],
           "title": "Kind",
           "type": "string"
@@ -142,6 +170,11 @@
         "value": {
           "title": "Value",
           "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
         },
         "description": {
           "anyOf": [
@@ -591,7 +624,7 @@
     },
     "Step": {
       "additionalProperties": false,
-      "description": "One node in a skill's step DAG (specs \u00a726.1).\n\nAn edge is valid only if the step consumes the referenced step's output \u2014 the fake-edge\ntest. This model cannot check that semantic property (it needs a run transcript); it only\nenforces the structural half: ids exist, are well-formed, and ``loop`` is bounded when\npresent.",
+      "description": "One node in a skill's step DAG (specs \u00a726.1).\n\nDependencies are derived exclusively from ``input_bindings``.  This makes each edge\ndata-carrying by construction instead of allowing ordering-only authoring edges.",
       "properties": {
         "id": {
           "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
@@ -620,17 +653,24 @@
           "title": "Inputs",
           "type": "object"
         },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/StepOutput"
+          },
+          "title": "Outputs",
+          "type": "array"
+        },
+        "input_bindings": {
+          "items": {
+            "$ref": "#/$defs/InputBinding"
+          },
+          "title": "Input Bindings",
+          "type": "array"
+        },
         "optional": {
           "default": false,
           "title": "Optional",
           "type": "boolean"
-        },
-        "depends_on": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Depends On",
-          "type": "array"
         },
         "resources": {
           "items": {
@@ -694,6 +734,44 @@
         "max_iterations"
       ],
       "title": "StepLoop",
+      "type": "object"
+    },
+    "StepOutput": {
+      "additionalProperties": false,
+      "description": "A typed value a step exposes for later steps to consume.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "path",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "value_from": {
+          "default": "stdout",
+          "enum": [
+            "stdout",
+            "stderr",
+            "exit_code"
+          ],
+          "title": "Value From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "StepOutput",
       "type": "object"
     }
   },

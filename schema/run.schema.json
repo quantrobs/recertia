@@ -1614,6 +1614,18 @@
       ],
       "default": null
     },
+    "suppressed_skill": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkillCandidateRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Skill withheld for a randomized per-skill suppression comparison."
+    },
     "strategy": {
       "anyOf": [
         {

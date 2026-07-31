@@ -69,3 +69,11 @@ def test_cross_refs_flags_dangling(tmp_path: Path) -> None:
     (docs / "a.md").write_text("[missing](nope.md#gone)\n", encoding="utf-8")
     errors = check_cross_refs(docs)
     assert errors
+
+
+def test_cross_refs_flags_incomplete_split_index(tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "architecture.md").write_text("# Architecture\n", encoding="utf-8")
+    errors = check_cross_refs(docs)
+    assert any("missing split-document topic" in error for error in errors)

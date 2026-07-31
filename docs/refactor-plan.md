@@ -57,13 +57,13 @@ is the review notes below and the secondary debt in §1, which have not yet been
 
 ## 0. Diagnosis: seven blockers (historical — resolved above)
 
-(Numbering starts at 0 deliberately, unlike `specifications.md`/`architecture.md`'s 1-index:
+(Numbering starts at 0 deliberately, unlike the architecture and specifications topics' 1-index:
 "0" marks diagnosis-before-any-fix. If a cross-reference checker is ever generalised to this
 document, treat that as intentional, not a bug to "fix" by renumbering.)
 
 ### B1. `SkillVersion` is immutable and continuously rewritten
 
-`specifications.md` §1: `SkillVersion` is "**Immutable once written**." M1 refuses any
+`specifications/core-entities.md` §1: `SkillVersion` is "**Immutable once written**." M1 refuses any
 rewrite of an existing version. Yet `skill.schema.json` embeds in that same document:
 `lifecycle`, `active`, `trust`, `contribution`, `retirement`, and certification fields —
 all of which change after the version is written.
@@ -120,8 +120,9 @@ M0–M5 therefore have no specified route from a successful single-attempt valid
 two equally-good options — [`README.md`](../README.md)'s simplified loop diagram already drew
 `V -->|pass| D` with no `join` on the default path, before this plan was written. Option 2
 (universal singleton `ExecutionGroup`) would have required rewriting the one diagram every
-other document treats as ground truth, for a M6 mechanism M0–M5 never exercise. `architecture.md`
-§5.1 and `specifications.md` §4/§4.1 were the documents that were wrong; README was not.
+other document treats as ground truth, for a M6 mechanism M0–M5 never exercise.
+`architecture/task-plane.md` §5.1 and `specifications/graph-execution.md` §4/§4.1 were the
+documents that were wrong; README was not.
 
 ### B4. Most failure classes cannot legally reach `classify_failure`
 
@@ -226,8 +227,10 @@ Not a prettier folder tree — a clearer ownership model.
 ```text
 Authority
 ├── docs/adr/                   decisions and their evidence status
-├── docs/architecture.md        intent, topology, rationale (split in R4)
-├── docs/specifications.md      normative MUSTs; owns semantics
+├── docs/architecture.md        compatibility index for split architecture topics
+├── docs/architecture/          intent, topology, and rationale by topic [R4 done]
+├── docs/specifications.md      compatibility index for split normative contracts
+├── docs/specifications/        normative MUSTs by topic [R4 done]
 ├── contracts/                  Pydantic models — normative structural source (ADR-0009) [done]
 │   ├── profiles.py             approved-skill, candidate-skill, checkpointed-run, …
 │   └── examples.py             canonical examples, code-generated, not hand-written JSON
@@ -347,7 +350,11 @@ CI now cover those. All eight R3 checks are enforced.
 
 Only after R1. Splitting contradictory prose into more files freezes the contradictions in
 a prettier tree. Cut along existing headings once the blockers are resolved; keep
-redirect stubs for one milestone.
+redirect/index stubs for one milestone.
+
+**Done.** `architecture.md` and `specifications.md` now provide compatibility indexes, with
+coherent topic files under `architecture/` and `specifications/`. R3 cross-reference CI checks
+that each compatibility index enumerates its required topic files.
 
 ### R5 — Branch hygiene
 
@@ -363,12 +370,12 @@ R0  hygiene                         // done — research/ holds survey binaries
 R1  B3 → B4 → B1 → B5 → B2 → B6 → B7   // done — see Resolution status
 R2  skeleton + generated contracts  // done
 R3  contract CI                     // done (8/8 checks)
-R4  split docs                      // optional; not started
+R4  split docs                      // done
 R5  branch cleanup                  // anytime
 ```
 
-M0–M9 engineering done-whens are on `main`. Remaining work is optional hygiene (R4/R5),
-secondary debt in §1 (S1/S2/S4/S5), and research outcomes in `assumptions.md`.
+M0–M9 engineering done-whens are on `main`. Remaining work is branch hygiene (R5), secondary
+debt in §1 (S1/S2/S4/S5), and research outcomes in `assumptions.md`.
 
 ---
 
@@ -388,7 +395,7 @@ R0–R3 and M0–M9 are done. Remaining optional work:
 
 1. ~~Wire contracts CI + the three R3 hygiene scripts.~~ — done in `.github/workflows/ci.yml`.
 2. ~~Land R0 (move research binaries out of `docs/`).~~ — done under `research/`.
-3. Optionally split long docs (R4) and delete stale merged agent branches (R5).
+3. Delete stale merged agent branches (R5).
 4. Pick up remaining secondary debt in §1 (S1, S2, S4, S5) opportunistically.
 5. Research outcomes in [`assumptions.md`](assumptions.md) stay under evaluation until real
    traffic yields intervals.

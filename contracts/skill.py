@@ -37,8 +37,9 @@ class Precondition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["file_exists", "path_glob", "command_succeeds", "env_present", "tool_available"]
+    kind: Literal["file_exists", "path_glob", "env_present", "tool_available", "probe"]
     value: str
+    arguments: dict[str, object] = Field(default_factory=dict)
     description: str | None = None
 
 
@@ -50,13 +51,42 @@ class StepLoop(BaseModel):
     max_iterations: int = Field(ge=1, le=10)
 
 
+StepValueType = Literal["string", "number", "boolean", "path", "json"]
+
+
+class StepOutput(BaseModel):
+    """A typed value a step exposes for later steps to consume."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=r"^[a-z_][a-z0-9_]*$")
+    type: StepValueType
+    value_from: Literal["stdout", "stderr", "exit_code"] = "stdout"
+
+    @model_validator(mode="after")
+    def _source_matches_type(self) -> "StepOutput":
+        if self.value_from == "exit_code" and self.type != "number":
+            raise ValueError("exit_code outputs must have type 'number'")
+        if self.value_from in ("stdout", "stderr") and self.type == "number":
+            raise ValueError("stdout/stderr outputs cannot have type 'number'")
+        return self
+
+
+class InputBinding(BaseModel):
+    """Bind one tool input to a named output from a predecessor step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    input: str = Field(pattern=r"^[a-z_][a-z0-9_]*$")
+    source_step: str = Field(pattern=_STEP_ID_PATTERN)
+    output: str = Field(pattern=r"^[a-z_][a-z0-9_]*$")
+
+
 class Step(BaseModel):
     """One node in a skill's step DAG (specs §26.1).
 
-    An edge is valid only if the step consumes the referenced step's output — the fake-edge
-    test. This model cannot check that semantic property (it needs a run transcript); it only
-    enforces the structural half: ids exist, are well-formed, and ``loop`` is bounded when
-    present.
+    Dependencies are derived exclusively from ``input_bindings``.  This makes each edge
+    data-carrying by construction instead of allowing ordering-only authoring edges.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -65,10 +95,21 @@ class Step(BaseModel):
     tool: str | None = None
     intent: str = Field(min_length=5)
     inputs: dict = Field(default_factory=dict)
+    outputs: list[StepOutput] = Field(default_factory=list)
+    input_bindings: list[InputBinding] = Field(default_factory=list)
     optional: bool = False
-    depends_on: list[str] = Field(default_factory=list)
     resources: list[ResourceClaim] = Field(default_factory=list)
     loop: StepLoop | None = None
+
+    @model_validator(mode="after")
+    def _outputs_and_bindings_are_unique(self) -> "Step":
+        output_names = [output.name for output in self.outputs]
+        if len(set(output_names)) != len(output_names):
+            raise ValueError("step output names must be unique")
+        bound_inputs = [binding.input for binding in self.input_bindings]
+        if len(set(bound_inputs)) != len(bound_inputs):
+            raise ValueError("step input bindings must target distinct inputs")
+        return self
 
 
 class FailureMode(BaseModel):
@@ -138,18 +179,28 @@ class SkillVersion(BaseModel):
 
     @model_validator(mode="after")
     def _steps_form_a_dag(self) -> "SkillVersion":
-        ids = {step.id for step in self.steps}
-        if len(ids) != len(self.steps):
+        steps_by_id = {step.id: step for step in self.steps}
+        if len(steps_by_id) != len(self.steps):
             raise ValueError("step ids must be unique")
         for step in self.steps:
-            unknown = set(step.depends_on) - ids
-            if unknown:
-                raise ValueError(f"step {step.id!r} depends_on unknown step id(s): {unknown}")
+            for binding in step.input_bindings:
+                if binding.source_step == step.id:
+                    raise ValueError(f"step {step.id!r} cannot bind its own output")
+                source = steps_by_id.get(binding.source_step)
+                if source is None:
+                    raise ValueError(
+                        f"step {step.id!r} binds unknown source step {binding.source_step!r}"
+                    )
+                if binding.output not in {output.name for output in source.outputs}:
+                    raise ValueError(
+                        f"step {step.id!r} binds unknown output "
+                        f"{binding.source_step}.{binding.output}"
+                    )
         # Cycle detection (Kahn's algorithm).
         indegree = {step.id: 0 for step in self.steps}
         graph: dict[str, list[str]] = {step.id: [] for step in self.steps}
         for step in self.steps:
-            for dep in step.depends_on:
+            for dep in step_dependencies(step):
                 graph[dep].append(step.id)
                 indegree[step.id] += 1
         queue = [sid for sid, deg in indegree.items() if deg == 0]
@@ -162,7 +213,7 @@ class SkillVersion(BaseModel):
                 if indegree[nxt] == 0:
                     queue.append(nxt)
         if visited != len(self.steps):
-            raise ValueError("step depends_on graph contains a cycle")
+            raise ValueError("step input-binding graph contains a cycle")
         return self
 
     @model_validator(mode="after")
@@ -205,3 +256,9 @@ def _placeholders_in(text: str) -> set[str]:
     import re
 
     return set(re.findall(r"\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}", text))
+
+
+def step_dependencies(step: Step) -> set[str]:
+    """Return the predecessor ids implied by a step's input bindings."""
+
+    return {binding.source_step for binding in step.input_bindings}
