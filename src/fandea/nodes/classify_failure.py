@@ -1,22 +1,4 @@
-"""``classify_failure``: assign a failure class from the taxonomy (specs §4, §16). M0 stub.
-
-M0 has no skill applied (``plan`` always chooses ``scratch``) and no fan-out, so the
-``retrieval``, ``plan``, and ``merge`` classes are structurally unreachable here — they need a
-chosen skill or a branch to be about. What M0 *can* diagnose honestly from a raised
-``FailureSignal`` alone:
-
-- ``source="solver"`` (raised before validation ever ran) -> ``tool`` — the only pre-validation
-  class M0's scripted solve can distinguish; finer environment/tool separation needs the tool
-  registry (M2).
-- budget already exhausted -> ``budget``, regardless of source.
-- ``source="validator"`` with a failed required criterion whose own sensitivity proof does not
-  reject its negative fixture -> ``criteria`` ("sensitivity proof invalid", specs §16) — a
-  cheap, real diagnostic using data the criterion already carries, not a guess.
-- Any other validator-raised failure -> ``execution`` (retryable); the route table's own
-  "no progress across two identical attempts" check (``contracts.graph._budget_remains_with_progress``)
-  is what actually stops a genuinely unsatisfiable ``execution``-classified loop from running
-  forever, which is exactly the M0 done-when this satisfies.
-"""
+"""``classify_failure``: assign a failure class from the taxonomy (specs §4, §16)."""
 
 from __future__ import annotations
 
@@ -42,7 +24,30 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
             counts_against_trust=False,
             escalate_to_human=False,
         )
+    elif signal.source == "solver" and _is_tool_failure(state, ctx, signal.detail):
+        failure = FailureVerdict(
+            failure_class="tool",
+            evidence=[signal.detail],
+            counts_against_trust=False,
+            escalate_to_human=False,
+        )
+    elif signal.source == "solver" and "claim timeout" in signal.detail.lower():
+        failure = FailureVerdict(
+            failure_class="merge",
+            evidence=[signal.detail],
+            counts_against_trust=False,
+            escalate_to_human=False,
+        )
+    elif signal.source == "solver" and _is_environment_failure(signal.detail):
+        failure = FailureVerdict(
+            failure_class="environment",
+            evidence=[signal.detail],
+            counts_against_trust=False,
+            escalate_to_human=False,
+        )
     elif signal.source == "solver":
+        # Generic solver failure without affordance match → tool if flaky registry says so,
+        # else treat as tool for unexpected nonzero exits from the tool runtime.
         failure = FailureVerdict(
             failure_class="tool",
             evidence=[signal.detail],
@@ -56,15 +61,28 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
             counts_against_trust=False,
             escalate_to_human=True,
         )
+    elif state.chosen is not None and not state.results and signal.source == "validator":
+        failure = FailureVerdict(
+            failure_class="retrieval",
+            evidence=[signal.detail],
+            implicated_skill={"skill_id": state.chosen.skill_id, "version": state.chosen.version},
+            counts_against_trust=True,
+            escalate_to_human=False,
+        )
     else:
         failure = FailureVerdict(
             failure_class="execution",
-            evidence=[r.criterion_id for r in state.results if not r.passed],
+            evidence=[r.criterion_id for r in state.results if not r.passed] or [signal.detail],
+            implicated_skill=(
+                {"skill_id": state.chosen.skill_id, "version": state.chosen.version}
+                if state.chosen
+                else None
+            ),
             counts_against_trust=True,
             escalate_to_human=False,
         )
 
-    assert failure.is_consistent, f"classify_failure produced an internally inconsistent verdict: {failure!r}"
+    assert failure.is_consistent, f"classify_failure produced an inconsistent verdict: {failure!r}"
 
     new_state = state.model_copy(update={"failure": failure})
     legal = legal_routes("classify_failure", new_state)
@@ -72,6 +90,30 @@ def classify_failure(state: RunState, ctx: NodeContext) -> NodeOutcome:
     return NodeOutcome(
         state=new_state, route=legal[0].predicate_name, note=f"classified as {failure.failure_class!r}"
     )
+
+
+def _is_tool_failure(state: RunState, ctx: NodeContext, detail: str) -> bool:
+    if ctx.tools is None and ctx.affordances is None:
+        return True  # M0/M1 path: solver-raised ⇒ tool
+    # Known flaky tool or matching error signature → tool class (no trust impact).
+    if ctx.tools is not None:
+        for name in ctx.tools.registry.names():
+            if ctx.tools.registry.is_flaky(name) and name in detail:
+                return True
+            sig = ctx.tools.registry.match_error_signature(name, detail)
+            if sig:
+                return True
+    if ctx.affordances is not None:
+        for name in list(ctx.affordances.tools):
+            if ctx.affordances.is_known_flaky(name) and name in detail:
+                return True
+            if ctx.affordances.matches_error_signature(name, detail):
+                return True
+    return "tool=" in detail or "flaky" in detail.lower()
+
+
+def _is_environment_failure(detail: str) -> bool:
+    return detail.startswith("environment:") or "before first productive" in detail
 
 
 def _has_invalid_sensitivity_proof(state: RunState) -> bool:
