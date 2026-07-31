@@ -12,8 +12,8 @@ from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
 from contracts.stats import Contribution, SkillStats, Trust
 from contracts.status import SkillStatus
-from fandea.ledger import HashChainLedger
 from fandea.evals.store import EvalStore
+from fandea.ledger import HashChainLedger
 from fandea.memory.procedural.active_set import recompute_active_set
 from fandea.memory.procedural.store import SkillStore
 from fandea.review.autonomy_config import DEFAULT_AUTONOMY, HARSH_AUTONOMY

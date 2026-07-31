@@ -153,7 +153,7 @@ def _partition_criteria(
     part_count = min(max_parts or 2, len(crits))
     if part_count < 2:
         return None
-    parts = [[] for _ in range(part_count)]
+    parts: list[list] = [[] for _ in range(part_count)]
     for index, criterion in enumerate(crits):
         parts[index % part_count].append(criterion)
     return [

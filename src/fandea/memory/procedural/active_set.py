@@ -58,7 +58,8 @@ def recompute_active_set(
                 if contribution != stats.contribution:
                     store.write_stats(stats.model_copy(update={"contribution": contribution}))
                 if contribution.estimate is not None:
-                    evidenced.append((version, status, stats.model_copy(update={"contribution": contribution})))
+                    updated_stats = stats.model_copy(update={"contribution": contribution})
+                    evidenced.append((version, status, updated_stats))
         # Rank: contribution estimate (None → -inf), then trust score.
         def rank(row: tuple) -> tuple[float, float]:
             _v, _s, st = row
