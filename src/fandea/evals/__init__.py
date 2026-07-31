@@ -1,5 +1,20 @@
-"""Eval harness package. M1: minimal golden-regression runner only."""
+"""Eval harness package: golden regression, statistics, ablation (T3), metrics store."""
 
-from fandea.evals.golden import GoldenReport, GoldenResult, run_golden_for_skill, run_seed_library_gate
+from fandea.evals.golden import (
+    GoldenReport,
+    GoldenResult,
+    run_golden_for_skill,
+    run_seed_library_gate,
+    run_task_class_gate,
+)
+from fandea.evals.statistics import causal_lift, wilson_interval
 
-__all__ = ["GoldenReport", "GoldenResult", "run_golden_for_skill", "run_seed_library_gate"]
+__all__ = [
+    "GoldenReport",
+    "GoldenResult",
+    "causal_lift",
+    "run_golden_for_skill",
+    "run_seed_library_gate",
+    "run_task_class_gate",
+    "wilson_interval",
+]

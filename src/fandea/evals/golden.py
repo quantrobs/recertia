@@ -87,6 +87,8 @@ def run_golden_for_skill(
     *,
     runs_root: Path,
     use_skill_script: bool = True,
+    snapshot_id: str | None = None,
+    model_version: str | None = None,
 ) -> GoldenResult:
     """Execute one golden task against ``version``; return a :class:`GoldenResult`."""
 
@@ -102,6 +104,8 @@ def run_golden_for_skill(
         / "golden-workspaces"
         / f"{version.skill_id}-v{version.version}-{uuid.uuid4().hex[:8]}"
     )
+    if workdir.exists():
+        shutil.rmtree(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
     fixture = golden_dir / "workspace"
     if fixture.exists():
@@ -116,6 +120,13 @@ def run_golden_for_skill(
     script = script_from_skill(version) if use_skill_script else task_spec.get("script", ["true"])
 
     run_id = f"golden-{version.skill_id}-v{version.version}-{uuid.uuid4().hex[:6]}"
+    from contracts.run import RunManifest
+
+    pinned = RunManifest(
+        model_version=model_version or "m4-harness",
+        index_snapshot_id=snapshot_id,
+        library_commit=snapshot_id,
+    )
     orch = GraphOrchestrator(runs_root / "golden-runs")
     try:
         state = orch.start(
@@ -131,9 +142,14 @@ def run_golden_for_skill(
             budget=Budget(max_attempts=2),
             workdir=workdir,
             script=script,
+            manifest=pinned,
+            arm="treatment",
         )
     finally:
         orch.close()
+        # Deterministic teardown so the next run starts from a pristine fixture.
+        if workdir.exists():
+            shutil.rmtree(workdir, ignore_errors=True)
 
     passed = state.terminal == expected_terminal
     return GoldenResult(
@@ -143,7 +159,10 @@ def run_golden_for_skill(
         passed=passed,
         terminal=state.terminal,
         run_id=run_id,
-        detail=f"expected terminal={expected_terminal!r}, got {state.terminal!r}",
+        detail=(
+            f"expected terminal={expected_terminal!r}, got {state.terminal!r}; "
+            f"snapshot={pinned.index_snapshot_id!r} model={pinned.model_version!r}"
+        ),
     )
 
 

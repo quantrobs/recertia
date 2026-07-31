@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
+from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, MetricReport  # noqa: E402
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
@@ -44,6 +45,10 @@ MODELS: dict[str, type] = {
     "fact.schema.json": Fact,
     "review_decision.schema.json": ReviewDecision,
     "authoring_prior.schema.json": AuthoringPrior,
+    "causal_lift_result.schema.json": CausalLiftResult,
+    "control_baseline.schema.json": ControlBaseline,
+    "eval_observation.schema.json": EvalObservation,
+    "metric_report.schema.json": MetricReport,
 }
 
 
