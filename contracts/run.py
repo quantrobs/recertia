@@ -14,7 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from contracts.branch import BranchState, MergeAudit
-from contracts.budget import Budget, Spend
+from contracts.budget import Budget, BudgetReservation, Spend
 from contracts.common import Arm, Strategy, Terminal
 from contracts.criteria import CriterionResult, TaskCriterion
 from contracts.failure import FailureSignal, FailureVerdict
@@ -197,6 +197,7 @@ class RunState(BaseModel):
 
     budget: Budget = Budget()
     spent: Spend = Spend()
+    reserved: BudgetReservation = BudgetReservation()
     route_log: list[RouteEntry] = Field(default_factory=list)
     terminal: Terminal | None = None
 

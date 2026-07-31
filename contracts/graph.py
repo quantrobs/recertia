@@ -108,7 +108,20 @@ ROUTES: tuple[Route, ...] = (
         lambda s: s.strategy in ("apply", "adapt", "scratch"),
         "Single-strategy runs solve directly.",
     ),
-    Route("fan_out", "solve", "always", lambda s: True, "Every branch is dispatched to solve."),
+    Route(
+        "fan_out",
+        "classify_failure",
+        "pre_dispatch_budget_failure",
+        lambda s: s.failure_signal is not None,
+        "A failed branch reservation is a budget failure before any branch is dispatched.",
+    ),
+    Route(
+        "fan_out",
+        "solve",
+        "always",
+        lambda s: s.failure_signal is None,
+        "Every successfully dispatched branch proceeds to solve.",
+    ),
     Route(
         "solve",
         "classify_failure",
