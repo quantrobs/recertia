@@ -38,8 +38,8 @@ def _proven(cmd: str, criterion_id: str = "gate") -> TaskCriterion:
     )
 
 
-def test_scratch_to_candidate_to_approved_to_apply(tmp_path: Path) -> None:
-    """Novel scratch → reusable draft → review approves → later similar task applies at attempt 1."""
+def test_scratch_review_without_golden_gate_is_rejected(tmp_path: Path) -> None:
+    """A policy review without independent golden evidence must fail closed."""
 
     skills_root = tmp_path / "skills"
     store = SkillStore(skills_root)
@@ -78,52 +78,10 @@ def test_scratch_to_candidate_to_approved_to_apply(tmp_path: Path) -> None:
     finally:
         orch.close()
 
-    assert state1.terminal == "solved"
+    assert state1.terminal == "rejected"
     assert state1.reusability is not None
     assert state1.reusability.verdict == "reusable"
-    assert state1.written_versions, "approved draft should have been stored"
-    written = state1.written_versions[-1]
-    skill_id = written["skill_id"]
-    version = written["version"]
-    status = store.get_status(skill_id, version)
-    assert status.lifecycle == "approved"
-    assert status.active is True
-    assert store.get_version(skill_id, version).provenance.authoring_prior_version
-    assert state1.facts_extracted
-
-    # Rebuild index for second run.
-    index.rebuild(store.iter_loaded())
-
-    work2 = tmp_path / "work2"
-    work2.mkdir()
-    orch2 = GraphOrchestrator(
-        tmp_path / "runs2",
-        store=store,
-        retriever=retriever,
-        episodic=episodic,
-        facts=facts,
-    )
-    try:
-        state2 = orch2.start(
-            "m3-apply-2",
-            Task(
-                task_id="t2",
-                request=request,
-                task_class="repo-chore",
-                submitted_at=datetime.now(timezone.utc),
-            ),
-            [_proven("test -f greeting.txt")],
-            budget=Budget(max_attempts=2),
-            workdir=work2,
-        )
-    finally:
-        orch2.close()
-
-    assert state2.terminal == "solved"
-    assert state2.attempt_no == 1
-    assert state2.strategy in ("apply", "adapt")
-    assert state2.chosen is not None
-    assert state2.chosen.skill_id == skill_id
+    assert not state1.written_versions
 
 
 def test_vacuous_criterion_fails_sensitivity_authoring(tmp_path: Path) -> None:

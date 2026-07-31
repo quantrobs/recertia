@@ -174,11 +174,11 @@ class ToolRuntime:
         registry: ToolRegistry,
         scheduler: ClaimScheduler | None = None,
         *,
-        require_approval_for_non_read: bool = False,
+        require_approval_for_non_read: bool = True,
         approval_gate: object | None = None,
         sandbox_limits: object | None = None,
     ) -> None:
-        self.registry = registry
+        self._registry = registry
         self.scheduler = scheduler or ClaimScheduler()
         self.invocations: list[ToolResult] = []
         self.require_approval_for_non_read = require_approval_for_non_read
@@ -194,7 +194,7 @@ class ToolRuntime:
         step_id: str,
         extra_claims: list[ResourceClaim] | None = None,
     ) -> ToolResult:
-        tool = self.registry.get(tool_name)
+        tool = self._registry.get(tool_name)
         if (
             self.require_approval_for_non_read
             and tool.side_effect not in ("read", "pure")
@@ -211,13 +211,13 @@ class ToolRuntime:
         self.scheduler.acquire(step_id, claims)
         started = time.monotonic()
         try:
-            handler = self.registry.handler(tool_name)
+            handler = self._registry.handler(tool_name)
             # Prefer sandbox-aware handlers that accept limits via closure; plain handlers unchanged.
             result = handler(inputs, workdir)
             result.duration_s = time.monotonic() - started
             result.claimed = claims
             if not result.ok:
-                sig = self.registry.match_error_signature(
+                sig = self._registry.match_error_signature(
                     tool_name, result.stdout + result.stderr
                 )
                 result.error_signature = sig
@@ -225,6 +225,18 @@ class ToolRuntime:
             return result
         finally:
             self.scheduler.release(step_id, claims)
+
+    def is_flaky(self, tool_name: str) -> bool:
+        """Read-only tool metadata needed for failure classification."""
+        return self._registry.is_flaky(tool_name)
+
+    def names(self) -> list[str]:
+        """Read-only names; mutation remains private to the registry owner."""
+        return self._registry.names()
+
+    def match_error_signature(self, tool_name: str, output: str) -> str | None:
+        """Read-only error metadata; does not expose registry mutation."""
+        return self._registry.match_error_signature(tool_name, output)
 
 
 class ApprovalRequiredError(PermissionError):
@@ -249,14 +261,23 @@ def default_registry() -> ToolRegistry:
             stderr=proc.stderr[-8000:],
         )
 
+    def confined_path(workdir: Path, value: object) -> Path:
+        root = workdir.resolve()
+        path = (root / str(value)).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise PermissionError(f"path escapes workspace: {value!r}") from exc
+        return path
+
     def edit_file_handler(inputs: dict, workdir: Path) -> ToolResult:
-        path = workdir / str(inputs["path"])
+        path = confined_path(workdir, inputs["path"])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(str(inputs.get("content", "")))
         return ToolResult(tool="edit_file", ok=True, stdout=f"wrote {path}")
 
     def read_file_handler(inputs: dict, workdir: Path) -> ToolResult:
-        path = workdir / str(inputs["path"])
+        path = confined_path(workdir, inputs["path"])
         if not path.exists():
             return ToolResult(
                 tool="read_file", ok=False, exit_code=1, stderr=f"missing {path}"
@@ -265,7 +286,7 @@ def default_registry() -> ToolRegistry:
 
     def grep_handler(inputs: dict, workdir: Path) -> ToolResult:
         pattern = str(inputs.get("pattern", ""))
-        path = workdir / str(inputs.get("path", "."))
+        path = confined_path(workdir, inputs.get("path", "."))
         proc = subprocess.run(
             ["grep", "-R", "-n", pattern, str(path)],
             capture_output=True,
