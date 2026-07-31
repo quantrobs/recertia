@@ -10,8 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from contracts.status import Certification, SkillStatus
 from contracts.skill import SkillVersion
+from contracts.status import Certification, SkillStatus
 from fandea.evals.golden import (
     GoldenReport,
     GoldenResult,
