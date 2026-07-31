@@ -53,10 +53,49 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
         work = ctx.workdir / branch.branch_id
         work.mkdir(parents=True, exist_ok=True)
         script = ctx.script or ["true"]
+        # Enforce the branch lease before spending tools — the lease is not advisory.
+        projected = Spend(
+            attempts=branch.spent.attempts + 1,
+            tool_calls=branch.spent.tool_calls + len(script),
+            tokens=branch.spent.tokens,
+            wall_clock_s=branch.spent.wall_clock_s,
+            cost_usd=branch.spent.cost_usd + 0.01 * (1 + len(script)),
+        )
+        branch_excess = budget_excess(
+            branch.budget, projected, BudgetReservation(), BudgetReservation()
+        )
+        if branch_excess is not None:
+            updated.append(
+                branch.model_copy(
+                    update={
+                        "status": "timed_out",
+                        "results": [
+                            CriterionResult(
+                                criterion_id="branch-budget",
+                                kind="command",
+                                passed=False,
+                                weight=1.0,
+                            )
+                        ],
+                        "workspace_ref": str(work),
+                        "spent": projected,
+                        "reserved": BudgetReservation(),
+                    }
+                )
+            )
+            added = Spend(
+                attempts=added.attempts + projected.attempts,
+                tool_calls=added.tool_calls + projected.tool_calls,
+                wall_clock_s=added.wall_clock_s + projected.wall_clock_s,
+                cost_usd=added.cost_usd + projected.cost_usd,
+            )
+            continue
         ok = True
         started = time.monotonic()
+        executed = 0
         for command in script:
             result = _run_container_command(command, work)
+            executed += 1
             if result["returncode"] != 0:
                 ok = False
                 break
@@ -75,11 +114,11 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
             results = [
                 CriterionResult(criterion_id="branch-ok", kind="command", passed=ok, weight=1.0)
             ]
-        cost = 0.01 * (1 + len(script))
+        cost = 0.01 * (1 + executed)
         elapsed = time.monotonic() - started
         branch_spent = Spend(
             attempts=1,
-            tool_calls=len(script),
+            tool_calls=executed,
             wall_clock_s=elapsed,
             cost_usd=cost,
         )
@@ -309,10 +348,16 @@ def _solve_script_via_tools(
             if result.get("flaky"):
                 detail = f"flaky tool=shell: {detail}"
             signal = FailureSignal(source="solver", detail=detail, at=now())
+            # Charge every tool call attempted so far (0..op_seq inclusive), not only attempts.
             new_state = state.model_copy(
                 update={
                     "attempt_no": attempt_no,
-                    "spent": state.spent.model_copy(update={"attempts": state.spent.attempts + 1}),
+                    "spent": state.spent.model_copy(
+                        update={
+                            "attempts": state.spent.attempts + 1,
+                            "tool_calls": state.spent.tool_calls + op_seq + 1,
+                        }
+                    ),
                     "failure_signal": signal,
                     "transcript_ref": writer.finalize() if writer else None,
                 }

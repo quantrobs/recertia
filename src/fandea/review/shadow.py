@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -69,11 +68,22 @@ def record_shadow_outcome(
 
 def enter_shadow(store: SkillStore, skill_id: str, version: int) -> None:
     status = store.get_status(skill_id, version)
-    store.write_status(status.model_copy(update={"lifecycle": "shadow", "active": False}))
+    if status.lifecycle not in ("candidate", "approved", "benched", "shadow", "draft"):
+        raise ValueError(
+            f"enter_shadow refused for lifecycle={status.lifecycle!r}; "
+            "quarantined/retired versions cannot be shadowed"
+        )
+    store.write_status(
+        status.model_copy(update={"lifecycle": "shadow", "active": False}),
+        expected_lifecycle=status.lifecycle,
+    )
 
 
 def evaluate_shadow_offline(store: SkillStore, slot: ShadowSlot, *, workdir: Path) -> bool:
     """Score required non-judge command criteria in an isolated workdir (never caller-visible)."""
+
+    from fandea.solver.container import run_configured_command
+    from fandea.solver.sandbox import SandboxError
 
     version = store.get_version(slot.skill_id, slot.version)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -81,15 +91,12 @@ def evaluate_shadow_offline(store: SkillStore, slot: ShadowSlot, *, workdir: Pat
         if criterion.kind != "command" or not criterion.is_required:
             continue
         assert criterion.run is not None
-        proc = subprocess.run(
-            criterion.run,
-            shell=True,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            timeout=criterion.timeout_s,
-            check=False,
-        )
+        try:
+            proc = run_configured_command(
+                criterion.run, workdir=workdir, timeout_s=criterion.timeout_s
+            )
+        except SandboxError:
+            return False
         if proc.returncode != criterion.expect_exit:
             return False
     return True
