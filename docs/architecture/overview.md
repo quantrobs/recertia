@@ -64,35 +64,50 @@ what stops "self-improving" from meaning "one long process you have to trust".
 
 ```mermaid
 flowchart TB
-    subgraph task["Task plane — online, bounded, per request"]
-        R[retrieve] --> P[plan] --> S[solve] --> V[validate]
-        V -->|"fail, budget left"| E[evolve] --> S
-        V -->|pass| D[distill]
+    subgraph user["User"]
+        GUI[GUI]
+        API[Task / API]
     end
-    subgraph mem["Memory plane — durable, versioned, reviewed"]
-        PROC[(Procedural: skills)]
-        SEM[(Semantic: facts)]
-        EPI[(Episodic: cases, dead ends)]
-        AFF[(Affordance: tool + env model)]
-        POL[(Policy: routing, budgets, thresholds)]
+
+    subgraph exec["Execution plane: bounded, per request"]
+        CHECK[check] --> PR["plan / retrieve"] --> TRAIN[train] --> SOLVE[solve] --> VAL[validate] --> REV["review / store"]
+        SOLVE -->|"fail / adapt self"| SENSE[sense] --> APLAN[plan] --> BUILD[build] --> REV
     end
-    subgraph imp["Improvement plane — offline, scheduled, no user waiting"]
-        MINE[Miner: bootstrap from history]
-        CUR[Curator: compact + abstract]
-        PRAC[Practice: curriculum at the frontier]
-        RECERT[Recertifier: drift checks]
-        CORR[Correction miner: improve the distiller]
+
+    subgraph mem["Memory plane – durable, versioned, reviewed"]
+        PROC[("Procedural skills")]
+        SEM[("Semantic facts")]
+        EPI[("Episodic cases")]
+        UTT[("Utterances")]
+        POL[("Policy")]
     end
-    mem --> task
-    D --> mem
-    task --> mem
-    mem <--> imp
-    imp --> EVAL[Eval harness / metrics]
-    task --> EVAL
+
+    subgraph imp["Improvement plane – offline, scheduled"]
+        REF[Refine]
+        EVO[Evolve]
+        PRAC[Practice]
+        DIST["Distill / Run"]
+        GATE{{Quality gate}}
+        REF --> GATE
+        EVO --> GATE
+        PRAC --> GATE
+        DIST --> GATE
+    end
+
+    EVAL["Eval / causal IR"]
+
+    GUI --> SOLVE
+    API --> TRAIN
+    mem <--> exec
+    mem --> EVAL
+    exec <--> EVAL
+    imp <--> EVAL
+    GATE -->|"if candidate approved"| REV
 ```
 
-**Task plane** is one bounded walk per request: retrieve, decide, attempt, check, revise.
-It never learns in place; it emits candidate memory writes.
+**Execution plane** is one bounded walk per request: check, plan/retrieve, train, solve,
+validate, review/store — with a fail/adapt path through sense → plan → build. It never
+learns in place; it emits candidate memory writes.
 
 **Memory plane** is the learned state. It is just data — diffable, reviewable, revertible.
 
