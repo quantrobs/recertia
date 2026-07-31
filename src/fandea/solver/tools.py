@@ -169,10 +169,21 @@ class ClaimTimeoutError(Exception):
 class ToolRuntime:
     """Invokes registered tools; records affordance-relevant outcomes."""
 
-    def __init__(self, registry: ToolRegistry, scheduler: ClaimScheduler | None = None) -> None:
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        scheduler: ClaimScheduler | None = None,
+        *,
+        require_approval_for_non_read: bool = False,
+        approval_gate: object | None = None,
+        sandbox_limits: object | None = None,
+    ) -> None:
         self.registry = registry
         self.scheduler = scheduler or ClaimScheduler()
         self.invocations: list[ToolResult] = []
+        self.require_approval_for_non_read = require_approval_for_non_read
+        self.approval_gate = approval_gate
+        self.sandbox_limits = sandbox_limits
 
     def invoke(
         self,
@@ -184,11 +195,25 @@ class ToolRuntime:
         extra_claims: list[ResourceClaim] | None = None,
     ) -> ToolResult:
         tool = self.registry.get(tool_name)
+        if (
+            self.require_approval_for_non_read
+            and tool.side_effect not in ("read", "pure")
+        ):
+            gate = self.approval_gate
+            approved = False
+            if gate is not None and hasattr(gate, "is_approved"):
+                approved = bool(gate.is_approved(tool_name, step_id))
+            if not approved:
+                raise ApprovalRequiredError(
+                    f"tool {tool_name!r} side_effect={tool.side_effect!r} requires approval"
+                )
         claims = list(tool.claims) + list(extra_claims or [])
         self.scheduler.acquire(step_id, claims)
         started = time.monotonic()
         try:
-            result = self.registry.handler(tool_name)(inputs, workdir)
+            handler = self.registry.handler(tool_name)
+            # Prefer sandbox-aware handlers that accept limits via closure; plain handlers unchanged.
+            result = handler(inputs, workdir)
             result.duration_s = time.monotonic() - started
             result.claimed = claims
             if not result.ok:
@@ -202,16 +227,20 @@ class ToolRuntime:
             self.scheduler.release(step_id, claims)
 
 
+class ApprovalRequiredError(PermissionError):
+    """Raised when a non-read tool is invoked without an approval grant."""
+
+
 def default_registry() -> ToolRegistry:
     """First-domain tools for repo-chore (shell, edit_file, read_file, grep)."""
 
     registry = ToolRegistry()
 
     def shell_handler(inputs: dict, workdir: Path) -> ToolResult:
+        from fandea.solver.sandbox import SandboxLimits, run_sandboxed
+
         command = str(inputs.get("command", "true"))
-        proc = subprocess.run(
-            command, shell=True, cwd=workdir, capture_output=True, text=True, timeout=60
-        )
+        proc = run_sandboxed(command, workdir=workdir, limits=SandboxLimits(), timeout_s=60)
         return ToolResult(
             tool="shell",
             ok=proc.returncode == 0,

@@ -1,7 +1,7 @@
 # Score-10 reference lists
 
 Bibliographies extracted from the four preprints scored **10** for Fandea applicability
-in [`../preprints-self-improving-agents.xlsx`](../preprints-self-improving-agents.xlsx).
+in [`../../research/preprints-self-improving-agents.xlsx`](../../research/preprints-self-improving-agents.xlsx).
 
 | Paper | File | Refs |
 | --- | --- | ---: |
@@ -11,6 +11,6 @@ in [`../preprints-self-improving-agents.xlsx`](../preprints-self-improving-agent
 | The Blind Curator | [`2607.07436-BlindCurator-references.md`](2607.07436-BlindCurator-references.md) | 30 |
 
 Machine-readable form: [`score10-references.json`](score10-references.json).
-Spreadsheet export: [`../preprints-score10-reference-lists.xlsx`](../preprints-score10-reference-lists.xlsx).
+Spreadsheet export: [`../../research/preprints-score10-reference-lists.xlsx`](../../research/preprints-score10-reference-lists.xlsx).
 
 How these papers changed the design is recorded in [`../references.md`](../references.md) §1.
