@@ -25,6 +25,7 @@ from contracts.criteria import TaskCriterion
 from contracts.goal import Goal
 from contracts.run import Task
 from recertia.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
+from recertia.api.quotas import QuotaExceeded, QuotaStore
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
 from recertia.ids import InvalidIdError, validate_run_id
@@ -191,6 +192,7 @@ def create_app(
     skills_root = Path(skills_root) if skills_root is not None else Path("skills")
     facts_root = Path(facts_root) if facts_root is not None else Path("facts")
     key_store = ApiKeyStore(root / "api_keys.sqlite")
+    quota_store = QuotaStore(root / "quotas.sqlite")
     blobs_by_tenant: dict[str, FilesystemBlobStore] = {}
     # Keyed by (tenant_id, run_id) so tenants cannot collide on run_id.
     runs: dict[tuple[str, str], RunRecord] = {}
@@ -253,7 +255,13 @@ def create_app(
             task_class=task_class,
         )
 
+        try:
+            quota_store.admit(principal.tenant_id)
+        except QuotaExceeded as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+
         if not run_slots.acquire(blocking=False):
+            quota_store.release_inflight(principal.tenant_id)
             raise HTTPException(status_code=429, detail="too many in-flight runs")
 
         # Container backend isolates tools; local API requires exec (or admin) for grants.
@@ -265,6 +273,8 @@ def create_app(
             index_path=root / "runs" / principal.tenant_id / "skill_index.db",
             approve_default_tools=approve_tools,
         )
+        cost_usd = 0.0
+        succeeded = False
         try:
             state = bundle.orchestrator.start(
                 run_id,
@@ -276,6 +286,8 @@ def create_app(
                 arm=body.arm,
                 manifest=bundle.run_manifest(),
             )
+            cost_usd = float(state.spent.cost_usd or 0.0)
+            succeeded = True
         except Exception:
             get_telemetry().emit(
                 "run.finished",
@@ -287,6 +299,10 @@ def create_app(
         finally:
             bundle.close()
             run_slots.release()
+            if succeeded:
+                quota_store.complete(principal.tenant_id, cost_usd=cost_usd)
+            else:
+                quota_store.release_inflight(principal.tenant_id)
 
         rec = _record_from_state(
             run_id=run_id,
@@ -407,12 +423,21 @@ def create_app(
     def dashboard(
         principal: Principal = Depends(require_scope("metrics", key_store)),
     ) -> dict[str, Any]:
-        return render_dashboard(get_telemetry(), tenant_id=principal.tenant_id)
+        payload = render_dashboard(get_telemetry(), tenant_id=principal.tenant_id)
+        payload["panels"].append(
+            {
+                "id": "tenant_quota",
+                "type": "stat",
+                "values": quota_store.snapshot(principal.tenant_id),
+            }
+        )
+        return payload
 
     app.state.root = root
     app.state.skills_root = skills_root
     app.state.facts_root = facts_root
     app.state.api_keys = key_store
+    app.state.quota_store = quota_store
     app.state.blobs_by_tenant = blobs_by_tenant
     app.state.runs = runs
     return app

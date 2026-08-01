@@ -1,0 +1,24 @@
+# Operator GA / Phase-4 Postgres soak environment.
+# Usage:
+#   docker compose -f docker-compose.soak.yml up -d
+#   DATABASE_URL=postgresql://recertia:recertia@localhost:5432/recertia \
+#     python3 scripts/soak_postgres.py --skip-golden
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: recertia
+      POSTGRES_PASSWORD: recertia
+      POSTGRES_DB: recertia
+    ports:
+      - "5432:5432"
+    volumes:
+      - recertia_soak_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recertia -d recertia"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  recertia_soak_pg:

@@ -194,7 +194,19 @@ established" is an acceptable, passing result per B7.
 5. A second domain on the unchanged runtime, and a multi-tenant decision made by criteria
    fixed before the evidence was in.
 
-## 9. References
+## 9. Engineering status (as of roadmap-remaining implementation)
+
+Engineering gates that can land in CI are implemented; research outcomes stay harness-ready
+and must not be marked `supported` without real traffic (B7).
+
+| Phase | Engineering landed | Still ops / research |
+| --- | --- | --- |
+| 1 Operator GA | Cost, injection, observe–act, manifest, soak compose + weekly workflow, tabletop doc | Four consecutive soak weeks; baseline metrics on real traffic; live incident (or completed tabletop log) |
+| 2 Measured compounding | `recertia metrics` + `scripts/weekly_metrics_report.py`; judge canary fixtures; `curation_gap` / `practice_conversion` on `MetricReport`; Practice reads `one_off_log` | Scheduled probe runs on live traffic; `a1`/`a2`/`a4` status changes with intervals |
+| 3 Library economics | Trajectory emit + ReplayPack on Curator; `parallelise`/`serialise`/`correction` jobs + CLI; retirement / composition / pressure fields | Real-traffic composition; library_yield / retrieval_decay trends |
+| 4 Second domain + tenant gate | research-synthesis fixture gate; planted-secret scope e2e; `QuotaStore`; [`production-readiness.md`](production-readiness.md) | Signed threat model; multi-tenant go/defer decision |
+
+## 10. References
 
 Phase mapping to the tracked literature: Phase 1 — Falsifiable Release Gates
 (arXiv:2607.13070 **[B]**) for pre-declared GA suites; OWASP LLM Top 10 **[S]** for the

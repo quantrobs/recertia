@@ -144,7 +144,12 @@ def _span_dict(span: SpanRecord) -> dict[str, Any]:
     }
 
 
-def render_dashboard(tel: Telemetry, *, tenant_id: str) -> dict[str, Any]:
+def render_dashboard(
+    tel: Telemetry,
+    *,
+    tenant_id: str,
+    metric_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Operational dashboard payload (Grafana-compatible-ish summary JSON)."""
 
     by_name: dict[str, int] = {}
@@ -152,29 +157,32 @@ def render_dashboard(tel: Telemetry, *, tenant_id: str) -> dict[str, Any]:
         if e.attributes.get("tenant_id") != tenant_id:
             continue
         by_name[e.name] = by_name.get(e.name, 0) + 1
+    panels: list[dict[str, Any]] = [
+        {
+            "id": "required_events",
+            "type": "stat",
+            "targets": sorted(REQUIRED_EVENTS),
+            "values": {name: by_name.get(name, 0) for name in sorted(REQUIRED_EVENTS)},
+        },
+        {
+            "id": "spans",
+            "type": "table",
+            "rows": [
+                {
+                    "name": s.name,
+                    "status": s.status,
+                    "started_at": s.started_at.isoformat(),
+                }
+                for s in tel.spans
+                if s.attributes.get("tenant_id") == tenant_id
+            ],
+        },
+    ]
+    if metric_summary is not None:
+        panels.append({"id": "eval_metrics", "type": "stat", "values": metric_summary})
     return {
         "title": "Recertia ops",
-        "panels": [
-            {
-                "id": "required_events",
-                "type": "stat",
-                "targets": sorted(REQUIRED_EVENTS),
-                "values": {name: by_name.get(name, 0) for name in sorted(REQUIRED_EVENTS)},
-            },
-            {
-                "id": "spans",
-                "type": "table",
-                "rows": [
-                    {
-                        "name": s.name,
-                        "status": s.status,
-                        "started_at": s.started_at.isoformat(),
-                    }
-                    for s in tel.spans
-                    if s.attributes.get("tenant_id") == tenant_id
-                ],
-            },
-        ],
+        "panels": panels,
         "missing_required": tel.missing_required(tenant_id=tenant_id),
     }
 

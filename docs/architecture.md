@@ -15,5 +15,7 @@
 - [Measurement and domain scope](architecture/measurement-and-scope.md)
 - [Principal architecture review (Aug 2026)](architecture/principal-review-2026-08.md)
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
+- [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
+- [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
 
 Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md).

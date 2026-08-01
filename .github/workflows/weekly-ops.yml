@@ -1,0 +1,66 @@
+name: weekly-ops
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  metrics-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Weekly metrics report (honest unavailable when empty)
+        run: |
+          mkdir -p artifacts
+          python3 scripts/weekly_metrics_report.py \
+            --eval-db .recertia/evals.db \
+            --output artifacts/weekly-metrics.json || true
+          # Empty eval DB is expected on a fresh checkout; the script must still emit JSON.
+          python3 scripts/weekly_metrics_report.py --output artifacts/weekly-metrics.json
+      - name: Judge canary (planted failures)
+        run: |
+          python3 - <<'PY'
+          from recertia.evals.canary import run_judge_canary
+          report = run_judge_canary()
+          assert report.trials >= 1
+          assert report.false_passes == 0, report
+          print(report)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weekly-metrics
+          path: artifacts/weekly-metrics.json
+
+  postgres-soak:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: recertia
+          POSTGRES_PASSWORD: recertia
+          POSTGRES_DB: recertia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recertia -d recertia"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://recertia:recertia@localhost:5432/recertia
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev,postgres]"
+      - name: Soak migrations
+        run: python3 scripts/soak_postgres.py
