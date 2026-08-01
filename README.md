@@ -70,8 +70,20 @@ export ANTHROPIC_API_KEY=…
 recertia run --goal goal.json --model anthropic:$RECERTIA_MODEL_ID --local-exec
 ```
 
+**OpenRouter** (Kimi, Qwen, …) reuses the OpenAI client — set provider `openai`, the
+OpenRouter model slug, `OPENAI_API_KEY=sk-or-…`, and the full Chat Completions URL:
+
+```bash
+export RECERTIA_MODEL_PROVIDER=openai
+export RECERTIA_MODEL_ID=moonshotai/kimi-k2
+export OPENAI_API_KEY=sk-or-…
+export RECERTIA_OPENAI_BASE_URL=https://openrouter.ai/api/v1/chat/completions
+# Optional attribution / body: see go-live.md
+```
+
 Jobs and retention: `recertia jobs run curator --dry-run`, `recertia gc --older-than-days 14`.
-Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md).
+Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
+[`docs/implementation-plan-openai-compat.md`](docs/implementation-plan-openai-compat.md).
 
 ## Documents
 
@@ -80,6 +92,10 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md).
 | [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
 | [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup, bind-mount permissions, hardening, smoke test |
 | [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, fetch allowlist, seed lint, jobs CLI, retention gc |
+| [`docs/architecture/openai-compat-gateways.md`](docs/architecture/openai-compat-gateways.md) | OpenRouter / OpenAI-compat gateway architecture |
+| [`docs/specifications/openai-compat-gateways.md`](docs/specifications/openai-compat-gateways.md) | Gateway URL, headers, EXTRA_BODY, cost, OG-* tests |
+| [`docs/implementation-plan-openai-compat.md`](docs/implementation-plan-openai-compat.md) | OpenRouter milestones OR0–OR3 |
+| [`docs/adr/0013-openai-compat-gateways.md`](docs/adr/0013-openai-compat-gateways.md) | ADR: OpenRouter as openai + base URL |
 | [`docs/architecture/principal-review-2026-08.md`](docs/architecture/principal-review-2026-08.md) | External architecture review: strengths, production gaps (P0–P2), threat-model deltas, non-goals |
 | [`docs/architecture/one-year-roadmap.md`](docs/architecture/one-year-roadmap.md) | 2026–2027 roadmap: operator GA → measured compounding → library economics → second domain + tenant gate |
 | [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |
@@ -111,6 +127,8 @@ Decision records:
 | [0008](docs/adr/0008-optional-join-and-failure-signals.md) | `join` is conditional on fan-out; failures are explicit signals, not inferred |
 | [0009](docs/adr/0009-contracts-as-code.md) | Pydantic models in `contracts/` are the structural source of truth |
 | [0010](docs/adr/0010-goal-as-primary-input.md) | Goal as primary task input; request is optional context |
+| [0012](docs/adr/0012-product-console-surfaces.md) | Console as control plane over headless Recertia |
+| [0013](docs/adr/0013-openai-compat-gateways.md) | OpenRouter as openai provider + full Chat Completions URL |
 
 Machine-readable contracts are generated from [`contracts/`](contracts) (Pydantic models,
 ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and

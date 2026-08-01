@@ -176,6 +176,9 @@ established" is an acceptable, passing result per B7.
   measurement code is subtle exactly where it is load-bearing.
 - Buy observability (dashboards, alerting); keep the eval harness in-house forever — it is
   the product's claim to honesty.
+- OpenRouter / OpenAI-compat gateways use `provider=openai` + base URL (ADR-0013);
+  call path shipped (OR0). Polish milestones OR1–OR3:
+  [`../implementation-plan-openai-compat.md`](../implementation-plan-openai-compat.md).
 - Model-provider failover (P2-5) is a deliberate-absence candidate: two providers doubles the
   judge-bias surface (canary must run per provider × model) for an availability benefit a
   single operator may not need. Decide at the Phase 4 gate with data, not in advance.
