@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import os
-import resource
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -195,25 +195,38 @@ def _local_run(
     if not workdir.is_dir():
         raise SandboxError(f"workdir does not exist: {workdir}")
     env = {key: value for key, value in os.environ.items() if key in limits.allowed_env_keys}
-    env.setdefault("PATH", "/usr/bin:/bin")
-    env.setdefault("HOME", str(workdir))
-    env.setdefault("TMPDIR", str(workdir))
+    if sys.platform == "win32":
+        env.setdefault("PATH", os.environ.get("PATH", ""))
+        env.setdefault("HOME", str(workdir))
+        env.setdefault("TMP", str(workdir))
+        env.setdefault("TEMP", str(workdir))
+    else:
+        env.setdefault("PATH", "/usr/bin:/bin")
+        env.setdefault("HOME", str(workdir))
+        env.setdefault("TMPDIR", str(workdir))
 
-    def limit_process() -> None:
-        try:
-            resource.setrlimit(resource.RLIMIT_CPU, (limits.max_cpu_seconds, limits.max_cpu_seconds))
-            bytes_cap = limits.max_address_space_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (bytes_cap, bytes_cap))
-        except (AttributeError, OSError, ValueError):
-            pass
+    kwargs: dict = {
+        "shell": True,
+        "cwd": workdir,
+        "capture_output": True,
+        "text": True,
+        "timeout": timeout_s,
+        "env": env,
+    }
+    # preexec_fn + resource.setrlimit are Unix-only (not available on Windows).
+    if sys.platform != "win32":
+        import resource
 
-    return subprocess.run(
-        command,
-        shell=True,
-        cwd=workdir,
-        capture_output=True,
-        text=True,
-        timeout=timeout_s,
-        env=env,
-        preexec_fn=limit_process,
-    )
+        def limit_process() -> None:
+            try:
+                resource.setrlimit(
+                    resource.RLIMIT_CPU, (limits.max_cpu_seconds, limits.max_cpu_seconds)
+                )
+                bytes_cap = limits.max_address_space_mb * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (bytes_cap, bytes_cap))
+            except (AttributeError, OSError, ValueError):
+                pass
+
+        kwargs["preexec_fn"] = limit_process
+
+    return subprocess.run(command, **kwargs)
