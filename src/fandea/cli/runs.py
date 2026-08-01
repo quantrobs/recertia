@@ -26,6 +26,32 @@ def _load_spec(spec_path: Path) -> dict:
     return json.loads(spec_path.read_text())
 
 
+def _build_orchestrator(
+    runs_root: Path,
+    *,
+    skills_root: Path,
+    index_path: Path,
+) -> tuple[GraphOrchestrator, object]:
+    """Wire SkillStore + Retriever so ``fandea run`` can apply the skill library."""
+
+    from fandea.memory.procedural.store import SkillStore
+    from fandea.retrieval.index import SkillIndex
+    from fandea.retrieval.pipeline import Retriever
+
+    store = SkillStore(skills_root)
+    index = SkillIndex(index_path)
+    index.rebuild(store.iter_loaded())
+    retriever = Retriever(index)
+    orch = GraphOrchestrator(
+        runs_root,
+        store=store,
+        retriever=retriever,
+        # Empty fingerprint: only mismatch when both sides declare a tool (retrieval §preconditions).
+        env_fingerprint={},
+    )
+    return orch, index
+
+
 def register_run_commands(app: typer.Typer) -> None:
     """Attach ``run`` / ``resume`` to the root app and nest runs/ledger/goal typers."""
 
@@ -46,6 +72,14 @@ def run_cmd(
     runs_root: Path = typer.Option(Path(".fandea"), "--runs-root", help="Where run state is persisted."),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="Defaults to a fresh UUID."),
     workdir: Optional[Path] = typer.Option(None, "--workdir"),
+    skills_root: Path = typer.Option(
+        Path("skills"), "--skills-root", help="Procedural skill library root."
+    ),
+    index: Path = typer.Option(
+        Path(".fandea/skill_index.db"),
+        "--index",
+        help="Skill retrieval index (default: under --runs-root).",
+    ),
     ablation: bool = typer.Option(
         False, "--ablation", help="Assign control arm via T3 ablation sampler (outside nodes)."
     ),
@@ -83,6 +117,8 @@ def run_cmd(
         is_eval_fixture=bool(task_data.get("is_eval_fixture", False)),
     )
     criteria = [TaskCriterion(**c) for c in data.get("criteria", [])]
+    if not criteria and task_goal is not None:
+        criteria = compile_goal(task_goal)
     budget = Budget(**data["budget"]) if "budget" in data else Budget()
     script = data.get("script")
     wd = workdir or (Path(data["workdir"]) if "workdir" in data else runs_root / "workspaces" / rid)
@@ -102,13 +138,20 @@ def run_cmd(
         arm = decision.arm
         typer.echo(f"ablation arm={arm} ({decision.reason})")
 
-    orchestrator = GraphOrchestrator(runs_root)
+    index_path = index
+    if index == Path(".fandea/skill_index.db"):
+        index_path = runs_root / "skill_index.db"
+
+    orchestrator, skill_index = _build_orchestrator(
+        runs_root, skills_root=skills_root, index_path=index_path
+    )
     try:
         state = orchestrator.start(
             rid, task, criteria, budget=budget, workdir=wd, script=script, arm=arm
         )
     finally:
         orchestrator.close()
+        skill_index.close()
 
     typer.echo(f"run_id={rid} terminal={state.terminal} arm={state.arm}")
     if state.failure is not None:
@@ -162,7 +205,8 @@ def runs_show(
         )
         if route_log:
             for entry in state.route_log:
-                typer.echo(f"  [{entry.attempt_no}] {entry.node} --{entry.route}--> {entry.reason}")
+                reason = entry.reason.replace("\u2192", "->")
+                typer.echo(f"  [{entry.attempt_no}] {entry.node} --{entry.route}--> {reason}")
     finally:
         orchestrator.close()
 
