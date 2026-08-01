@@ -1,6 +1,6 @@
 """Trajectory event stream (ADR-0011): decision-level log per run.
 
-Structural definition only. Append/storage live in ``src/fandea/trajectory/``.
+Structural definition only. Append/storage live in ``src/recertia/trajectory/``.
 Events are emitted by the graph engine from node outcomes — nodes themselves never write
 the trajectory store (same separation as the memory ledger).
 """

@@ -1,4 +1,4 @@
-# Fandea Specifications: 3. Graph state
+# Recertia Specifications: 3. Graph state
 
 ## 3. Graph state
 

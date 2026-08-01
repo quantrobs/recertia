@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from contracts.eval import BinomialSample
-from fandea.memory.procedural.contribution import (
+from recertia.memory.procedural.contribution import (
     estimate_contribution,
     estimate_retrieval_ablation,
     trust_score,

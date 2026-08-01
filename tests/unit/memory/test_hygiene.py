@@ -8,7 +8,7 @@ import pytest
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
-from fandea.memory.procedural.hygiene import require_clean, scan_findings, scan_skill
+from recertia.memory.procedural.hygiene import require_clean, scan_findings, scan_skill
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 

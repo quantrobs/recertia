@@ -10,15 +10,15 @@ from typer.testing import CliRunner
 
 from contracts.goal import DesiredState, Goal
 from contracts.run import RunState, Task
-from fandea.bootstrap import build_default_orchestrator, resolve_task_class
-from fandea.cli.main import app
-from fandea.graph.ops import OperationLedger
-from fandea.ledger import HashChainLedger
-from fandea.nodes.context import NodeContext
-from fandea.nodes.retrieve import retrieval_query, retrieve
-from fandea.solver.container import ensure_execution_ready
-from fandea.solver.sandbox import SandboxError
-from fandea.workspace import WorkspaceManager
+from recertia.bootstrap import build_default_orchestrator, resolve_task_class
+from recertia.cli.main import app
+from recertia.graph.ops import OperationLedger
+from recertia.ledger import HashChainLedger
+from recertia.nodes.context import NodeContext
+from recertia.nodes.retrieve import retrieval_query, retrieve
+from recertia.solver.container import ensure_execution_ready
+from recertia.solver.sandbox import SandboxError
+from recertia.workspace import WorkspaceManager
 
 runner = CliRunner()
 
@@ -36,7 +36,7 @@ def test_api_goal_task_class_not_masked_by_default(tmp_path: Path) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from fandea.api import create_app
+    from recertia.api import create_app
 
     app_api = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
     issued = app_api.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
@@ -84,17 +84,17 @@ def test_build_default_orchestrator_wires_memory_and_tools(tmp_path: Path) -> No
 
 
 def test_ensure_execution_ready_fails_clearly_without_container(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "container")
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
-    with pytest.raises(SandboxError, match="FANDEA_EXECUTION_BACKEND=local"):
+    monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "container")
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: None)
+    with pytest.raises(SandboxError, match="RECERTIA_EXECUTION_BACKEND=local"):
         ensure_execution_ready()
 
 
 def test_cli_run_without_backend_exits_with_guidance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("FANDEA_EXECUTION_BACKEND", raising=False)
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
+    monkeypatch.delenv("RECERTIA_EXECUTION_BACKEND", raising=False)
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: None)
     spec = tmp_path / "spec.json"
     spec.write_text('{"task":{"request":"x"},"budget":{"max_attempts":1},"script":["true"]}')
     result = runner.invoke(
@@ -102,12 +102,12 @@ def test_cli_run_without_backend_exits_with_guidance(
         ["run", "--spec", str(spec), "--runs-root", str(tmp_path / "runs"), "--run-id", "no-docker"],
     )
     assert result.exit_code == 2
-    assert "Docker or Podman" in result.output or "FANDEA_EXECUTION_BACKEND=local" in result.output
+    assert "Docker or Podman" in result.output or "RECERTIA_EXECUTION_BACKEND=local" in result.output
 
 
 def test_cli_local_exec_solves_scripted_goal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("FANDEA_EXECUTION_BACKEND", raising=False)
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
+    monkeypatch.delenv("RECERTIA_EXECUTION_BACKEND", raising=False)
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: None)
     goal = {
         "desired": [{"id": "f", "kind": "file_exists", "path": "output.txt"}],
         "context": "write output.txt",

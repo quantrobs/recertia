@@ -1,6 +1,6 @@
-# Fandea
+# Recertia
 
-Fandea is a self-improving agent system: it solves tasks, distills what worked into reusable
+Recertia is a self-improving agent system: it solves tasks, distills what worked into reusable
 memory, and gets faster and more reliable at similar tasks over time.
 
 The execution model is a **graph with loops**. A task is one bounded cyclic walk over a small
@@ -10,7 +10,7 @@ practise, and re-certify what has been learned.
 
 ## What it is
 
-Fandea is built for recurring work — repository chores, research briefs, and similar
+Recertia is built for recurring work — repository chores, research briefs, and similar
 task classes — where past solutions should make the next attempt cheaper and more reliable.
 Each run locks machine-checkable success criteria, retrieves relevant skills and cases before
 solving, validates the result, and only then proposes durable memory. Nothing is learned by
@@ -31,31 +31,31 @@ context. See [ADR-0010](docs/adr/0010-goal-as-primary-input.md) and
 
 ## How it is used
 
-Day to day you drive Fandea from the CLI or the HTTP API. Install the package, then submit a
-task with `fandea run --goal goal.json` (preferred) or `fandea run --spec task.json`
+Day to day you drive Recertia from the CLI or the HTTP API. Install the package, then submit a
+task with `recertia run --goal goal.json` (preferred) or `recertia run --spec task.json`
 (or `POST /v1/runs`). The graph walks intake → retrieve → plan → solve → validate, evolving
 within budget on failure and distilling on success. Inspect progress with
-`fandea runs show <run_id>`, resume interrupted work with `fandea resume`, and verify the
-integrity ledger with `fandea ledger verify`.
+`recertia runs show <run_id>`, resume interrupted work with `recertia resume`, and verify the
+integrity ledger with `recertia ledger verify`.
 
-Over time you manage the library: search and lint skills (`fandea skills search`,
-`fandea skills lint`), promote golden-gated versions (`fandea skills promote`), and measure
-lift against ablations (`fandea lift --task-class …`). API keys for the FastAPI surface are
-issued with `fandea keys`. Seed skills live under `skills/`; golden evals under `evals/`;
+Over time you manage the library: search and lint skills (`recertia skills search`,
+`recertia skills lint`), promote golden-gated versions (`recertia skills promote`), and measure
+lift against ablations (`recertia lift --task-class …`). API keys for the FastAPI surface are
+issued with `recertia keys`. Seed skills live under `skills/`; golden evals under `evals/`;
 normative contracts under `contracts/` (generated into `schema/`). Detail on planes, nodes,
 and promotion lives in the documents below.
 
 ### Container sandbox (Docker / Podman)
 
-Production solves run inside an OCI container (`FANDEA_EXECUTION_BACKEND=container`, default).
+Production solves run inside an OCI container (`RECERTIA_EXECUTION_BACKEND=container`, default).
 Install Docker or Podman, pull `python:3.12-slim`, then smoke-test:
 
 ```bash
-export FANDEA_EXECUTION_BACKEND=container
+export RECERTIA_EXECUTION_BACKEND=container
 python3 scripts/smoke_container.py
 ```
 
-Without a runtime, use `fandea run --local-exec` for development only. Permissions, digest
+Without a runtime, use `recertia run --local-exec` for development only. Permissions, digest
 pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md).
 
 ## Documents
@@ -70,7 +70,7 @@ pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architect
 | [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
-| [`research/preprints-self-improving-agents.xlsx`](research/preprints-self-improving-agents.xlsx) ([JSON](research/preprints-self-improving-agents.scored.json)) | Scored survey of ~117 preprints against Fandea's non-negotiables |
+| [`research/preprints-self-improving-agents.xlsx`](research/preprints-self-improving-agents.xlsx) ([JSON](research/preprints-self-improving-agents.scored.json)) | Scored survey of ~117 preprints against Recertia's non-negotiables |
 | [`docs/score10-references/`](docs/score10-references/) | Bibliographies extracted from the four score-10 papers |
 
 Decision records:
@@ -202,8 +202,8 @@ Design intent is complete, structural blockers are resolved, and **M0–M9 plus 
 completion** are built:
 
 - [`contracts/`](contracts) — normative structural source (ADR-0009), including Goal (ADR-0010)
-- [`src/fandea/`](src/fandea) — full milestone stack plus container sandbox backends, store
-  driver-swap, vector index API, FastAPI (`fandea.api`), content-addressed blobs, OTel JSONL
+- [`src/recertia/`](src/recertia) — full milestone stack plus container sandbox backends, store
+  driver-swap, vector index API, FastAPI (`recertia.api`), content-addressed blobs, OTel JSONL
   export and dashboard JSON, skill/fact scope promotion, layered fan-in, practice curricula
 - [`research/`](research) — scored preprint survey binaries (never normative)
 - Enforced by tests and CI (`.github/workflows/ci.yml`)

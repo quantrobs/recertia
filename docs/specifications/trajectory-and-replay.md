@@ -6,7 +6,7 @@ Normative companion to [ADR-0011](../adr/0011-trajectory-and-counterfactual-repl
 
 - Contracts: `contracts/trajectory.py`
 - Storage: `{runs_root}/trajectories/{run_id}.jsonl` (append-only) + optional `.meta.json`
-- Emitter: `fandea.trajectory.emitter.TrajectoryEmitter` (pure)
+- Emitter: `recertia.trajectory.emitter.TrajectoryEmitter` (pure)
 - Writer: graph engine only
 
 ### Phase-1 required kinds on a completed run
@@ -18,11 +18,11 @@ Control-arm runs still emit `retrieval_result` with `suppressed=true`.
 ## Replay
 
 - Contracts: `contracts/replay.py`
-- Harness: `fandea.replay.harness.ReplayHarness`
+- Harness: `recertia.replay.harness.ReplayHarness`
 - Modes:
   - `retrieval_only` — no solver calls; applies WorldState suppressions/overrides
   - `validate_only` — re-derive success from `criterion_scored` events; optional live `criterion_rescorer`
-  - `full_execution` — opt-in via `FANDEA_ALLOW_FULL_REPLAY=1` + budget; optional `orchestrator_factory` for isolated child graph
+  - `full_execution` — opt-in via `RECERTIA_ALLOW_FULL_REPLAY=1` + budget; optional `orchestrator_factory` for isolated child graph
 
 ### Curator
 
@@ -30,6 +30,6 @@ Active-set mutations SHOULD attach a `ReplayPack` from retrieval-only counterfac
 
 ## Boundaries
 
-- `fandea.nodes` MUST NOT import `fandea.replay`
+- `recertia.nodes` MUST NOT import `recertia.replay`
 - Trajectory failures MUST NOT fail the run (engine swallows emission errors)
 - Trajectory = T0; replay = T1

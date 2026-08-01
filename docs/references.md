@@ -244,7 +244,7 @@ and **append-only hash chains** (tamper-evident logging, the basis of the proven
 
 ## 7. Scored survey and next reading
 
-The full applicability scoring of ~117 preprints against Fandea's non-negotiables lives in
+The full applicability scoring of ~117 preprints against Recertia's non-negotiables lives in
 [`../research/preprints-self-improving-agents.xlsx`](../research/preprints-self-improving-agents.xlsx)
 (machine-readable: [`../research/preprints-self-improving-agents.scored.json`](../research/preprints-self-improving-agents.scored.json)),
 with sheets for the rubric, every entry's score and rationale, the core/high cut (7–10), and the

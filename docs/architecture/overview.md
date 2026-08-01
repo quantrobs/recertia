@@ -1,8 +1,8 @@
-# Fandea Architecture: Overview
+# Recertia Architecture: Overview
 
 ## 1. Purpose and scope
 
-Fandea is a task-solving system whose competence increases with use. It does this by
+Recertia is a task-solving system whose competence increases with use. It does this by
 treating *solved work* as durable, versioned, retrievable state, and by making retrieval a
 mandatory step before any new problem-solving attempt.
 

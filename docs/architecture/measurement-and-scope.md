@@ -1,4 +1,4 @@
-# Fandea Architecture: 16. Measuring compounding
+# Recertia Architecture: 16. Measuring compounding
 
 ## 16. Measuring compounding
 

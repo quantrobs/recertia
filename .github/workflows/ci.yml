@@ -1,7 +1,7 @@
 name: ci
 
 # Validates contracts/ (ADR-0009: the Pydantic models that are the normative structural
-# source of truth, and everything generated from it) and src/fandea/ (M0–M9 per
+# source of truth, and everything generated from it) and src/recertia/ (M0–M9 per
 # docs/implementation-plan.md).
 
 on:
@@ -40,7 +40,7 @@ jobs:
         run: ruff check contracts/ src/ scripts/ tests/ conftest.py
 
       - name: Type-check (mypy)
-        run: mypy contracts/ src/fandea/
+        run: mypy contracts/ src/recertia/
 
       - name: Schema drift (schema/ must equal what contracts/ generates)
         run: python3 scripts/generate_schemas.py --check
@@ -83,12 +83,12 @@ jobs:
 
       - name: Container smoke (script)
         env:
-          FANDEA_EXECUTION_BACKEND: container
-          FANDEA_CONTAINER_RUNTIME: docker
+          RECERTIA_EXECUTION_BACKEND: container
+          RECERTIA_CONTAINER_RUNTIME: docker
         run: python3 scripts/smoke_container.py
 
       - name: Container smoke (pytest)
         env:
-          FANDEA_EXECUTION_BACKEND: container
-          FANDEA_CONTAINER_RUNTIME: docker
+          RECERTIA_EXECUTION_BACKEND: container
+          RECERTIA_CONTAINER_RUNTIME: docker
         run: pytest -v tests/e2e/test_container_smoke.py

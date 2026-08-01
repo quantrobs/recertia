@@ -3,7 +3,7 @@ T3 module (the eval harness, ablation sampler, promotion thresholds, sandbox pol
 boundary itself). Parses the AST rather than trusting convention, per the ADR's own mandate
 ("enforced by module boundaries and asserted in CI, not by convention").
 
-``fandea.jobs`` and ``fandea.evals.ablation`` are scanned once present; this test covers
+``recertia.jobs`` and ``recertia.evals.ablation`` are scanned once present; this test covers
 them by globbing rather than hardcoding paths.
 """
 
@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from fandea.governance import T3_FORBIDDEN_FOR_RUNS_AND_JOBS
+from recertia.governance import T3_FORBIDDEN_FOR_RUNS_AND_JOBS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GUARDED_PACKAGES = ("fandea/nodes", "fandea/jobs")
+GUARDED_PACKAGES = ("recertia/nodes", "recertia/jobs")
 
 
 def _imported_module_names(source_path: Path) -> set[str]:
@@ -60,4 +60,4 @@ def test_no_t3_imports_in_runs_or_jobs(source_path: Path) -> None:
 def test_guarded_files_is_non_empty() -> None:
     """A guard against this test silently checking nothing (e.g. a path typo)."""
 
-    assert _guarded_files(), "expected at least fandea/nodes/*.py to exist and be scanned"
+    assert _guarded_files(), "expected at least recertia/nodes/*.py to exist and be scanned"

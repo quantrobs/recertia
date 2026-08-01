@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fandea.ledger import HashChainLedger, LedgerVerificationError
+from recertia.ledger import HashChainLedger, LedgerVerificationError
 
 
 def test_append_and_verify_empty_ledger(tmp_path: Path) -> None:

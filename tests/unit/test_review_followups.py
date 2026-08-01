@@ -11,8 +11,8 @@ from contracts.budget import Budget, BudgetReservation, Spend
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.status import SkillStatus
-from fandea.memory.procedural.store import LifecycleConflictError, SkillStore
-from fandea.review.shadow import enter_shadow
+from recertia.memory.procedural.store import LifecycleConflictError, SkillStore
+from recertia.review.shadow import enter_shadow
 
 
 def _version(skill_id: str) -> SkillVersion:
@@ -89,11 +89,11 @@ def test_enter_shadow_from_candidate(tmp_path: Path) -> None:
 def test_branch_budget_preflight_marks_timed_out(tmp_path: Path) -> None:
     from contracts.branch import BranchState
     from contracts.run import RunManifest, RunState, Task
-    from fandea.graph.ops import OperationLedger
-    from fandea.ledger import HashChainLedger
-    from fandea.nodes.context import NodeContext
-    from fandea.nodes.solve import solve
-    from fandea.workspace import WorkspaceManager
+    from recertia.graph.ops import OperationLedger
+    from recertia.ledger import HashChainLedger
+    from recertia.nodes.context import NodeContext
+    from recertia.nodes.solve import solve
+    from recertia.workspace import WorkspaceManager
 
     work = tmp_path / "work"
     work.mkdir()

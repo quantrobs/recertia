@@ -5,25 +5,25 @@ from pathlib import Path
 
 import pytest
 
-from fandea.api.auth import ApiKeyStore
-from fandea.solver.container import (
+from recertia.api.auth import ApiKeyStore
+from recertia.solver.container import (
     LocalExecutionCapability,
     run_configured_command,
     run_in_container,
     run_with_backend,
 )
-from fandea.solver.sandbox import SandboxError
-from fandea.telemetry import JsonlSpanExporter, Telemetry, render_dashboard
+from recertia.solver.sandbox import SandboxError
+from recertia.telemetry import JsonlSpanExporter, Telemetry, render_dashboard
 
 
 def test_container_execution_fails_closed_without_oci_runtime(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: None)
     with pytest.raises(SandboxError, match="Docker or Podman required"):
         run_in_container("true", workdir=tmp_path)
 
 
 def test_local_executor_requires_explicit_capability(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "local")
+    monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "local")
     with pytest.raises(SandboxError, match="explicit LocalExecutionCapability"):
         run_with_backend("true", workdir=tmp_path, backend="local")
     proc = run_configured_command("true", workdir=tmp_path)

@@ -11,28 +11,28 @@ from contracts.criteria import SkillCertificationCriterion, TaskCriterion, mint_
 from contracts.run import RunManifest, RunState, Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import Contribution, PredictiveTrust, SkillStats
-from fandea.api.auth import ApiKeyStore
-from fandea.evals.golden import _criteria_from_task
-from fandea.evals.metrics import build_metric_report
-from fandea.graph.ops import OperationLedger
-from fandea.ledger import HashChainLedger
-from fandea.memory.episodic import EpisodicStore
-from fandea.memory.procedural.active_set import recompute_active_set
-from fandea.memory.procedural.allocate import allocate_and_write, allocate_next_version
-from fandea.memory.procedural.seeds import seed_approved_for_tests
-from fandea.memory.procedural.store import SkillStore
-from fandea.nodes.context import NodeContext
-from fandea.nodes.distill import distill
-from fandea.nodes.record_dead_end import record_dead_end
-from fandea.review.autonomy_config import AutonomyConfig
-from fandea.solver.container import ContainerSpec, run_in_container
-from fandea.solver.model import StubModelClient
-from fandea.solver.sandbox import SandboxError
-from fandea.solver.tools import ToolRuntime, default_registry
-from fandea.telemetry import Telemetry, render_dashboard
-from fandea.validation.assertions import UnsafeAssertionError, evaluate_assertion
-from fandea.validation.sensitivity import author_sensitivity_proof
-from fandea.workspace import WorkspaceManager
+from recertia.api.auth import ApiKeyStore
+from recertia.evals.golden import _criteria_from_task
+from recertia.evals.metrics import build_metric_report
+from recertia.graph.ops import OperationLedger
+from recertia.ledger import HashChainLedger
+from recertia.memory.episodic import EpisodicStore
+from recertia.memory.procedural.active_set import recompute_active_set
+from recertia.memory.procedural.allocate import allocate_and_write, allocate_next_version
+from recertia.memory.procedural.seeds import seed_approved_for_tests
+from recertia.memory.procedural.store import SkillStore
+from recertia.nodes.context import NodeContext
+from recertia.nodes.distill import distill
+from recertia.nodes.record_dead_end import record_dead_end
+from recertia.review.autonomy_config import AutonomyConfig
+from recertia.solver.container import ContainerSpec, run_in_container
+from recertia.solver.model import StubModelClient
+from recertia.solver.sandbox import SandboxError
+from recertia.solver.tools import ToolRuntime, default_registry
+from recertia.telemetry import Telemetry, render_dashboard
+from recertia.validation.assertions import UnsafeAssertionError, evaluate_assertion
+from recertia.validation.sensitivity import author_sensitivity_proof
+from recertia.workspace import WorkspaceManager
 
 
 def _ctx(tmp_path: Path, *, node: str, episodic: EpisodicStore | None = None) -> NodeContext:
@@ -128,7 +128,7 @@ def test_grep_skips_symlinks_outside_workspace(tmp_path: Path) -> None:
 
 
 def test_container_spec_policy_rejects_host_network_and_root(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: "docker")
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: "docker")
     with pytest.raises(SandboxError, match="network"):
         run_in_container("true", workdir=tmp_path, spec=ContainerSpec(network="host"))
     with pytest.raises(SandboxError, match="root"):
@@ -148,8 +148,8 @@ def test_container_run_drops_capabilities_and_blocks_privilege_escalation(
 
         return CompletedProcess(args, 0, stdout="", stderr="")
 
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: "docker")
-    monkeypatch.setattr("fandea.solver.container.subprocess.run", fake_run)
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: "docker")
+    monkeypatch.setattr("recertia.solver.container.subprocess.run", fake_run)
     run_in_container("true", workdir=tmp_path)
     assert captured
     args = captured[0]
