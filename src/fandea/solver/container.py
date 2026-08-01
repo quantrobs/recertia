@@ -14,6 +14,9 @@ from fandea.solver.sandbox import SandboxError, SandboxLimits
 
 Backend = Literal["container", "local"]
 
+_ALLOWED_IMAGES = frozenset({"python:3.12-slim", "python:3.11-slim", "python:3.12", "python:3.11"})
+
+
 
 @dataclass(frozen=True)
 class LocalExecutionCapability:
@@ -80,6 +83,59 @@ def ensure_execution_ready() -> Backend:
     return backend
 
 
+def ensure_workdir_writable_by_container(workdir: Path) -> None:
+    """Ensure the bind-mounted workdir is writable by the sandbox user (nobody).
+
+    Containers run as ``65534:65534``. Host-created directories are often ``0755`` owned
+    by the invoking user, which blocks writes inside the sandbox. We add other-write
+    (and traverse) bits on the workdir only — not a recursive chmod of the tree.
+    """
+
+    workdir = workdir.resolve()
+    if not workdir.is_dir():
+        raise SandboxError(f"workdir does not exist: {workdir}")
+    mode = workdir.stat().st_mode
+    # u+rwx,g+rwx,o+rwx — container nobody must create artifacts here.
+    workdir.chmod(mode | 0o0777)
+
+
+def default_container_image() -> str:
+    """Allowlisted image tag; optional ``FANDEA_CONTAINER_IMAGE`` override."""
+
+    image = os.environ.get("FANDEA_CONTAINER_IMAGE", "python:3.12-slim")
+    # Accept ``tag`` or ``tag@sha256:…``; allowlist checks the tag portion.
+    tag = image.split("@", 1)[0]
+    if tag not in _ALLOWED_IMAGES and not os.environ.get("FANDEA_ALLOW_CUSTOM_IMAGE"):
+        raise SandboxError(
+            f"container image {image!r} is not on the allowlist {_ALLOWED_IMAGES}"
+        )
+    return image
+
+
+def probe_container_runtime(*, timeout_s: int = 60) -> None:
+    """Run a trivial container command; raise ``SandboxError`` if the runtime is broken."""
+
+    runtime = container_runtime()
+    if runtime is None:
+        raise SandboxError("no approved container runtime available (Docker or Podman required)")
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="fandea-probe-") as tmp:
+        workdir = Path(tmp)
+        ensure_workdir_writable_by_container(workdir)
+        proc = run_in_container("true", workdir=workdir, timeout_s=timeout_s)
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            raise SandboxError(
+                f"container probe failed via {runtime}: exit={proc.returncode} {detail[:500]}"
+            )
+
+
+
+def _image_tag(image: str) -> str:
+    return image.split("@", 1)[0]
+
+
 def run_in_container(
     command: str,
     *,
@@ -97,8 +153,11 @@ def run_in_container(
     workdir = workdir.resolve()
     if not workdir.is_dir():
         raise SandboxError(f"workdir does not exist: {workdir}")
+    ensure_workdir_writable_by_container(workdir)
     limits = limits or SandboxLimits(allow_network=False)
-    spec = _enforce_container_policy(spec or ContainerSpec())
+    if spec is None:
+        spec = ContainerSpec(image=default_container_image())
+    spec = _enforce_container_policy(spec)
     if limits.allow_network:
         raise SandboxError("container backend refuses allow_network=True")
 
@@ -106,9 +165,6 @@ def run_in_container(
     if runtime is None:
         raise SandboxError("no approved container runtime available (Docker or Podman required)")
     return _container_run(runtime, command, workdir=workdir, spec=spec, timeout_s=timeout_s)
-
-
-_ALLOWED_IMAGES = frozenset({"python:3.12-slim", "python:3.11-slim", "python:3.12", "python:3.11"})
 
 
 def _enforce_container_policy(spec: ContainerSpec) -> ContainerSpec:
@@ -122,7 +178,8 @@ def _enforce_container_policy(spec: ContainerSpec) -> ContainerSpec:
         raise SandboxError("writable container root filesystem is not allowed")
     if not spec.workdir_mount.startswith("/"):
         raise SandboxError("workdir_mount must be an absolute container path")
-    if spec.image not in _ALLOWED_IMAGES and not os.environ.get("FANDEA_ALLOW_CUSTOM_IMAGE"):
+    tag = _image_tag(spec.image)
+    if tag not in _ALLOWED_IMAGES and not os.environ.get("FANDEA_ALLOW_CUSTOM_IMAGE"):
         raise SandboxError(f"container image {spec.image!r} is not on the allowlist")
     return spec
 
@@ -176,7 +233,7 @@ def run_with_backend(
         return _local_run(command, workdir=workdir, limits=limits or SandboxLimits(), timeout_s=timeout_s)
     if backend != "container":
         raise SandboxError(f"unsupported execution backend: {backend!r}")
-    spec = ContainerSpec(image=image or "python:3.12-slim")
+    spec = ContainerSpec(image=image or default_container_image())
     return run_in_container(
         command,
         workdir=workdir,
