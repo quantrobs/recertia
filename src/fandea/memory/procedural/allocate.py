@@ -7,15 +7,20 @@ writes consume the reservation under the same lock family.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import os
 import sqlite3
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 
 from contracts.skill import SkillVersion
 from fandea.memory.procedural.store import SkillStore
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
 
 
 def _existing_versions(skills_dir: Path, skill_id: str) -> list[int]:
@@ -52,12 +57,27 @@ def _skill_lock(store: SkillStore, skill_id: str):
     lock_dir = store.root / ".version-locks"
     lock_dir.mkdir(exist_ok=True)
     digest = hashlib.sha256(skill_id.encode()).hexdigest()
-    fd = os.open(lock_dir / f"{digest}.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    lock_path = lock_dir / f"{digest}.lock"
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        if sys.platform == "win32":
+            # msvcrt locks a byte range; ensure the file has at least one byte.
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"\0")
+                os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        if sys.platform == "win32":
+            try:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+        else:
+            fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
 
 
