@@ -49,7 +49,22 @@ def test_default_container_image_accepts_digest_pin(monkeypatch: pytest.MonkeyPa
     assert default_container_image().startswith("python:3.12-slim@sha256:")
 
 
-def test_container_workdir_chmod_allows_other_write(tmp_path: Path) -> None:
+def test_container_workdir_chmod_defaults_without_world_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("RECERTIA_WORKDIR_WORLD_WRITE", raising=False)
+    work = tmp_path / "w"
+    work.mkdir(mode=0o755)
+    ensure_workdir_writable_by_container(work)
+    mode = work.stat().st_mode & 0o777
+    assert mode & 0o070 == 0o070  # group write
+    assert mode & 0o002 == 0  # other-write off by default
+
+
+def test_container_workdir_chmod_world_write_opt_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RECERTIA_WORKDIR_WORLD_WRITE", "1")
     work = tmp_path / "w"
     work.mkdir(mode=0o755)
     ensure_workdir_writable_by_container(work)

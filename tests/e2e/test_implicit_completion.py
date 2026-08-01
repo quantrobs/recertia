@@ -186,7 +186,7 @@ def test_fastapi_health_runs_blobs_dashboard(tmp_path: Path, monkeypatch) -> Non
 
     app = create_app(root=tmp_path / "api-root")
     issued = app.state.api_keys.issue(
-        tenant_id="test", scopes={"runs", "blobs", "metrics"}, actor="test-admin"
+        tenant_id="test", scopes={"runs", "exec", "blobs", "metrics"}, actor="test-admin"
     )
     client = TestClient(app)
     headers = {"X-API-Key": issued.secret}
