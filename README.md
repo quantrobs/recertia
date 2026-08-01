@@ -45,11 +45,25 @@ issued with `fandea keys`. Seed skills live under `skills/`; golden evals under 
 normative contracts under `contracts/` (generated into `schema/`). Detail on planes, nodes,
 and promotion lives in the documents below.
 
+### Container sandbox (Docker / Podman)
+
+Production solves run inside an OCI container (`FANDEA_EXECUTION_BACKEND=container`, default).
+Install Docker or Podman, pull `python:3.12-slim`, then smoke-test:
+
+```bash
+export FANDEA_EXECUTION_BACKEND=container
+python3 scripts/smoke_container.py
+```
+
+Without a runtime, use `fandea run --local-exec` for development only. Permissions, digest
+pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md).
+
 ## Documents
 
 | Document | Contents |
 | --- | --- |
 | [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
+| [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup, bind-mount permissions, hardening, smoke test |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
