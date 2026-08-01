@@ -156,6 +156,35 @@ lacks observations. Judge isolation (§26.3) remains necessary but is no longer 
 sufficient: an isolated judge that is still false-pass-biased would disable the curator just
 as quietly.
 
+### 1.9 Trajectory events are the missing measurement substrate — without weight updates
+
+> Current agentic online RL systems lack "(i) a standardized Agent Trajectory Data Protocol
+> (ATDP) that carries RL learning signals at step granularity across heterogeneous agent
+> paradigms, (ii) an enterprise-grade data proxy that converts real workloads into governed
+> learning substrates, and (iii) a unified agent evolution control plane that can automatically
+> decide when and how to update policy weights or evolve in-context harnesses based on
+> trajectory statistics."
+
+— **Next-Generation Agentic Reinforcement Learning Systems Enable Self-Evolving Agents**,
+Yan et al., arXiv:2607.01120, 2026 **[F]**
+
+The paper's diagnosis of the trajectory gap is the useful part for us. Causal lift and
+run-start ablation answer treatment-versus-control at admission time; they cannot answer
+whether a *library change* would have altered outcomes on traffic already observed.
+`RunState` is a live state object, not a decision event stream, and the memory ledger
+records only storage mutations. That left contribution retirement and Curator proposals
+without offline counterfactual evidence.
+
+**Changes made:** ADR-0011 introduces an append-only decision-level trajectory event stream
+(engine-emitted, not node-written) and offline replay under a candidate `WorldState`
+(`retrieval_only` first; `validate_only` / gated `full_execution` as extensions). Replay packs
+are additive Curator evidence; golden gates remain mandatory for promote-to-approved.
+
+**What we deliberately did not take:** AReaL2.0's agent-oriented online RL loop for policy
+weight updates, multi-tenant data proxies, and multi-surface evolution control planes remain
+out of scope (ADR-0005). The adaptation is scaffolding-only and non-parametric: trajectories
+measure and support library hygiene; they do not train weights.
+
 ## 2. Skill libraries and lifecycle management
 
 | Work | Relevance |
@@ -201,6 +230,7 @@ as quietly.
 | **Overcoming Catastrophic Forgetting**, Kirkpatrick et al., PNAS 2017 **[B]** | Why external memory avoids the forgetting problem parametric learning has |
 | **Retrieval-Augmented Generation**, Lewis et al., NeurIPS 2020 **[B]** | The retrieval substrate |
 | **The Bitter Lesson**, Sutton, 2019 **[B]** | The standing argument against elaborate hand-built scaffolding; the reason `architecture/overview.md` defers parametric learning rather than dismissing it |
+| **Next-Generation Agentic Reinforcement Learning Systems Enable Self-Evolving Agents**, Yan et al., arXiv:2607.01120, 2026 **[F]** | ATDP / trajectory substrate for step-granular learning signals and offline replay; informed ADR-0011. Weight-update loop and evolution control plane rejected (ADR-0005); scaffolding-only adaptation only |
 
 ## 6. Ideas used without a specific citation
 
