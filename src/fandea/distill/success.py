@@ -47,12 +47,13 @@ def distill_success(
     del _RV
     prior = prior or load_authoring_prior()
     task_class = state.task.task_class or "repo-chore"
+    request = state.task.request or ""
     commands = [c for c in commands if c.strip() and not c.strip().startswith("true  #")]
     if not commands:
-        commands = _infer_commands_from_workdir(workdir, state.task.request)
+        commands = _infer_commands_from_workdir(workdir, request)
 
-    params, parametrized = _extract_parameters(state.task.request, commands)
-    skill_id = _skill_id_from_request(state.task.request)
+    params, parametrized = _extract_parameters(request, commands)
+    skill_id = _skill_id_from_request(request)
     steps = [
         Step(
             id=f"step_{i}",
@@ -73,7 +74,7 @@ def distill_success(
             )
         ]
 
-    check_cmd = _default_check_command(workdir, state.task.request)
+    check_cmd = _default_check_command(workdir, request)
     cert = SkillCertificationCriterion(
         id="artifact-present",
         kind="command",
@@ -91,8 +92,8 @@ def distill_success(
         skill_id=skill_id,
         version=1 if near_duplicate_of is None else near_duplicate_of[1] + 1,
         supersedes=near_duplicate_of[1] if near_duplicate_of else None,
-        title=_title(state.task.request),
-        intent=_intent(state.task.request),
+        title=_title(request),
+        intent=_intent(request),
         task_class=task_class,
         tags=[task_class, "distilled"],
         parameters=params,
@@ -220,7 +221,9 @@ def _extract_facts(state: RunState, workdir: Path, skill_id: str) -> list[Fact]:
             Fact(
                 fact_id=f"{skill_id}-{slug}"[:64].strip("-"),
                 slug=slug[:64].strip("-") or "file",
-                assertion=f"Successful solve for {state.task.request!r} produced file {rel}",
+                assertion=(
+                    f"Successful solve for {(state.task.request or '')!r} produced file {rel}"
+                ),
                 status="asserted",
                 confidence=0.55,
                 provenance=FactProvenance(

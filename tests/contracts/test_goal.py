@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
 from contracts.goal import Constraint, DesiredState, Goal, compile_goal
 from contracts.run import Task
-from datetime import datetime, timezone
 
 
 def test_goal_requires_hard_non_judge_desired():

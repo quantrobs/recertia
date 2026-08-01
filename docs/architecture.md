@@ -8,6 +8,7 @@
 - [Library lifecycle](architecture/library-lifecycle.md)
 - [Improvement plane](architecture/improvement-plane.md)
 - [Operations: storage, budgets, and attempt isolation](architecture/operations.md)
+- [Container sandbox: Docker/Podman setup and hardening](architecture/container-sandbox.md)
 - [Measurement integrity](architecture/measurement-integrity.md)
 - [Risk and governance](architecture/risk-and-governance.md)
 - [Measurement and domain scope](architecture/measurement-and-scope.md)

@@ -6,8 +6,41 @@ tool cautions (M2). Control arm still returns an empty suppressed bundle.
 
 from __future__ import annotations
 
-from contracts.run import MemoryBundle, MemoryElementRef, RunState
+from contracts.run import MemoryBundle, MemoryElementRef, RunState, Task
 from fandea.nodes.context import NodeContext, NodeOutcome
+
+
+def retrieval_query(*, request: str | None, goal_context: str | None, goal_terms: str = "") -> str:
+    """Build a non-None retrieval query from request, goal context, or goal terms."""
+
+    if request is not None and request.strip():
+        return request.strip()
+    if goal_context is not None and goal_context.strip():
+        return goal_context.strip()
+    if goal_terms.strip():
+        return goal_terms.strip()
+    return ""
+
+
+def _query_for(task: Task) -> str:
+    """Non-None retrieval string for goal-only runs (no request / context)."""
+
+    goal_terms = ""
+    if task.goal is not None:
+        parts: list[str] = []
+        for desired in task.goal.desired:
+            parts.append(desired.id)
+            if desired.path:
+                parts.append(desired.path)
+            if desired.run:
+                parts.append(desired.run)
+            if desired.pattern:
+                parts.append(desired.pattern)
+        goal_terms = " ".join(parts)
+        context = task.goal.context
+    else:
+        context = None
+    return retrieval_query(request=task.request, goal_context=context, goal_terms=goal_terms)
 
 
 def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
@@ -30,12 +63,13 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
             note=f"control arm: retrieval suppressed snapshot={snapshot_id}",
         )
 
+    query = _query_for(state.task)
     skills = []
     snapshot_id = None
     dropped = 0
     if ctx.retriever is not None:
         bundle, explanation = ctx.retriever.search(
-            state.task.request,
+            query,
             workdir=ctx.workdir,
             env_fingerprint=ctx.env_fingerprint,
             suppress=False,
@@ -81,7 +115,7 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
 
     facts: list[MemoryElementRef] = []
     if ctx.facts is not None:
-        for fact in ctx.facts.retrieve(state.task.request, limit=10):
+        for fact in ctx.facts.retrieve(query, limit=10):
             facts.append(
                 MemoryElementRef(
                     plane="semantic",

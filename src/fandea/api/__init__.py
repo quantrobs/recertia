@@ -2,7 +2,8 @@
 
 ``POST /v1/runs`` executes offline via ``GraphOrchestrator.start`` (same path as
 ``fandea run``), not an enqueue-only stub. Optional CLI-parity fields: ``goal``,
-``criteria``, ``script``, ``budget``, ``workdir``, ``arm``.
+``task_class`` (falls back to ``goal.task_class``, then ``repo-chore``), ``criteria``,
+``script``, ``budget``, ``workdir``, ``arm``.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 from contracts.budget import Budget
 from contracts.common import Arm
@@ -23,7 +24,10 @@ from contracts.criteria import TaskCriterion
 from contracts.goal import Goal
 from contracts.run import Task
 from fandea.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
+from fandea.bootstrap import build_default_orchestrator, resolve_task_class
 from fandea.graph.engine import GraphOrchestrator
+from fandea.solver.container import ensure_execution_ready
+from fandea.solver.sandbox import SandboxError
 from fandea.store.blobs import FilesystemBlobStore, normalize_blob_digest
 from fandea.telemetry import get_telemetry, render_dashboard
 
@@ -128,7 +132,7 @@ def _load_persisted_workdir(root: Path, tenant_id: str, run_id: str) -> Path | N
 class RunCreate(BaseModel):
     goal: Goal | None = None
     request: str | None = None
-    task_class: str = "repo-chore"
+    task_class: str | None = None
     criteria: list[dict[str, Any]] | None = None
     script: list[str] | None = None
     budget: dict[str, Any] | None = None
@@ -158,9 +162,16 @@ class RunRecord(BaseModel):
     has_goal: bool = False
 
 
-def create_app(*, root: Path | None = None) -> FastAPI:
+def create_app(
+    *,
+    root: Path | None = None,
+    skills_root: Path | None = None,
+    facts_root: Path | None = None,
+) -> FastAPI:
     root = root or DEFAULT_ROOT
     root.mkdir(parents=True, exist_ok=True)
+    skills_root = Path(skills_root) if skills_root is not None else Path("skills")
+    facts_root = Path(facts_root) if facts_root is not None else Path("facts")
     key_store = ApiKeyStore(root / "api_keys.sqlite")
     blobs_by_tenant: dict[str, FilesystemBlobStore] = {}
     # Keyed by (tenant_id, run_id) so tenants cannot collide on run_id.
@@ -175,6 +186,11 @@ def create_app(*, root: Path | None = None) -> FastAPI:
     def create_run(
         body: RunCreate, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
+        try:
+            ensure_execution_ready()
+        except SandboxError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
         run_id = _validate_run_id(body.run_id or f"run-{uuid4().hex[:12]}")
         run_key = (principal.tenant_id, run_id)
         if run_key in runs:
@@ -188,11 +204,15 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         if body.goal is not None and body.goal.context and not request:
             request = body.goal.context
 
+        task_class = resolve_task_class(
+            explicit=body.task_class,
+            goal_task_class=body.goal.task_class if body.goal else None,
+        )
         task = Task(
             task_id=run_id,
             goal=body.goal,
             request=request,
-            task_class=body.task_class or (body.goal.task_class if body.goal else None),
+            task_class=task_class,
             submitted_at=datetime.now(timezone.utc),
             submitted_by=principal.key_id,
         )
@@ -203,12 +223,17 @@ def create_app(*, root: Path | None = None) -> FastAPI:
             "run.started",
             tenant_id=principal.tenant_id,
             run_id=run_id,
-            task_class=body.task_class,
+            task_class=task_class,
         )
 
-        orch = GraphOrchestrator(root / "runs" / principal.tenant_id)
+        bundle = build_default_orchestrator(
+            root / "runs" / principal.tenant_id,
+            skills_root=skills_root,
+            facts_root=facts_root,
+            index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+        )
         try:
-            state = orch.start(
+            state = bundle.orchestrator.start(
                 run_id,
                 task,
                 criteria,
@@ -226,12 +251,12 @@ def create_app(*, root: Path | None = None) -> FastAPI:
             )
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         finally:
-            orch.close()
+            bundle.close()
 
         rec = _record_from_state(
             run_id=run_id,
             request=request,
-            task_class=task.task_class or "repo-chore",
+            task_class=task_class,
             tenant_id=principal.tenant_id,
             state=state,
             created_at=datetime.now(timezone.utc),
@@ -262,6 +287,11 @@ def create_app(*, root: Path | None = None) -> FastAPI:
     def resume_run(
         run_id: str, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
+        try:
+            ensure_execution_ready()
+        except SandboxError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
         run_id = _validate_run_id(run_id)
         run_key = (principal.tenant_id, run_id)
         # Resume MUST reuse the persisted create workdir — never invent a new path.
@@ -270,15 +300,20 @@ def create_app(*, root: Path | None = None) -> FastAPI:
             workdir = _canonical_run_workdir(root, principal.tenant_id, run_id)
         if not workdir.exists():
             raise HTTPException(status_code=404, detail="run workdir not found")
-        orch = GraphOrchestrator(root / "runs" / principal.tenant_id)
+        bundle = build_default_orchestrator(
+            root / "runs" / principal.tenant_id,
+            skills_root=skills_root,
+            facts_root=facts_root,
+            index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+        )
         try:
-            state = orch.resume(run_id, workdir=workdir)
+            state = bundle.orchestrator.resume(run_id, workdir=workdir)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         finally:
-            orch.close()
+            bundle.close()
 
         existing = runs.get(run_key)
         rec = _record_from_state(
@@ -329,6 +364,8 @@ def create_app(*, root: Path | None = None) -> FastAPI:
         return render_dashboard(get_telemetry(), tenant_id=principal.tenant_id)
 
     app.state.root = root
+    app.state.skills_root = skills_root
+    app.state.facts_root = facts_root
     app.state.api_keys = key_store
     app.state.blobs_by_tenant = blobs_by_tenant
     app.state.runs = runs

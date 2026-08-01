@@ -8,16 +8,62 @@ set of nodes. Compounding happens *across* walks, through durable versioned memo
 later run reads before inventing anything new — and through offline jobs that reorganise,
 practise, and re-certify what has been learned.
 
+## What it is
+
+Fandea is built for recurring work — repository chores, research briefs, and similar
+task classes — where past solutions should make the next attempt cheaper and more reliable.
+Each run locks machine-checkable success criteria, retrieves relevant skills and cases before
+solving, validates the result, and only then proposes durable memory. Nothing is learned by
+silently mutating state: skills, facts, and cases are versioned, reviewable, and revertible.
+Failures are stored as knowledge too, so the system can avoid dead ends it has already seen.
+
+Improvement is representational, not parametric: there is no weight training. Competence grows
+through a plural memory plane (procedural skills, semantic facts, episodic cases, utterances,
+and policy) and an offline improvement plane that refines, evolves, practises, and recertifies
+candidates behind a quality gate. A causal control arm with retrieval suppressed keeps “it got
+better” as a measured claim rather than a hopeful one. The active skill library is bounded and
+retires low-contribution entries so performance does not drift below a no-memory baseline.
+
 **Primary input (Variant B):** a structured [`Goal`](contracts/goal.py) of desired outcomes and
 constraints, compiled to locked `TaskCriterion[]` at intake. Natural language is optional
 context. See [ADR-0010](docs/adr/0010-goal-as-primary-input.md) and
 [Goal objects](docs/specifications/goal-objects.md).
+
+## How it is used
+
+Day to day you drive Fandea from the CLI or the HTTP API. Install the package, then submit a
+task with `fandea run --goal goal.json` (preferred) or `fandea run --spec task.json`
+(or `POST /v1/runs`). The graph walks intake → retrieve → plan → solve → validate, evolving
+within budget on failure and distilling on success. Inspect progress with
+`fandea runs show <run_id>`, resume interrupted work with `fandea resume`, and verify the
+integrity ledger with `fandea ledger verify`.
+
+Over time you manage the library: search and lint skills (`fandea skills search`,
+`fandea skills lint`), promote golden-gated versions (`fandea skills promote`), and measure
+lift against ablations (`fandea lift --task-class …`). API keys for the FastAPI surface are
+issued with `fandea keys`. Seed skills live under `skills/`; golden evals under `evals/`;
+normative contracts under `contracts/` (generated into `schema/`). Detail on planes, nodes,
+and promotion lives in the documents below.
+
+### Container sandbox (Docker / Podman)
+
+Production solves run inside an OCI container (`FANDEA_EXECUTION_BACKEND=container`, default).
+Install Docker or Podman, pull `python:3.12-slim`, then smoke-test:
+
+```bash
+export FANDEA_EXECUTION_BACKEND=container
+python3 scripts/smoke_container.py
+```
+
+Without a runtime, use `fandea run --local-exec` for development only. Permissions, digest
+pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md).
 
 ## Documents
 
 | Document | Contents |
 | --- | --- |
 | [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
+| [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup, bind-mount permissions, hardening, smoke test |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
