@@ -10,12 +10,12 @@ from typer.testing import CliRunner
 
 from contracts.goal import DesiredState, Goal
 from contracts.run import RunState, Task
-from fandea.bootstrap import build_default_orchestrator, resolve_task_class, retrieval_query
+from fandea.bootstrap import build_default_orchestrator, resolve_task_class
 from fandea.cli.main import app
 from fandea.graph.ops import OperationLedger
 from fandea.ledger import HashChainLedger
 from fandea.nodes.context import NodeContext
-from fandea.nodes.retrieve import retrieve
+from fandea.nodes.retrieve import retrieval_query, retrieve
 from fandea.solver.container import ensure_execution_ready
 from fandea.solver.sandbox import SandboxError
 from fandea.workspace import WorkspaceManager

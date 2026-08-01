@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fandea.governance.sandbox import ApprovalGate
-from fandea.graph.engine import GraphOrchestrator
 from fandea.memory.affordance import AffordanceStore
 from fandea.memory.episodic import EpisodicStore
 from fandea.memory.procedural.store import SkillStore
@@ -22,12 +22,15 @@ from fandea.solver.tools import ClaimScheduler, ToolRuntime, default_registry
 from fandea.solver.transcript import TranscriptStore
 from fandea.workspace import WorkspaceManager
 
+if TYPE_CHECKING:
+    from fandea.graph.engine import GraphOrchestrator
+
 
 @dataclass
 class OrchestratorBundle:
     """Orchestrator plus closable index handle."""
 
-    orchestrator: GraphOrchestrator
+    orchestrator: "GraphOrchestrator"
     index: SkillIndex
 
     def close(self) -> None:
@@ -41,10 +44,18 @@ def build_default_orchestrator(
     skills_root: Path | str = Path("skills"),
     facts_root: Path | str = Path("facts"),
     index_path: Path | str | None = None,
+    golden_root: Path | str | None = None,
     env_fingerprint: dict[str, str] | None = None,
     approve_default_tools: bool = True,
 ) -> OrchestratorBundle:
-    """Wire SkillStore, Retriever, tools, applicator, episodic/facts/affordances."""
+    """Wire SkillStore, Retriever, tools, applicator, episodic/facts/affordances.
+
+    When ``golden_root`` is set, also wires a ``ReviewService`` so reusable drafts can
+    be promoted. Without it, distill keeps solved runs as ``one_off`` (draft retained).
+    """
+
+    from fandea.graph.engine import GraphOrchestrator
+    from fandea.review import ReviewService
 
     runs_root = Path(runs_root)
     runs_root.mkdir(parents=True, exist_ok=True)
@@ -67,6 +78,14 @@ def build_default_orchestrator(
     transcripts = TranscriptStore(runs_root / "transcripts")
     applicator = SkillApplicator(tools, workspaces)
 
+    reviewer = None
+    if golden_root is not None:
+        reviewer = ReviewService(
+            runs_root / "review",
+            golden_root=Path(golden_root),
+            runs_root=runs_root / "review-runs",
+        )
+
     orch = GraphOrchestrator(
         runs_root,
         store=store,
@@ -77,6 +96,7 @@ def build_default_orchestrator(
         episodic=EpisodicStore(runs_root / "episodic"),
         affordances=AffordanceStore(runs_root / "affordances.json"),
         facts=FactStore(facts_root),
+        reviewer=reviewer,
         # Empty fingerprint: only mismatch when both sides declare a tool.
         env_fingerprint=env_fingerprint if env_fingerprint is not None else {},
     )
@@ -97,15 +117,3 @@ def resolve_task_class(
         if candidate is not None and str(candidate).strip():
             return str(candidate).strip()
     return default
-
-
-def retrieval_query(*, request: str | None, goal_context: str | None, goal_terms: str = "") -> str:
-    """Build a non-None retrieval query from request, goal context, or goal terms."""
-
-    if request is not None and request.strip():
-        return request.strip()
-    if goal_context is not None and goal_context.strip():
-        return goal_context.strip()
-    if goal_terms.strip():
-        return goal_terms.strip()
-    return ""
