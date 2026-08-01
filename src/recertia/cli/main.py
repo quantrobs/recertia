@@ -12,6 +12,7 @@ from recertia.cli.gc import gc_cmd, register_gc_commands
 from recertia.cli.jobs import jobs_run, register_jobs_commands
 from recertia.cli.keys import keys_issue, keys_list, keys_revoke, register_keys_commands
 from recertia.cli.lift import lift_cmd, register_lift_commands
+from recertia.cli.metrics_cmd import metrics_cmd, register_metrics_commands
 from recertia.cli.runs import (
     ledger_verify,
     register_run_commands,
@@ -31,6 +32,7 @@ register_run_commands(app)
 register_skills_commands(app)
 register_keys_commands(app)
 register_lift_commands(app)
+register_metrics_commands(app)
 register_jobs_commands(app)
 register_gc_commands(app)
 
@@ -43,6 +45,7 @@ __all__ = [
     "keys_revoke",
     "ledger_verify",
     "lift_cmd",
+    "metrics_cmd",
     "resume_cmd",
     "run_cmd",
     "runs_show",

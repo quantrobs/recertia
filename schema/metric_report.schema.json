@@ -315,6 +315,78 @@
       "title": "Judge Isolation Violations",
       "type": "integer"
     },
+    "curation_gap": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Curation Gap"
+    },
+    "practice_conversion": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Practice Conversion"
+    },
+    "retirement_reversal_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retirement Reversal Rate"
+    },
+    "active_cap_pressure": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Active Cap Pressure"
+    },
+    "judge_false_pass_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judge False Pass Rate"
+    },
+    "mean_composition_depth": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mean Composition Depth"
+    },
     "unavailable": {
       "additionalProperties": {
         "type": "string"

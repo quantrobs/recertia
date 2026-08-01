@@ -82,6 +82,8 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md).
 | [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, fetch allowlist, seed lint, jobs CLI, retention gc |
 | [`docs/architecture/principal-review-2026-08.md`](docs/architecture/principal-review-2026-08.md) | External architecture review: strengths, production gaps (P0–P2), threat-model deltas, non-goals |
 | [`docs/architecture/one-year-roadmap.md`](docs/architecture/one-year-roadmap.md) | 2026–2027 roadmap: operator GA → measured compounding → library economics → second domain + tenant gate |
+| [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |
+| [`docs/architecture/production-readiness.md`](docs/architecture/production-readiness.md) | Phase-4 multi-tenant readiness gate checklist |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |

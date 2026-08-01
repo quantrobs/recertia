@@ -10,6 +10,8 @@ from contracts.skill import SkillVersion
 from recertia.evals.fake_edges import fake_edge_checks as derive_fake_edge_checks
 from recertia.evals.statistics import brier_score, causal_lift, mean, rate
 
+_HUMANISH = frozenset({"human_authored", "mined_from_human_artifact"})
+
 
 def first_attempt_success_sample(rows: Sequence[dict[str, Any]]) -> BinomialSample:
     """``first_attempt_success``: reached distill with attempt_no==1 (specs §11)."""
@@ -31,6 +33,12 @@ def build_metric_report(
     skill: SkillVersion | None = None,
     transcripts: Sequence[dict[str, Any]] | None = None,
     judge_isolation_violations: int = 0,
+    retirement_benched: int | None = None,
+    retirement_restored: int | None = None,
+    active_cap_pressure: float | None = None,
+    judge_false_pass_rate: float | None = None,
+    mean_composition_depth: float | None = None,
+    regression_rate: float | None = None,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
     # User-facing metrics and lift exclude fixtures and synthetic practice
@@ -126,6 +134,23 @@ def build_metric_report(
     else:
         unavailable["fake_edge_rate"] = "no fake edge observations supplied"
 
+    curation_gap = _curation_gap(non_eval, unavailable)
+    practice_conversion = _practice_conversion(rows, unavailable)
+    retirement = _retirement_reversal(
+        retirement_benched, retirement_restored, unavailable
+    )
+    pressure = active_cap_pressure
+    if pressure is None:
+        unavailable["active_cap_pressure"] = "no active_cap_pressure supplied"
+    false_pass = judge_false_pass_rate
+    if false_pass is None:
+        unavailable["judge_false_pass_rate"] = "no canary observations supplied"
+    composition = mean_composition_depth
+    if composition is None:
+        unavailable["mean_composition_depth"] = "no composition depth supplied"
+    if regression_rate is None:
+        unavailable["regression_rate"] = "no golden regression window supplied"
+
     return MetricReport(
         snapshot_id=snapshot_id,
         model_version=model_version,
@@ -134,6 +159,7 @@ def build_metric_report(
         first_attempt_success=fas.rate,
         attempts_to_success=attempts,
         cost_per_solved_task=cost_per,
+        regression_rate=regression_rate,
         causal_lift=lift,
         calibration_error=calibration,
         abstention_precision=abst_prec,
@@ -141,6 +167,53 @@ def build_metric_report(
         parallel_speedup=speedup,
         fake_edge_rate=fake,
         judge_isolation_violations=judge_isolation_violations,
+        curation_gap=curation_gap,
+        practice_conversion=practice_conversion,
+        retirement_reversal_rate=retirement,
+        active_cap_pressure=pressure,
+        judge_false_pass_rate=false_pass,
+        mean_composition_depth=composition,
         unavailable=unavailable,
         at=datetime.now(timezone.utc),
     )
+
+
+def _curation_gap(rows: Sequence[dict[str, Any]], unavailable: dict[str, str]) -> float | None:
+    labelled = [r for r in rows if r.get("curation")]
+    if not labelled:
+        unavailable["curation_gap"] = "no curation provenance on observations"
+        return None
+    human = [r for r in labelled if r.get("curation") in _HUMANISH]
+    distilled = [r for r in labelled if r.get("curation") == "self_distilled"]
+    if not human or not distilled:
+        unavailable["curation_gap"] = "need both humanish and self_distilled observations"
+        return None
+    human_rate = first_attempt_success_sample(human).rate
+    distilled_rate = first_attempt_success_sample(distilled).rate
+    if human_rate is None or distilled_rate is None:
+        unavailable["curation_gap"] = "empty curation cohorts"
+        return None
+    return human_rate - distilled_rate
+
+
+def _practice_conversion(
+    rows: Sequence[dict[str, Any]], unavailable: dict[str, str]
+) -> float | None:
+    practice = [r for r in rows if r.get("arm") == "practice"]
+    if not practice:
+        unavailable["practice_conversion"] = "no practice-arm observations"
+        return None
+    converted = sum(1 for r in practice if r.get("practice_converted"))
+    return converted / len(practice)
+
+
+def _retirement_reversal(
+    benched: int | None, restored: int | None, unavailable: dict[str, str]
+) -> float | None:
+    if benched is None or restored is None:
+        unavailable["retirement_reversal_rate"] = "no retirement bench/restore counts supplied"
+        return None
+    if benched <= 0:
+        unavailable["retirement_reversal_rate"] = "no benched versions in window"
+        return None
+    return restored / benched

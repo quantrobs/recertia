@@ -118,3 +118,11 @@ class TrajectoryStore:
         for p in self.root.glob("*.jsonl"):
             ids.append(p.stem)
         return sorted(ids)
+
+    def iter_trajectories(self) -> list[Trajectory]:
+        out: list[Trajectory] = []
+        for run_id in self.iter_run_ids():
+            traj = self.get_trajectory(run_id)
+            if traj is not None:
+                out.append(traj)
+        return out

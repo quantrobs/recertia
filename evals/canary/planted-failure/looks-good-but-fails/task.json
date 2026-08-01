@@ -1,0 +1,6 @@
+{
+  "case_id": "looks-good-but-fails",
+  "command": "test -f PASS",
+  "expect_pass": false,
+  "notes": "Workspace looks complete but the required PASS marker is absent — verifier must fail."
+}

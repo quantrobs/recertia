@@ -23,6 +23,8 @@ from recertia.graph.store import CheckpointStore
 from recertia.ledger import HashChainLedger
 from recertia.memory.procedural.capability import CandidateSkillStoreAdapter
 from recertia.nodes import NODE_FUNCS, NodeContext
+from recertia.trajectory.emitter import TrajectoryEmitter
+from recertia.trajectory.store import TrajectoryStore
 from recertia.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
@@ -84,10 +86,46 @@ class GraphOrchestrator:
         self.facts = facts
         self.reviewer = reviewer
         self.one_off_log = one_off_log
+        self.trajectories = TrajectoryStore(self.runs_root / "trajectories")
+        self._trajectory_emitter = TrajectoryEmitter()
 
     def close(self) -> None:
         self.checkpoints.close()
         self.ops.close()
+
+    def _emit_trajectory(
+        self,
+        *,
+        prior: RunState,
+        new_state: RunState,
+        node: str,
+        attempt_no: int,
+        route: str | None,
+        note: str | None,
+    ) -> None:
+        """Best-effort trajectory append; never fails the run (ADR-0011)."""
+
+        try:
+            if not self.trajectories._meta_path(new_state.run_id).exists():
+                self.trajectories.write_meta(
+                    run_id=new_state.run_id,
+                    task_id=new_state.task.task_id,
+                    task_class=new_state.task.task_class,
+                    arm=new_state.arm,
+                    is_eval_fixture=new_state.task.is_eval_fixture,
+                )
+            events = self._trajectory_emitter.from_node_outcome(
+                prior=prior,
+                new_state=new_state,
+                node=node,
+                attempt_no=attempt_no,
+                route=route,
+                note=note,
+            )
+            if events:
+                self.trajectories.append_many(new_state.run_id, events)
+        except Exception:  # noqa: BLE001 — trajectory must not fail runs
+            return
 
     def start(
         self,
@@ -198,6 +236,14 @@ class GraphOrchestrator:
             new_state = outcome.state
 
             if node_name == "finalize":
+                self._emit_trajectory(
+                    prior=state,
+                    new_state=new_state,
+                    node=node_name,
+                    attempt_no=attempt_no_for_ctx,
+                    route=outcome.route,
+                    note=outcome.note,
+                )
                 self.checkpoints.save(state.run_id, next_seq, node_name, None, new_state)
                 return new_state
 
@@ -236,6 +282,14 @@ class GraphOrchestrator:
             )
             new_state = new_state.model_copy(update={"route_log": [*new_state.route_log, route_entry]})
 
+            self._emit_trajectory(
+                prior=state,
+                new_state=new_state,
+                node=node_name,
+                attempt_no=attempt_no_for_ctx,
+                route=chosen.predicate_name,
+                note=outcome.note,
+            )
             self.checkpoints.save(state.run_id, next_seq, node_name, chosen.target, new_state)
             next_seq += 1
             state = new_state
