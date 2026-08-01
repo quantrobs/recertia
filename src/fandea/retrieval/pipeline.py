@@ -73,10 +73,22 @@ class Retriever:
 
         return self._index
 
-    def rebuild(self, entries: list[tuple]) -> str:
+    def rebuild(self, entries: list[tuple], *, library_fingerprint: str | None = None) -> str:
         """Rebuild the retrieval index from loaded skill rows (store-node hook)."""
 
-        return self._index.rebuild(entries)  # type: ignore[arg-type]
+        return self._index.rebuild(entries, library_fingerprint=library_fingerprint)  # type: ignore[arg-type]
+
+    def upsert(self, version, status, stats, *, library_fingerprint: str | None = None) -> str:
+        """Incrementally index one skill version (store-node hook)."""
+
+        return self._index.upsert(
+            version, status, stats, library_fingerprint=library_fingerprint
+        )
+
+    def is_fresh(self, library_fingerprint: str) -> bool:
+        """Whether the index matches a library with exactly this fingerprint."""
+
+        return self._index.is_fresh(library_fingerprint)
 
     def snapshot_id(self) -> str:
         """Current library index snapshot id without exposing the backing index."""
@@ -100,17 +112,20 @@ class Retriever:
         if suppress:
             return MemoryBundle(suppressed=True), explanation
 
+        # One query embedding shared by the vector scan and the rerank stage.
+        q_emb = embed_text(query)
         lexical = self._index.lexical_top_k(query, cfg.lexical_top_k)
-        vector = self._index.vector_top_k(query, cfg.vector_top_k)
+        vector = self._index.vector_top_k(query, cfg.vector_top_k, q_emb=q_emb)
         explanation.lexical_hits = lexical
         explanation.vector_hits = vector
 
         merged = reciprocal_rank_fusion([lexical, vector], k=cfg.rrf_k)
         explanation.merged = merged
 
+        fetched = self._index.get_rows((sid, ver) for sid, ver, _ in merged)
         survivors: list[tuple[str, int, float, dict]] = []
         for sid, ver, rrf_score in merged:
-            row = self._index.get_row(sid, ver)
+            row = fetched.get((sid, ver))
             if row is None:
                 continue
             drop = self._filter_row(row, workdir, env_fingerprint, readable_scopes, explanation)
@@ -121,11 +136,14 @@ class Retriever:
 
         # Rerank top N against the query by cosine over the stored document embedding,
         # blended with lexical overlap. Hashed bag-of-words embeddings are coarse; overlap
-        # carries most of the signal for short chore-style queries.
-        q_emb = embed_text(query)
+        # carries most of the signal for short chore-style queries. The stored embedding is
+        # exactly embed_text(row["document"]) computed at index time, so rerank reuses it
+        # instead of re-embedding every candidate document.
         reranked: list[tuple[str, int, float, dict]] = []
         for sid, ver, rrf, row in survivors[: cfg.rerank_top_n]:
-            doc_emb = embed_text(row["document"])
+            doc_emb = self._index.embedding_for(sid, ver)
+            if doc_emb is None:
+                doc_emb = tuple(embed_text(row["document"]))
             vec = cosine(q_emb, doc_emb)
             overlap = _lexical_overlap(query, row["document"])
             # Prefer skills whose id tokens appear in the query (strong chore-label signal).
@@ -153,20 +171,19 @@ class Retriever:
             final.append((sid, ver, demoted_score, row))
         final.sort(key=lambda t: t[2], reverse=True)
 
+        lexical_ranks = {(sid, ver): i for i, (sid, ver, _) in enumerate(lexical, start=1)}
+        vector_ranks = {(sid, ver): i for i, (sid, ver, _) in enumerate(vector, start=1)}
         candidates: list[SkillCandidateRef] = []
-        for rank, (sid, ver, score, row) in enumerate(final[: cfg.max_candidates], start=1):
+        for sid, ver, score, _row in final[: cfg.max_candidates]:
             candidates.append(
                 SkillCandidateRef(
                     skill_id=sid,
                     version=ver,
                     score=round(score, 4),
-                    lexical_rank=_rank_of(lexical, sid, ver),
-                    vector_rank=_rank_of(vector, sid, ver),
+                    lexical_rank=lexical_ranks.get((sid, ver)),
+                    vector_rank=vector_ranks.get((sid, ver)),
                 )
             )
-            # silence unused
-            _ = rank
-            _ = row
 
         explanation.returned = candidates
         return MemoryBundle(skills=candidates), explanation
@@ -244,13 +261,6 @@ class Retriever:
                 pass
 
         return score, "; ".join(reasons) if reasons else None
-
-
-def _rank_of(hits: list[tuple[str, int, float]], skill_id: str, version: int) -> int | None:
-    for i, (sid, ver, _) in enumerate(hits, start=1):
-        if sid == skill_id and ver == version:
-            return i
-    return None
 
 
 def _lexical_overlap(query: str, document: str) -> float:

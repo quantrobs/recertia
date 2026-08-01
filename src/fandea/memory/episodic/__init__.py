@@ -45,7 +45,13 @@ class CaseRecord(BaseModel):
 
 
 class EpisodicStore:
-    """Filesystem + JSONL index. Cases are content-addressed under ``cases/<hash>.json``."""
+    """Filesystem + JSONL index. Cases are content-addressed under ``cases/<hash>.json``.
+
+    The parsed index is cached in memory: retrieval paths call ``list_index`` on every
+    run, and the append-only file only changes through ``write`` here. The cache is
+    validated against the file's ``(size, mtime_ns)`` so externally appended rows are
+    still picked up with at most one re-parse.
+    """
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
@@ -53,31 +59,39 @@ class EpisodicStore:
         self.index_path = self.root / "index.jsonl"
         self.cases_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._index_cache: list[dict] | None = None
+        self._index_stat: tuple[int, int] | None = None
+
+    def _index_file_stat(self) -> tuple[int, int] | None:
+        try:
+            st = self.index_path.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime_ns)
 
     def write(self, case: CaseRecord) -> str:
         blob = case.model_dump_json().encode()
         content_hash = hashlib.sha256(blob).hexdigest()
         dest = self.cases_dir / f"{content_hash}.json"
+        row = {
+            "case_id": case.case_id,
+            "hash": content_hash,
+            "run_id": case.run_id,
+            "attempt_no": case.attempt_no,
+            "outcome": case.outcome,
+            "failure_class": case.failure_class,
+            "task_class": case.task_class,
+            "approach": case.approach,
+            "has_dead_end": case.dead_end is not None,
+        }
         with self._lock:
             if not dest.exists():
                 dest.write_bytes(blob)
             with self.index_path.open("a", encoding="utf-8") as f:
-                f.write(
-                    json.dumps(
-                        {
-                            "case_id": case.case_id,
-                            "hash": content_hash,
-                            "run_id": case.run_id,
-                            "attempt_no": case.attempt_no,
-                            "outcome": case.outcome,
-                            "failure_class": case.failure_class,
-                            "task_class": case.task_class,
-                            "approach": case.approach,
-                            "has_dead_end": case.dead_end is not None,
-                        }
-                    )
-                    + "\n"
-                )
+                f.write(json.dumps(row) + "\n")
+            if self._index_cache is not None:
+                self._index_cache.append(row)
+                self._index_stat = self._index_file_stat()
         return content_hash
 
     def get(self, content_hash: str) -> CaseRecord:
@@ -86,15 +100,20 @@ class EpisodicStore:
         )
 
     def list_index(self) -> list[dict]:
-        if not self.index_path.exists():
-            return []
-        rows: list[dict] = []
-        with self.index_path.open(encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    rows.append(json.loads(line))
-        return rows
+        with self._lock:
+            stat = self._index_file_stat()
+            if self._index_cache is not None and stat == self._index_stat:
+                return list(self._index_cache)
+            rows: list[dict] = []
+            if self.index_path.exists():
+                with self.index_path.open(encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            rows.append(json.loads(line))
+            self._index_cache = rows
+            self._index_stat = stat
+            return list(rows)
 
     def dead_ends_for(
         self, *, task_class: str | None = None, limit: int = 3

@@ -27,3 +27,6 @@ class CandidateSkillStoreAdapter:
 
     def iter_loaded(self) -> list[tuple[SkillVersion, SkillStatus, SkillStats]]:
         return self._store.iter_loaded()
+
+    def library_fingerprint(self) -> str:
+        return self._store.library_fingerprint()

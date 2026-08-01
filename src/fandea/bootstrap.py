@@ -65,7 +65,12 @@ def build_default_orchestrator(
 
     store = SkillStore(skills_root)
     index = SkillIndex(index_path)
-    index.rebuild(store.iter_loaded())
+    # Full rebuilds cost one JSON parse + embed per skill version. When the persisted
+    # index already matches the on-disk library (the common case: startup, per-request
+    # API wiring), skip straight to serving; a stat-only fingerprint decides.
+    fingerprint = store.library_fingerprint()
+    if not index.is_fresh(fingerprint):
+        index.rebuild(store.iter_loaded(), library_fingerprint=fingerprint)
     retriever = Retriever(index)
 
     registry = default_registry()

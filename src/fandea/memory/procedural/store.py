@@ -205,6 +205,32 @@ class SkillStore:
             out.append((ver, status, stats))
         return out
 
+    def library_fingerprint(self) -> str:
+        """A cheap stat-based fingerprint of every persisted skill file.
+
+        Hashes ``(path, size, mtime_ns)`` for all JSON files under the root without
+        reading any of them. Any write through this store changes at least one entry,
+        so an index built from a library with the same fingerprint is guaranteed to be
+        current — this is what lets startup skip a full index rebuild when nothing
+        changed. Uses plain string paths: this runs on every bootstrap.
+        """
+
+        import hashlib
+
+        entries: list[str] = []
+        for dirpath, _dirnames, filenames in os.walk(self.root):
+            for name in filenames:
+                if not name.endswith(".json"):
+                    continue
+                full = os.path.join(dirpath, name)
+                try:
+                    st = os.stat(full)
+                except OSError:
+                    continue
+                entries.append(f"{full}:{st.st_size}:{st.st_mtime_ns}")
+        entries.sort()
+        return hashlib.sha256("\n".join(entries).encode()).hexdigest()[:16]
+
     def dump_index_manifest(self) -> dict:
         """A small fingerprint of the library contents for run manifests."""
 

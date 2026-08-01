@@ -5,6 +5,8 @@ from __future__ import annotations
 from contracts.fact import Fact
 from contracts.run import RunState
 from contracts.skill import SkillVersion
+from contracts.stats import SkillStats
+from contracts.status import SkillStatus
 from fandea.memory.procedural.hygiene import require_clean
 from fandea.nodes._util import now
 from fandea.nodes.context import NodeContext, NodeOutcome
@@ -33,7 +35,21 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
                 written_facts.append(stored.fact_id)
 
         if ctx.retriever is not None:
-            ctx.retriever.rebuild(ctx.store.iter_loaded())
+            # Index just the new candidate. write_candidate always persists exactly this
+            # status/stats pair, and the refreshed fingerprint keeps startup rebuild-skip
+            # accurate. Anything else that changed on disk (e.g. stats from applies) is
+            # picked up by the next fingerprint-mismatch rebuild.
+            ctx.retriever.upsert(
+                version,
+                SkillStatus(
+                    skill_id=version.skill_id,
+                    version=version.version,
+                    lifecycle="candidate",
+                    active=False,
+                ),
+                SkillStats(skill_id=version.skill_id, version=version.version),
+                library_fingerprint=ctx.store.library_fingerprint(),
+            )
 
         entry = ctx.ledger.append(
             actor=ctx.run_id,

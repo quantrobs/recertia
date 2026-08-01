@@ -56,7 +56,7 @@ class LedgerCapability(Protocol):
 
 
 class RetrieverCapability(Protocol):
-    """Search + index rebuild without exposing the backing ``SkillIndex``."""
+    """Search + index maintenance without exposing the backing ``SkillIndex``."""
 
     def search(
         self,
@@ -71,6 +71,17 @@ class RetrieverCapability(Protocol):
     def rebuild(
         self,
         entries: list[tuple[SkillVersion, SkillStatus, SkillStats]],
+        *,
+        library_fingerprint: str | None = None,
+    ) -> str: ...
+
+    def upsert(
+        self,
+        version: SkillVersion,
+        status: SkillStatus,
+        stats: SkillStats,
+        *,
+        library_fingerprint: str | None = None,
     ) -> str: ...
 
     def snapshot_id(self) -> str: ...
@@ -86,6 +97,8 @@ class SkillStoreCapability(Protocol):
     def get_status(self, skill_id: str, version: int) -> SkillStatus: ...
 
     def iter_loaded(self) -> list[tuple[SkillVersion, SkillStatus, SkillStats]]: ...
+
+    def library_fingerprint(self) -> str: ...
 
 
 @dataclass

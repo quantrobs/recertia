@@ -22,6 +22,7 @@ class CheckpointStore:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS checkpoints (
@@ -62,6 +63,16 @@ class CheckpointStore:
             return None
         seq, node, next_node, state_json = row
         return seq, node, next_node, RunState.model_validate_json(state_json)
+
+    def latest_seq(self, run_id: str) -> int | None:
+        """Latest checkpoint ``seq`` for ``run_id`` without parsing the state payload."""
+
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT seq FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1",
+                (run_id,),
+            ).fetchone()
+        return int(row[0]) if row is not None else None
 
     def history(self, run_id: str) -> list[tuple[int, str, str | None, RunState]]:
         with self._lock:

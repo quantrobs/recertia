@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import sqlite3
 from pathlib import Path
-from typing import Protocol
+from typing import Iterable, Protocol
 
 from fandea.retrieval.index import EMBED_DIM, cosine, embed_text
 
 
 class VectorIndex(Protocol):
     def upsert(self, object_id: str, text: str, *, plane: str = "procedural") -> None: ...
+
+    def upsert_many(
+        self, items: Iterable[tuple[str, str]], *, plane: str = "procedural"
+    ) -> None: ...
 
     def search(
         self, query: str, *, plane: str = "procedural", limit: int = 10
@@ -28,6 +33,7 @@ class JsonBlobVectorIndex:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(self.db_path)
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS vectors ("
             "plane TEXT NOT NULL, object_id TEXT NOT NULL, dims INTEGER NOT NULL, "
@@ -40,10 +46,20 @@ class JsonBlobVectorIndex:
         return self._name
 
     def upsert(self, object_id: str, text: str, *, plane: str = "procedural") -> None:
-        vec = embed_text(text, EMBED_DIM)
-        self._conn.execute(
+        self.upsert_many([(object_id, text)], plane=plane)
+
+    def upsert_many(
+        self, items: Iterable[tuple[str, str]], *, plane: str = "procedural"
+    ) -> None:
+        """Batch ``upsert`` with a single commit for bulk (re)indexing."""
+
+        rows = []
+        for object_id, text in items:
+            vec = embed_text(text, EMBED_DIM)
+            rows.append((plane, object_id, len(vec), json.dumps(vec)))
+        self._conn.executemany(
             "INSERT OR REPLACE INTO vectors(plane, object_id, dims, vector_json) VALUES (?,?,?,?)",
-            (plane, object_id, len(vec), json.dumps(vec)),
+            rows,
         )
         self._conn.commit()
 
@@ -52,9 +68,14 @@ class JsonBlobVectorIndex:
         rows = self._conn.execute(
             "SELECT object_id, vector_json FROM vectors WHERE plane = ?", (plane,)
         ).fetchall()
-        scored = [(oid, cosine(q, json.loads(blob))) for oid, blob in rows]
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:limit]
+        # -i tiebreak keeps the old stable-sort tie order (scan order) exactly.
+        scored = (
+            (oid, cosine(q, json.loads(blob)), -i)
+            for i, (oid, blob) in enumerate(rows)
+        )
+        top = heapq.nlargest(limit, scored, key=lambda x: (x[1], x[2]))
+        top.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        return [(oid, score) for oid, score, _ in top]
 
     def close(self) -> None:
         self._conn.close()
