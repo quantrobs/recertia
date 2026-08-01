@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from contracts.budget import Budget
-from contracts.criteria import SensitivityProof, TaskCriterion
+from contracts.criteria import TaskCriterion, mint_rejecting_proof
 from contracts.goal import DesiredState, Goal
 from contracts.run import Task
 from recertia.bootstrap import build_default_orchestrator
@@ -28,6 +28,8 @@ from recertia.solver.sandbox import SandboxError
 
 def _require_working_container(monkeypatch: pytest.MonkeyPatch) -> str:
     monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "container")
+    # Match the dedicated container-smoke job: nobody-user writes need a writable mount.
+    monkeypatch.setenv("RECERTIA_WORKDIR_WORLD_WRITE", "1")
     runtime = container_runtime()
     if runtime is None:
         pytest.skip("Docker/Podman not on PATH")
@@ -89,21 +91,23 @@ def test_container_smoke_solves_goal_via_oci(tmp_path: Path, monkeypatch: pytest
         task_class="repo-chore",
         submitted_at=datetime.now(timezone.utc),
     )
+    base = TaskCriterion(
+        id="marker",
+        kind="command",
+        run="test -f SMOKE_OK",
+        source="caller",
+        weight=1.0,
+    )
     criteria = [
-        TaskCriterion(
-            id="marker",
-            kind="command",
-            run="test -f SMOKE_OK",
-            source="caller",
-            weight=1.0,
-            sensitivity_proof=SensitivityProof(
-                criterion_id="marker",
-                negative_fixture="empty",
-                rejected=True,
-                checked_at=datetime.now(timezone.utc),
-            ),
+        base.model_copy(
+            update={
+                "sensitivity_proof": mint_rejecting_proof(
+                    base, negative_fixture="empty", fingerprint="container-smoke"
+                )
+            }
         )
     ]
+    ensure_workdir_writable_by_container(workdir)
     bundle = build_default_orchestrator(
         tmp_path / "runs",
         skills_root=tmp_path / "skills",
@@ -117,11 +121,17 @@ def test_container_smoke_solves_goal_via_oci(tmp_path: Path, monkeypatch: pytest
             budget=Budget(max_attempts=2),
             workdir=workdir,
             script=["python3 -c \"open('SMOKE_OK','w').write('ok')\""],
+            manifest=bundle.run_manifest(),
         )
     finally:
         bundle.close()
 
-    assert state.terminal == "solved"
+    assert state.terminal == "solved", (
+        f"terminal={state.terminal} failure={state.failure} "
+        f"signal={state.failure_signal} route={state.route_log}"
+    )
     assert (workdir / "SMOKE_OK").read_text() == "ok"
+    assert state.manifest.model is not None
+    assert state.manifest.index_snapshot_id is not None
     # Ensure we did not silently flip to local.
     assert os.environ.get("RECERTIA_EXECUTION_BACKEND") == "container"
