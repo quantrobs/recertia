@@ -1,0 +1,105 @@
+# Assumptions register
+
+This document tracks **empirical claims** the design depends on, separately from the
+**engineering acceptance gates** in [`implementation-plan.md`](implementation-plan.md). The
+distinction is the fix for refactor-plan B7:
+
+- An **engineering gate** asks "does the harness work?" — it can be satisfied by a system that
+  correctly measures a null or negative result. It is a merge requirement.
+- A **research outcome** asks "is the claim true, for us, at our traffic?" — it can only be
+  answered by running the system and reading the number. It is never a merge requirement,
+  because a correct implementation must be allowed to discover an inconvenient truth.
+
+Every empirical claim below has a stable id (`a1`, `a2`, …) that milestones in
+`implementation-plan.md` cite instead of silently assuming, plus a `status` field this
+document keeps current as evidence accumulates. This register **migrates and supersedes**
+[`references.md` §8](references.md#8-open-questions-the-literature-does-not-settle-for-us),
+which remains in place only as a pointer here.
+
+| Status | Meaning |
+| --- | --- |
+| `untested` | No run of ours has produced evidence either way |
+| `under evaluation` | The relevant harness exists and is collecting data, interval not yet stable |
+| `supported` | Our own measurement, not just the literature, confirms the claim within a stated interval |
+| `refuted` | Our own measurement contradicts the claim; the dependent design surface needs revisiting |
+
+---
+
+## a1. Machine-checkable domains show a positive causal lift from skill retrieval
+
+**Claim:** unlike SkillsBench's null result on general agent-skill tasks, repository-chore
+tasks with tool-defined, machine-checkable success criteria will show positive `causal_lift`
+from retrieval-augmented solving, measured against a sampled control arm with retrieval
+suppressed (ADR-0003, [`references.md` §1.1](references.md#11-self-authored-skills-showed-no-benefit-curation-was-the-bottleneck)).
+
+- **Depends on:** M4's ablation-arm harness (`implementation-plan.md` M4) computing
+  `causal_lift` with a Wilson interval per task class.
+- **Engineering gate (not this claim):** the harness correctly reports `causal_lift` and its
+  interval, including reporting **"not established"** when the interval spans zero, verified
+  against a synthetic scenario with a known, injected null effect (`implementation-plan.md` M4
+  done-when).
+- **Research outcome (this claim):** whether real `repo-chore` traffic actually shows a
+  positive `causal_lift` with an interval excluding zero.
+- **Status:** `under evaluation` — M4 harness exists and synthetic nulls are tested; real
+  `repo-chore` traffic has not yet produced a stable interval.
+- **Why it might be false anyway:** SkillsBench's null result may generalise if our curation
+  bottleneck (§1.1) is not actually fixed by the review gate; machine-checkability narrows but
+  does not eliminate that risk.
+
+## a2. Ratchet's evidence floor is reachable at our traffic volume
+
+**Claim:** an evidence floor of ~100 certification trials per skill before a skill is trusted
+for unsupervised application (ADR-0006 default, drawn from Ratchet) is reachable within a
+reasonable time window at our expected task volume.
+
+- **Depends on:** M5's active-set and shadow-trial mechanisms (`implementation-plan.md` M5) and
+  the Practice job feeding low-traffic skills synthetic curriculum tasks.
+- **Engineering gate (not this claim):** the system enforces the floor correctly — skills below
+  it are score-demoted rather than dropped, are excluded from unsupervised application, and
+  Practice's synthetic trials are logged and counted toward the floor the same way real trials
+  are (`implementation-plan.md` M5 done-when).
+- **Research outcome (this claim):** whether real + practised trial volume actually clears the
+  floor for most active skills within a reasonable time window, or whether the majority of the
+  library sits permanently below it.
+- **Status:** `under evaluation` — M5 autonomy / active-set / Practice mechanisms exist; no
+  production skill has yet accumulated certification trials against the floor.
+- **Why it might be false anyway:** Ratchet's own cold-start regime is admitted to be
+  under-evidenced for traffic at our scale (`references.md` §1.1, §8 original note); our
+  lower-volume setting may mean most skills sit below the floor indefinitely, which is itself a
+  useful negative result, not a bug, if Practice cannot close the gap.
+
+## a3. A tiered self-modification boundary is sufficient without an externally reported precedent
+
+**Claim:** the T0–T3 self-modification boundary in [ADR-0005](adr/0005-self-modification-boundary.md)
+is a sufficient safety surface for the classes of autonomous change this system permits
+(policy tuning, retrieval threshold adjustment, distiller prompt revision) without letting the
+system weaken the controls that measure or constrain it.
+
+- **Depends on:** no specific milestone mechanism — this is a design-time claim tested by
+  adversarial review and, eventually, by the Correction Miner's own change history staying
+  inside T0–T2.
+- **Engineering gate (not this claim):** T3 surfaces are structurally unreachable from
+  improvement-plane code (import-boundary / capability tests per refactor-plan S6); every
+  Correction Miner or Curator write is classified into a tier and logged to the integrity
+  ledger with that tier.
+- **Research outcome (this claim):** whether, over time, the boundary actually prevents the
+  system from degrading its own measurement integrity, or whether some tier-2 surface turns out
+  to have tier-0-equivalent leverage once composed with other tier-2 changes.
+- **Status:** `untested` — the survey found no comparable system reporting a self-modification
+  boundary of this kind, so there is no external validation to lean on either way
+  (`references.md` §8 original note); we are ahead of reported practice here, which cuts both
+  ways.
+
+---
+
+## Adding a new assumption
+
+1. Assign the next `aN` id; state the claim as a specific, falsifiable sentence.
+2. Name the milestone mechanism it depends on, and split its **engineering gate** (harness
+   correctness, always a merge requirement) from its **research outcome** (whether the world
+   cooperates, never a merge requirement) explicitly.
+3. Set `status: untested` until a harness produces a number; update the status field, do not
+   delete history — a claim moving from `supported` back to `refuted` after a regression is
+   itself signal.
+4. If a milestone done-when in `implementation-plan.md` would require this claim to be true to
+   pass, that done-when is a bug (refactor-plan B7) — fix the done-when, not this register.

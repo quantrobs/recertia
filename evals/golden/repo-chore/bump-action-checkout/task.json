@@ -1,0 +1,4 @@
+{
+  "request": "Bump actions/checkout to v4 in GitHub workflows",
+  "expected_skill_id": "bump-action-checkout"
+}

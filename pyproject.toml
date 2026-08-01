@@ -1,0 +1,54 @@
+[project]
+name = "fandea"
+version = "0.1.0"
+description = "Fandea: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/fandea/ implements M0–M9 (docs/implementation-plan.md)."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+]
+postgres = [
+    "psycopg[binary]>=3.2",
+]
+dev = [
+    "pytest>=8",
+    "jsonschema>=4",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+fandea = "fandea.cli.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["contracts", "src/fandea"]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["contracts", "contracts.*", "fandea", "fandea.*"]

@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/SkillStatus",
+  "$defs": {
+    "Certification": {
+      "additionalProperties": false,
+      "description": "What environment and model this version was last validated against (specs \u00a713).\n\nLives on ``SkillStatus``, not ``SkillVersion``: a model upgrade can mark a version\n``needs_recert`` with no new evidence collected about the version's content, which is a\nstatus fact, not an immutable property of the artifact.",
+      "properties": {
+        "model_validated_on": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Validated On"
+        },
+        "tool_fingerprint": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Tool Fingerprint",
+          "type": "object"
+        },
+        "golden_set_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Golden Set Ref"
+        },
+        "last_recertified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Recertified At"
+        },
+        "recert_status": {
+          "default": "never",
+          "enum": [
+            "fresh",
+            "stale",
+            "failed",
+            "never"
+          ],
+          "title": "Recert Status",
+          "type": "string"
+        }
+      },
+      "title": "Certification",
+      "type": "object"
+    },
+    "Retirement": {
+      "additionalProperties": false,
+      "description": "Benching record (ADR-0006). Reversible; history retained.",
+      "properties": {
+        "benched_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Benched At"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "negative_contribution",
+                "cap_pressure",
+                "superseded_child",
+                "manual"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "restored_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Restored At"
+        },
+        "grace_period_remaining": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grace Period Remaining"
+        }
+      },
+      "title": "Retirement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Current projection of the append-only lifecycle event log for one ``(skill_id, version)``.\n\nGovernance tier: T1 for ``lifecycle`` transitions (promotion-gated, per ADR-0005); T0 for\n``active`` (recomputed by the Curator on every pass, per specs \u00a724.1).",
+  "properties": {
+    "skill_id": {
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    },
+    "lifecycle": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "candidate",
+        "shadow",
+        "approved",
+        "benched",
+        "needs_recert",
+        "deprecated",
+        "quarantined"
+      ],
+      "title": "Lifecycle",
+      "type": "string"
+    },
+    "active": {
+      "default": false,
+      "title": "Active",
+      "type": "boolean"
+    },
+    "certification": {
+      "$ref": "#/$defs/Certification",
+      "default": {
+        "model_validated_on": null,
+        "tool_fingerprint": {},
+        "golden_set_ref": null,
+        "last_recertified_at": null,
+        "recert_status": "never"
+      }
+    },
+    "retirement": {
+      "$ref": "#/$defs/Retirement",
+      "default": {
+        "benched_at": null,
+        "reason": null,
+        "evidence": null,
+        "restored_at": null,
+        "grace_period_remaining": null
+      }
+    }
+  },
+  "required": [
+    "skill_id",
+    "version"
+  ],
+  "title": "SkillStatus",
+  "type": "object"
+}

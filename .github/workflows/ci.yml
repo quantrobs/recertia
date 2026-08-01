@@ -1,0 +1,94 @@
+name: ci
+
+# Validates contracts/ (ADR-0009: the Pydantic models that are the normative structural
+# source of truth, and everything generated from it) and src/fandea/ (M0–M9 per
+# docs/implementation-plan.md).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "docs/**"
+      - "facts/**"
+      - "research/**"
+      - "src/**"
+      - "scripts/**"
+      - "tests/**"
+      - "schema/**"
+      - "skills/**"
+      - "pyproject.toml"
+      - "conftest.py"
+      - ".github/workflows/ci.yml"
+      - "README.md"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check contracts/ src/ scripts/ tests/ conftest.py
+
+      - name: Type-check (mypy)
+        run: mypy contracts/ src/fandea/
+
+      - name: Schema drift (schema/ must equal what contracts/ generates)
+        run: python3 scripts/generate_schemas.py --check
+
+      - name: Example drift (skills/bump-python-dep/v3/*.json must equal contracts/examples.py)
+        run: python3 scripts/export_examples.py --check
+
+      - name: Docs cross-refs (R3)
+        run: python3 scripts/check_cross_refs.py --check
+
+      - name: Milestone dependency (R3)
+        run: python3 scripts/check_milestone_deps.py --check
+
+      - name: Assumptions hygiene (R3)
+        run: python3 scripts/check_assumptions_hygiene.py --check
+
+      - name: Test suite (contracts, M0–M9, hardening, API, import boundary)
+        run: pytest -v
+
+  container-smoke:
+    name: container sandbox smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Pre-pull allowlisted image
+        run: docker pull python:3.12-slim
+
+      - name: Probe Docker
+        run: |
+          docker version
+          docker run --rm --network=none --user 65534:65534 python:3.12-slim true
+
+      - name: Container smoke (script)
+        env:
+          FANDEA_EXECUTION_BACKEND: container
+          FANDEA_CONTAINER_RUNTIME: docker
+        run: python3 scripts/smoke_container.py
+
+      - name: Container smoke (pytest)
+        env:
+          FANDEA_EXECUTION_BACKEND: container
+          FANDEA_CONTAINER_RUNTIME: docker
+        run: pytest -v tests/e2e/test_container_smoke.py

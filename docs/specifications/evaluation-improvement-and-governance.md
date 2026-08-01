@@ -1,0 +1,133 @@
+# Fandea Specifications: 19. Ablation and eval integrity
+
+## 19. Ablation and eval integrity
+
+| Rule | Detail |
+| --- | --- |
+| Control sampling | `ablation_rate` (default 0.05), stratified by task class, assigned at `intake` |
+| Control behaviour | `retrieve` returns an empty bundle with `suppressed = True`; the run is otherwise identical |
+| Exclusions | Never sample tasks with `external` side effects, explicit user-supplied skills, or eval fixtures |
+| Rate governance | `ablation_rate` is T3 — the system cannot shrink its own control arm (§22) |
+| Eval firewall | Runs whose task is an eval fixture MUST be blocked at `distill` |
+| Golden provenance | A golden fixture MUST NOT be created from a run that produced a stored skill |
+
+`causal_lift` for a task class over a window:
+
+```text
+causal_lift = first_attempt_success(treatment) - first_attempt_success(control)
+```
+
+Reported with a Wilson confidence interval and sample counts. A lift claim whose interval
+includes zero MUST be reported as "not established" rather than as an improvement. This
+class-level contrast is `RetrievalAblationEffect` (§24.2). Per-skill retirement uses a
+separate shadow-versus-suppression `Contribution`; the control arm MUST NOT be reused as a
+per-skill `baseline_success`.
+
+## 20. Improvement job contracts
+
+Every job: reads memory and the run store, writes **only** proposals, and is budgeted.
+
+| Job | Trigger | Emits | Hard rule |
+| --- | --- | --- | --- |
+| `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
+| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, and **serialise** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
+| `practice` | Scheduled, or ≥3 one-offs in a class | Practice runs marked `arm="practice"` | Excluded from user-facing metrics; separate budget |
+| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008) |
+| `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
+
+Practice task selection targets estimated success probability in `[0.2, 0.8]`, using
+`predicted_success` calibrated against outcomes: outside that band an attempt yields little
+information, which is the whole point of a curriculum.
+
+The two step-graph proposals are the Curator's half of the concurrency story, and both must
+argue from run evidence rather than from reading the skill:
+
+| Proposal | Evidence required | Effect |
+| --- | --- | --- |
+| `parallelise` | An `input_bindings` entry whose bound input was unused across ≥5 runs, and whose steps' claims do not overlap (§26.1) | Removes the binding, producing a new skill version |
+| `serialise` | ≥2 `merge` verdicts or a resource conflict rate above `conflict_threshold` (default 0.1) on the same wave | Adds an edge or widens a claim to `exclusive`, producing a new skill version |
+
+Both go through the normal promotion gate, so a wrongly removed edge shows up as a golden-set
+regression before it reaches a user's run. A `serialise` proposal MUST NOT be blocked on the
+latency regression it causes: correctness outranks the parallelism metric.
+
+## 21. Provenance ledger
+
+```python
+class LedgerEntry(BaseModel):
+    seq: int
+    prev_hash: str
+    entry_hash: str            # sha256 over canonical entry minus entry_hash
+    actor: str                 # run id, job name, or human id
+    action: Literal["write", "advance_to_candidate", "quarantine_version", "deprecate", "policy_change"]
+    target: str                # skill version, fact id, policy version
+    evidence: dict             # criteria results, eval ids, approver
+    at: datetime
+```
+
+`GET /v1/ledger/verify` recomputes the chain. Because the system writes its own memory,
+"who wrote this and on what evidence" must be tamper-evident rather than merely logged.
+
+## 22. Governance of mutable surfaces
+
+Every mutable surface carries a tier (see [ADR-0005](../adr/0005-self-modification-boundary.md)).
+
+| Tier | Surfaces | Write path |
+| --- | --- | --- |
+| T0 | Trust scores, affordance aggregates, cases, retrieval caches | Runs write directly; derived and rebuildable |
+| T1 | Skill and fact versions, curator proposals, shadow promotions | Promotion policy with eval evidence and zero regressions |
+| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` / `max_parallel_steps` / `conflict_threshold` / `layer_threshold` | Versioned config, human approval, eval comparison |
+| T3 | Tool registry with side-effect classes **and declared resource claims**, sandbox policy, promotion thresholds, ablation rate, graph topology, judge-isolation and merge-audit enforcement, finiteness of the active cap and retirement threshold, tier assignments | Code or config review only; unreachable from run and job code paths |
+
+Enforcement requirements:
+
+- T3 surfaces MUST be unreachable from any module a run or job can import; asserted by a CI
+  import-boundary test, not by convention.
+- A write to a T2 surface without a recorded human approver MUST fail closed.
+- Any new mutable surface MUST be assigned a tier; an untiered surface is a review blocker.
+- Retrieval and prompt content MUST NOT be able to alter a tier assignment — memory is data,
+  never instructions (§13.1, and the injection control in `architecture/risk-and-governance.md`
+  §15.2).
+
+## 23. Additional metrics
+
+| Metric | Definition |
+| --- | --- |
+| `causal_lift` | Treatment minus control `first_attempt_success`, with Wilson interval (§19) |
+| `calibration_error` | Brier score of `predicted_success` against outcome |
+| `abstention_precision` | Abstentions later confirmed unsolvable or human-escalated ÷ all abstentions |
+| `recert_pass_rate` | Skills passing scheduled recertification ÷ skills recertified |
+| `retrieval_decay` | Change in `retrieval_precision_at_3` per 100 skills added |
+| `mean_composition_depth` | Mean `uses` depth of applied skills; rising means abstraction is happening |
+| `dead_end_avoidance` | Runs where a retrieved dead end suppressed a repeated approach ÷ runs with dead ends retrieved |
+| `curator_yield` | Curator proposals approved ÷ proposals raised |
+| `fact_contradiction_rate` | Open contradictions ÷ total facts |
+| `practice_conversion` | Practice runs producing an approved skill ÷ practice runs |
+
+`retrieval_decay` is the early-warning metric for library entropy: it turns negative before
+`first_attempt_success` does, which is what gives the Curator time to act.
+
+| Metric | Definition |
+| --- | --- |
+| `skill_contribution` | Per-skill `ĉ(s)`: shadow success rate minus this skill's suppressed success rate (§24.2) |
+| `active_cap_pressure` | Task classes at `active_cap` ÷ task classes with skills |
+| `retirement_reversal_rate` | Benched versions later restored to `approved` ÷ versions benched |
+| `curation_gap` | First-attempt success of `human_authored` + `mined_from_human_artifact` skills minus `self_distilled` skills, per task class |
+
+`curation_gap` exists to test a specific external finding in our own domain (`references.md`
+§1.1). If it is near zero here, the higher evidence bar on self-distilled skills should be
+relaxed; if it reproduces, the Miner deserves more investment than the distiller.
+
+Concurrency and verification integrity:
+
+| Metric | Definition |
+| --- | --- |
+| `merge_gap_rate` | Merge audits with missing inputs ÷ merge audits — the rate at which work is dispatched and silently lost; target zero |
+| `merge_recovery_rate` | Incomplete merges resolved by re-dispatch ÷ incomplete merges |
+| `resource_conflict_rate` | Step waves that blocked on a claim ÷ waves with ≥2 steps |
+| `parallel_speedup` | Serial step duration ÷ observed wall-clock duration per skill; the only justification for step DAGs, so it is reported per skill, not in aggregate |
+| `fake_edge_rate` | `input_bindings` unused at runtime ÷ declared bindings — leftover serialisation after store-time edges are already data-carrying by construction |
+| `judge_isolation_violations` | Judge invocations whose context hash included solver-transcript content; a non-zero value is a release blocker, not a metric to trend |
+
+`parallel_speedup` and `merge_gap_rate` are read together or not at all. Speedup with a
+non-zero gap rate is not speed, it is a system that finishes early by dropping work.

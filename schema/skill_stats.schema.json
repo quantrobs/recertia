@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/SkillStats",
+  "$defs": {
+    "Contribution": {
+      "additionalProperties": false,
+      "description": "Per-skill shadow-versus-suppression effect; the retirement input.\n\nScored from required non-``judge`` criteria only: a false-pass-biased model judge must not\nbe able to disable contribution-based retirement (``references.md`` \u00a71.8).",
+      "properties": {
+        "applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Applications",
+          "type": "integer"
+        },
+        "successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "suppressed_applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Suppressed Applications",
+          "type": "integer"
+        },
+        "suppressed_successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Suppressed Successes",
+          "type": "integer"
+        },
+        "interval_low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval Low"
+        },
+        "interval_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval High"
+        },
+        "last_evaluated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Evaluated At"
+        }
+      },
+      "title": "Contribution",
+      "type": "object"
+    },
+    "PredictiveTrust": {
+      "additionalProperties": false,
+      "description": "Observed success calibration for one skill, not a causal effect.",
+      "properties": {
+        "applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Applications",
+          "type": "integer"
+        },
+        "successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Used At"
+        },
+        "decayed_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decayed Score"
+        }
+      },
+      "title": "PredictiveTrust",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "skill_id": {
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    },
+    "predictive_trust": {
+      "$ref": "#/$defs/PredictiveTrust",
+      "default": {
+        "applications": 0,
+        "successes": 0,
+        "last_used_at": null,
+        "decayed_score": null
+      }
+    },
+    "contribution": {
+      "$ref": "#/$defs/Contribution",
+      "default": {
+        "applications": 0,
+        "successes": 0,
+        "suppressed_applications": 0,
+        "suppressed_successes": 0,
+        "interval_low": null,
+        "interval_high": null,
+        "last_evaluated_at": null
+      }
+    }
+  },
+  "required": [
+    "skill_id",
+    "version"
+  ],
+  "title": "SkillStats",
+  "type": "object"
+}

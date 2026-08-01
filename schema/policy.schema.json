@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/Policy",
+  "$defs": {
+    "PolicyBudgets": {
+      "additionalProperties": false,
+      "properties": {
+        "default_max_attempts": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Default Max Attempts",
+          "type": "integer"
+        },
+        "default_max_cost_usd": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Default Max Cost Usd",
+          "type": "number"
+        },
+        "ablation_rate": {
+          "default": 0.1,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Ablation Rate",
+          "type": "number"
+        }
+      },
+      "title": "PolicyBudgets",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned T2 policy document: thresholds, budgets, and authoring prior pointer.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    },
+    "authoring_prior_version": {
+      "minLength": 1,
+      "title": "Authoring Prior Version",
+      "type": "string"
+    },
+    "budgets": {
+      "$ref": "#/$defs/PolicyBudgets"
+    },
+    "shadow_min_lift": {
+      "default": 0.05,
+      "minimum": 0.0,
+      "title": "Shadow Min Lift",
+      "type": "number"
+    },
+    "evidence_floor": {
+      "default": 30,
+      "minimum": 1,
+      "title": "Evidence Floor",
+      "type": "integer"
+    },
+    "active_cap_per_task_class": {
+      "default": 50,
+      "minimum": 1,
+      "title": "Active Cap Per Task Class",
+      "type": "integer"
+    },
+    "require_tool_approval_for_non_read": {
+      "default": true,
+      "title": "Require Tool Approval For Non Read",
+      "type": "boolean"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version",
+    "authoring_prior_version"
+  ],
+  "title": "Policy",
+  "type": "object"
+}

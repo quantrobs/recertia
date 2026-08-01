@@ -1,0 +1,294 @@
+{
+  "schema_version": "2.0",
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "supersedes": 2,
+  "title": "Bump a pinned Python dependency and repair fallout",
+  "intent": "Raise a pinned dependency to a target version, then fix imports, type errors and test failures caused by the bump.",
+  "task_class": "repo-chore",
+  "tags": [
+    "python",
+    "dependencies",
+    "lockfile"
+  ],
+  "scope": "project",
+  "uses": [],
+  "parameters": [
+    {
+      "name": "package",
+      "type": "string",
+      "required": true,
+      "default": null,
+      "enum_values": null,
+      "description": null
+    },
+    {
+      "name": "target_version",
+      "type": "string",
+      "required": false,
+      "default": null,
+      "enum_values": null,
+      "description": "Omit to take the latest compatible release."
+    }
+  ],
+  "preconditions": [
+    {
+      "kind": "file_exists",
+      "value": "pyproject.toml",
+      "arguments": {},
+      "description": null
+    },
+    {
+      "kind": "probe",
+      "value": "python_module_available",
+      "arguments": {
+        "module": "tomllib"
+      },
+      "description": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "locate",
+      "tool": "grep",
+      "intent": "Find the current pin for {{package}}.",
+      "inputs": {},
+      "outputs": [
+        {
+          "name": "current_pin",
+          "type": "string",
+          "value_from": "stdout"
+        }
+      ],
+      "input_bindings": [],
+      "optional": false,
+      "resources": [],
+      "loop": null
+    },
+    {
+      "id": "changelog",
+      "tool": "fetch",
+      "intent": "Read the upstream changelog for breaking changes.",
+      "inputs": {},
+      "outputs": [
+        {
+          "name": "notes",
+          "type": "string",
+          "value_from": "stdout"
+        }
+      ],
+      "input_bindings": [],
+      "optional": false,
+      "resources": [
+        {
+          "kind": "rate_limit",
+          "id": "pypi",
+          "mode": "write"
+        }
+      ],
+      "loop": null
+    },
+    {
+      "id": "edit",
+      "tool": "edit_file",
+      "intent": "Raise the pin to {{target_version}}.",
+      "inputs": {},
+      "outputs": [
+        {
+          "name": "changed",
+          "type": "number",
+          "value_from": "exit_code"
+        }
+      ],
+      "input_bindings": [
+        {
+          "input": "current_pin",
+          "source_step": "locate",
+          "output": "current_pin"
+        }
+      ],
+      "optional": false,
+      "resources": [
+        {
+          "kind": "file",
+          "id": "pyproject.toml",
+          "mode": "write"
+        }
+      ],
+      "loop": null
+    },
+    {
+      "id": "sync",
+      "tool": "shell",
+      "intent": "Regenerate the lockfile.",
+      "inputs": {},
+      "outputs": [
+        {
+          "name": "synced",
+          "type": "number",
+          "value_from": "exit_code"
+        }
+      ],
+      "input_bindings": [
+        {
+          "input": "changed",
+          "source_step": "edit",
+          "output": "changed"
+        }
+      ],
+      "optional": false,
+      "resources": [],
+      "loop": null
+    },
+    {
+      "id": "repair",
+      "tool": "agent_subtask",
+      "intent": "Fix breakage surfaced by the type checker and tests.",
+      "inputs": {},
+      "outputs": [],
+      "input_bindings": [
+        {
+          "input": "sync_status",
+          "source_step": "sync",
+          "output": "synced"
+        },
+        {
+          "input": "changelog",
+          "source_step": "changelog",
+          "output": "notes"
+        }
+      ],
+      "optional": false,
+      "resources": [],
+      "loop": {
+        "until": "criteria_pass",
+        "predicate": null,
+        "max_iterations": 3
+      }
+    }
+  ],
+  "certification_criteria": [
+    {
+      "id": "install",
+      "kind": "command",
+      "run": "uv sync --frozen",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "install",
+        "negative_fixture": "pre-bump workspace with a broken lockfile",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": "07ce9f4e072525cd09db1e4504adebac2be29a720effe7d1d62a97a6e0c6824a"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "types",
+      "kind": "command",
+      "run": "mypy .",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "types",
+        "negative_fixture": "v2's stale-lockfile regression case",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": "b035b604e83b5600668269b77e1f1bb378b65b0dc4169ad413d8e3e6e30fe11c"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "tests",
+      "kind": "command",
+      "run": "pytest -q",
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": null,
+      "isolation": "fresh_context",
+      "lens": null,
+      "timeout_s": 300,
+      "weight": 1.0,
+      "sensitivity_proof": {
+        "criterion_id": "tests",
+        "negative_fixture": "pre-bump workspace, unpatched",
+        "rejected": true,
+        "checked_at": "2026-07-30T15:22:11Z",
+        "checked_against": "sha256:env-fingerprint-v3",
+        "evidence_hash": "7f409da50bebea543616c46f52cddefde789d022825e5c2ab5f4d8bd494dda4c"
+      },
+      "authored_by": "distiller",
+      "preregistered": true
+    },
+    {
+      "id": "scope",
+      "kind": "judge",
+      "run": null,
+      "expect_exit": 0,
+      "expr": null,
+      "target": null,
+      "schema_ref": null,
+      "metric": null,
+      "op": null,
+      "threshold": null,
+      "rubric": "Only dependency-related files changed.",
+      "isolation": "fresh_context",
+      "lens": "scope",
+      "timeout_s": 300,
+      "weight": 0.3,
+      "sensitivity_proof": null,
+      "authored_by": "distiller",
+      "preregistered": true
+    }
+  ],
+  "failure_modes": [
+    {
+      "symptom": "Transitive pin conflict.",
+      "response": "Relax the narrowest conflicting constraint, then re-run install."
+    }
+  ],
+  "provenance": {
+    "distilled_from_run": "01JD3K0000000000000000RUN3",
+    "distilled_at": "2026-07-30T15:22:11Z",
+    "authored_by": null,
+    "curation": "human_authored",
+    "derivation": "hand_authored",
+    "failure_cluster_id": null,
+    "authoring_prior_version": null,
+    "evolved_because": "v2 left the lockfile stale when the bump was a no-op.",
+    "model": null
+  },
+  "hygiene": {
+    "secret_scan": "passed",
+    "scanned_at": "2026-07-30T15:22:11Z"
+  }
+}

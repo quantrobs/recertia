@@ -1,0 +1,2292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/NodeOutput",
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "diff",
+            "file",
+            "json",
+            "text",
+            "metric_set"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "BranchState": {
+      "additionalProperties": false,
+      "description": "One dispatched unit of a fan-out (specs \u00a718).",
+      "properties": {
+        "branch_id": {
+          "title": "Branch Id",
+          "type": "string"
+        },
+        "kind": {
+          "default": "portfolio",
+          "enum": [
+            "portfolio",
+            "decomposition"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "strategy": {
+          "enum": [
+            "apply",
+            "adapt",
+            "scratch"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "subtask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "decomposition only: the part of the work this branch owns.",
+          "title": "Subtask"
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate"
+        },
+        "workspace_ref": {
+          "title": "Workspace Ref",
+          "type": "string"
+        },
+        "snapshot_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Ref"
+        },
+        "transcript_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transcript Ref"
+        },
+        "status": {
+          "default": "dispatched",
+          "enum": [
+            "dispatched",
+            "running",
+            "succeeded",
+            "failed",
+            "timed_out"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/ResourceClaim"
+          },
+          "title": "Resources",
+          "type": "array"
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget"
+        },
+        "spent": {
+          "$ref": "#/$defs/Spend",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0,
+            "versions_written": 0
+          }
+        },
+        "reserved": {
+          "$ref": "#/$defs/BudgetReservation",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0
+          }
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/CriterionResult"
+          },
+          "title": "Results",
+          "type": "array"
+        },
+        "selected": {
+          "default": false,
+          "title": "Selected",
+          "type": "boolean"
+        },
+        "margin": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Winner score minus runner-up.",
+          "title": "Margin"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "owned_criteria": {
+          "description": "decomposition only: ids of the run's TaskCriterion this branch is accountable for. Every locked criterion MUST be owned by exactly one branch or retained at the join (specs \u00a718).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Owned Criteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "branch_id",
+        "strategy",
+        "workspace_ref",
+        "budget"
+      ],
+      "title": "BranchState",
+      "type": "object"
+    },
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_tool_calls": {
+          "default": 200,
+          "minimum": 1,
+          "title": "Max Tool Calls",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "max_wall_clock_s": {
+          "default": 900,
+          "minimum": 1,
+          "title": "Max Wall Clock S",
+          "type": "integer"
+        },
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost Usd"
+        },
+        "max_branches": {
+          "default": 3,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Branches",
+          "type": "integer"
+        },
+        "max_parallel_steps": {
+          "default": 8,
+          "minimum": 1,
+          "title": "Max Parallel Steps",
+          "type": "integer"
+        },
+        "claim_timeout_s": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Claim Timeout S",
+          "type": "integer"
+        },
+        "max_versions_written": {
+          "default": 2,
+          "minimum": 0,
+          "title": "Max Versions Written",
+          "type": "integer"
+        }
+      },
+      "title": "Budget",
+      "type": "object"
+    },
+    "BudgetReservation": {
+      "additionalProperties": false,
+      "description": "Resources promised to work which has not completed yet.\n\nReservations make concurrent branch dispatch safe: an admission decision counts both\nrecorded spend and work already admitted elsewhere.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "wall_clock_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Wall Clock S",
+          "type": "number"
+        },
+        "cost_usd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Cost Usd",
+          "type": "number"
+        }
+      },
+      "title": "BudgetReservation",
+      "type": "object"
+    },
+    "Constraint": {
+      "additionalProperties": false,
+      "description": "Hard limits that must not be violated.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "must_not_modify",
+            "must_pass_command",
+            "budget_ceiling",
+            "no_external_effects"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "value"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "CriterionResult": {
+      "additionalProperties": false,
+      "description": "One scored criterion, for a run's result vector or a certification observation.",
+      "properties": {
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "command",
+                "assertion",
+                "schema",
+                "metric",
+                "judge"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "weight": {
+          "default": 1.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "isolation": {
+          "anyOf": [
+            {
+              "enum": [
+                "fresh_context",
+                "inherits_context"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Isolation"
+        },
+        "lens": {
+          "anyOf": [
+            {
+              "enum": [
+                "correctness",
+                "currency",
+                "provenance",
+                "scope",
+                "safety"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lens"
+        },
+        "context_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Hash of the exact context a judge saw; makes an isolation violation provable.",
+          "title": "Context Hash"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
+        },
+        "output_excerpt": {
+          "default": "",
+          "maxLength": 32768,
+          "title": "Output Excerpt",
+          "type": "string"
+        },
+        "errored": {
+          "default": false,
+          "title": "Errored",
+          "type": "boolean"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "passed"
+      ],
+      "title": "CriterionResult",
+      "type": "object"
+    },
+    "DesiredState": {
+      "additionalProperties": false,
+      "description": "One atomic, checkable desired outcome.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "file_exists",
+            "file_contains",
+            "command",
+            "assertion",
+            "schema",
+            "metric",
+            "judge"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "expect_exit": {
+          "default": 0,
+          "title": "Expect Exit",
+          "type": "integer"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "schema_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Ref"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "enum": [
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "eq"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Op"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "timeout_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "DesiredState",
+      "type": "object"
+    },
+    "FailureSignal": {
+      "additionalProperties": false,
+      "description": "Raised by the orchestrator, solver, validator, or join \u2014 never inferred after the fact.\n\n``classify_failure``'s only precondition is that a ``FailureSignal`` exists on the run\nstate (ADR-0008); this replaces the old, unsatisfiable-for-most-classes precondition of\n\"some required criterion failed.\"\n\n``class_hint`` is an optional structured producer signal (e.g. budget preflight via\n``budget_excess``). When set, ``classify_failure`` prefers it over detail substring matching.",
+      "properties": {
+        "source": {
+          "enum": [
+            "orchestrator",
+            "solver",
+            "validator",
+            "join"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "class_hint": {
+          "anyOf": [
+            {
+              "enum": [
+                "environment",
+                "tool",
+                "retrieval",
+                "plan",
+                "execution",
+                "criteria",
+                "budget",
+                "merge"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Class Hint"
+        }
+      },
+      "required": [
+        "source",
+        "detail",
+        "at"
+      ],
+      "title": "FailureSignal",
+      "type": "object"
+    },
+    "FailureVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "failure_class": {
+          "enum": [
+            "environment",
+            "tool",
+            "retrieval",
+            "plan",
+            "execution",
+            "criteria",
+            "budget",
+            "merge"
+          ],
+          "title": "Failure Class",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "implicated_skill": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Implicated Skill"
+        },
+        "counts_against_trust": {
+          "title": "Counts Against Trust",
+          "type": "boolean"
+        },
+        "escalate_to_human": {
+          "default": false,
+          "title": "Escalate To Human",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "failure_class",
+        "counts_against_trust"
+      ],
+      "title": "FailureVerdict",
+      "type": "object"
+    },
+    "Goal": {
+      "additionalProperties": false,
+      "description": "Primary task input. Compiles to TaskCriterion[] at intake.",
+      "properties": {
+        "goal_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Goal Id"
+        },
+        "desired": {
+          "items": {
+            "$ref": "#/$defs/DesiredState"
+          },
+          "minItems": 1,
+          "title": "Desired",
+          "type": "array"
+        },
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/Constraint"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional natural-language context / human label. Never the sole success contract.",
+          "title": "Context"
+        },
+        "task_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Class"
+        },
+        "preferences": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Soft guidance (style, verbosity, preferred tools). Advisory only.",
+          "title": "Preferences",
+          "type": "object"
+        },
+        "strategy_hint": {
+          "anyOf": [
+            {
+              "enum": [
+                "abstain",
+                "portfolio",
+                "decomposition"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strategy Hint"
+        }
+      },
+      "required": [
+        "desired"
+      ],
+      "title": "Goal",
+      "type": "object"
+    },
+    "MemoryBundle": {
+      "additionalProperties": false,
+      "description": "What ``retrieve`` returns; \u00a713.1.",
+      "properties": {
+        "skills": {
+          "items": {
+            "$ref": "#/$defs/SkillCandidateRef"
+          },
+          "maxItems": 3,
+          "title": "Skills",
+          "type": "array"
+        },
+        "facts": {
+          "items": {
+            "$ref": "#/$defs/MemoryElementRef"
+          },
+          "maxItems": 10,
+          "title": "Facts",
+          "type": "array"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/MemoryElementRef"
+          },
+          "maxItems": 3,
+          "title": "Cases",
+          "type": "array"
+        },
+        "dead_ends": {
+          "items": {
+            "$ref": "#/$defs/MemoryElementRef"
+          },
+          "maxItems": 3,
+          "title": "Dead Ends",
+          "type": "array"
+        },
+        "tool_cautions": {
+          "items": {
+            "$ref": "#/$defs/MemoryElementRef"
+          },
+          "title": "Tool Cautions",
+          "type": "array"
+        },
+        "suppressed": {
+          "default": false,
+          "title": "Suppressed",
+          "type": "boolean"
+        }
+      },
+      "title": "MemoryBundle",
+      "type": "object"
+    },
+    "MemoryElementRef": {
+      "additionalProperties": false,
+      "properties": {
+        "plane": {
+          "enum": [
+            "procedural",
+            "semantic",
+            "episodic",
+            "affordance",
+            "policy"
+          ],
+          "title": "Plane",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "trust": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trust"
+        }
+      },
+      "required": [
+        "plane",
+        "ref"
+      ],
+      "title": "MemoryElementRef",
+      "type": "object"
+    },
+    "MergeAudit": {
+      "additionalProperties": false,
+      "description": "Every fan-in records expected against received inputs (specs \u00a726.4).",
+      "properties": {
+        "merge_id": {
+          "title": "Merge Id",
+          "type": "string"
+        },
+        "expected": {
+          "minimum": 0,
+          "title": "Expected",
+          "type": "integer"
+        },
+        "received": {
+          "minimum": 0,
+          "title": "Received",
+          "type": "integer"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing",
+          "type": "array"
+        },
+        "action": {
+          "enum": [
+            "proceeded",
+            "flagged",
+            "failed"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "layered": {
+          "default": false,
+          "title": "Layered",
+          "type": "boolean"
+        },
+        "batches": {
+          "description": "Actual fan-in batches in execution order; empty for a direct merge.",
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Batches",
+          "type": "array"
+        }
+      },
+      "required": [
+        "merge_id",
+        "expected",
+        "received",
+        "action"
+      ],
+      "title": "MergeAudit",
+      "type": "object"
+    },
+    "ResourceClaim": {
+      "additionalProperties": false,
+      "description": "A declared claim on something shared outside the workspace.\n\nTwo units conflict when they claim the same ``id`` and at least one ``mode`` is ``write``\nor ``exclusive`` \u2014 whether or not an ``input_bindings``-derived dependency exists between them.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "file",
+            "path",
+            "service",
+            "rate_limit",
+            "lock",
+            "external_system"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "read",
+            "write",
+            "exclusive"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "mode"
+      ],
+      "title": "ResourceClaim",
+      "type": "object"
+    },
+    "ResourceConflict": {
+      "additionalProperties": false,
+      "description": "One recorded wait on a claimed resource (specs \u00a726.2).",
+      "properties": {
+        "claim": {
+          "$ref": "#/$defs/ResourceClaim"
+        },
+        "waiting": {
+          "title": "Waiting",
+          "type": "string"
+        },
+        "holder": {
+          "title": "Holder",
+          "type": "string"
+        },
+        "waited_ms": {
+          "title": "Waited Ms",
+          "type": "integer"
+        },
+        "resolution": {
+          "default": "acquired",
+          "title": "Resolution",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim",
+        "waiting",
+        "holder",
+        "waited_ms"
+      ],
+      "title": "ResourceConflict",
+      "type": "object"
+    },
+    "ReusabilityVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {
+          "enum": [
+            "reusable",
+            "one_off",
+            "duplicate"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "nearest_skill": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearest Skill"
+        },
+        "nearest_similarity": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearest Similarity"
+        },
+        "parameterisable": {
+          "title": "Parameterisable",
+          "type": "boolean"
+        },
+        "context_free": {
+          "title": "Context Free",
+          "type": "boolean"
+        },
+        "checkable": {
+          "title": "Checkable",
+          "type": "boolean"
+        },
+        "not_duplicate": {
+          "title": "Not Duplicate",
+          "type": "boolean"
+        },
+        "bounded": {
+          "title": "Bounded",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "verdict",
+        "parameterisable",
+        "context_free",
+        "checkable",
+        "not_duplicate",
+        "bounded"
+      ],
+      "title": "ReusabilityVerdict",
+      "type": "object"
+    },
+    "RouteEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "node": {
+          "title": "Node",
+          "type": "string"
+        },
+        "route": {
+          "title": "Route",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "attempt_no": {
+          "default": 0,
+          "title": "Attempt No",
+          "type": "integer"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "route",
+        "reason",
+        "at"
+      ],
+      "title": "RouteEntry",
+      "type": "object"
+    },
+    "RunManifest": {
+      "additionalProperties": false,
+      "description": "Full system fingerprint; any measurement ties to an exact state (specs \u00a711.3).",
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "tool_versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Tool Versions",
+          "type": "object"
+        },
+        "index_snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Index Snapshot Id"
+        },
+        "library_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Library Commit"
+        },
+        "policy_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Policy Version"
+        },
+        "criteria_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sha256 of the locked TaskCriterion set's canonical serialisation.",
+          "title": "Criteria Hash"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "title": "RunManifest",
+      "type": "object"
+    },
+    "RunState": {
+      "additionalProperties": false,
+      "description": "State threaded through every node (specs \u00a73). Nodes return deltas, never a mutated copy.",
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "task": {
+          "$ref": "#/$defs/Task"
+        },
+        "manifest": {
+          "$ref": "#/$defs/RunManifest",
+          "default": {
+            "model": null,
+            "model_version": null,
+            "tool_versions": {},
+            "index_snapshot_id": null,
+            "library_commit": null,
+            "policy_version": null,
+            "criteria_hash": null,
+            "seed": null
+          }
+        },
+        "arm": {
+          "default": "treatment",
+          "enum": [
+            "treatment",
+            "control",
+            "shadow",
+            "practice"
+          ],
+          "title": "Arm",
+          "type": "string"
+        },
+        "criteria": {
+          "description": "Required set; immutable after intake. Never populated from a chosen skill.",
+          "items": {
+            "$ref": "#/$defs/TaskCriterion"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
+        "criteria_locked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Criteria Locked At"
+        },
+        "advisory_criteria": {
+          "items": {
+            "$ref": "#/$defs/TaskCriterion"
+          },
+          "title": "Advisory Criteria",
+          "type": "array"
+        },
+        "bundle": {
+          "$ref": "#/$defs/MemoryBundle",
+          "default": {
+            "skills": [],
+            "facts": [],
+            "cases": [],
+            "dead_ends": [],
+            "tool_cautions": [],
+            "suppressed": false
+          }
+        },
+        "chosen": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillCandidateRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "suppressed_skill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillCandidateRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Skill withheld for a randomized per-skill suppression comparison."
+        },
+        "strategy": {
+          "anyOf": [
+            {
+              "enum": [
+                "apply",
+                "adapt",
+                "scratch",
+                "portfolio",
+                "decomposition",
+                "abstain"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strategy"
+        },
+        "strategy_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strategy Reason"
+        },
+        "predicted_success": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predicted Success"
+        },
+        "attempt_no": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempt No",
+          "type": "integer"
+        },
+        "branches": {
+          "items": {
+            "$ref": "#/$defs/BranchState"
+          },
+          "maxItems": 16,
+          "title": "Branches",
+          "type": "array"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          },
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "transcript_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transcript Ref"
+        },
+        "workspace_snapshots": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceSnapshot"
+          },
+          "title": "Workspace Snapshots",
+          "type": "array"
+        },
+        "step_waves": {
+          "items": {
+            "$ref": "#/$defs/StepWave"
+          },
+          "title": "Step Waves",
+          "type": "array"
+        },
+        "resource_conflicts": {
+          "items": {
+            "$ref": "#/$defs/ResourceConflict"
+          },
+          "title": "Resource Conflicts",
+          "type": "array"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/CriterionResult"
+          },
+          "title": "Results",
+          "type": "array"
+        },
+        "results_history": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/CriterionResult"
+            },
+            "type": "array"
+          },
+          "title": "Results History",
+          "type": "array"
+        },
+        "certification_observations": {
+          "description": "Advisory: the applied skill's certification criteria scored against this run's artifact. Feeds SkillStats/needs_recert only; never gates routing or the caller's result (ADR-0003 amendment).",
+          "items": {
+            "$ref": "#/$defs/CriterionResult"
+          },
+          "title": "Certification Observations",
+          "type": "array"
+        },
+        "merge_audits": {
+          "items": {
+            "$ref": "#/$defs/MergeAudit"
+          },
+          "title": "Merge Audits",
+          "type": "array"
+        },
+        "failure_signal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureSignal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FailureVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "draft": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Draft"
+        },
+        "facts_extracted": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Facts Extracted",
+          "type": "array"
+        },
+        "affordance_updates": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Affordance Updates",
+          "type": "array"
+        },
+        "reusability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReusabilityVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "written_versions": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Written Versions",
+          "type": "array"
+        },
+        "budget": {
+          "$ref": "#/$defs/Budget",
+          "default": {
+            "max_attempts": 4,
+            "max_tool_calls": 200,
+            "max_tokens": null,
+            "max_wall_clock_s": 900,
+            "max_cost_usd": null,
+            "max_branches": 3,
+            "max_parallel_steps": 8,
+            "claim_timeout_s": 60,
+            "max_versions_written": 2
+          }
+        },
+        "spent": {
+          "$ref": "#/$defs/Spend",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0,
+            "versions_written": 0
+          }
+        },
+        "reserved": {
+          "$ref": "#/$defs/BudgetReservation",
+          "default": {
+            "attempts": 0,
+            "tool_calls": 0,
+            "tokens": 0,
+            "wall_clock_s": 0.0,
+            "cost_usd": 0.0
+          }
+        },
+        "route_log": {
+          "items": {
+            "$ref": "#/$defs/RouteEntry"
+          },
+          "title": "Route Log",
+          "type": "array"
+        },
+        "terminal": {
+          "anyOf": [
+            {
+              "enum": [
+                "solved",
+                "unsolved",
+                "abstained",
+                "rejected",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminal"
+        }
+      },
+      "required": [
+        "run_id",
+        "task"
+      ],
+      "title": "RunState",
+      "type": "object"
+    },
+    "SensitivityProof": {
+      "additionalProperties": false,
+      "description": "Evidence that a criterion rejects a known-bad artifact (specs \u00a715.2).",
+      "properties": {
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "negative_fixture": {
+          "title": "Negative Fixture",
+          "type": "string"
+        },
+        "rejected": {
+          "title": "Rejected",
+          "type": "boolean"
+        },
+        "checked_at": {
+          "format": "date-time",
+          "title": "Checked At",
+          "type": "string"
+        },
+        "checked_against": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked Against"
+        },
+        "evidence_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sha256 hash binding the criterion definition to the negative-fixture fingerprint used for this proof",
+          "title": "Evidence Hash"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "negative_fixture",
+        "rejected",
+        "checked_at"
+      ],
+      "title": "SensitivityProof",
+      "type": "object"
+    },
+    "SkillCandidateRef": {
+      "additionalProperties": false,
+      "properties": {
+        "skill_id": {
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        },
+        "lexical_rank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lexical Rank"
+        },
+        "vector_rank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vector Rank"
+        },
+        "bound_parameters": {
+          "additionalProperties": true,
+          "title": "Bound Parameters",
+          "type": "object"
+        },
+        "staleness_factor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staleness Factor"
+        },
+        "shadow": {
+          "default": false,
+          "title": "Shadow",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "skill_id",
+        "version",
+        "score"
+      ],
+      "title": "SkillCandidateRef",
+      "type": "object"
+    },
+    "Spend": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tool Calls",
+          "type": "integer"
+        },
+        "tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens",
+          "type": "integer"
+        },
+        "wall_clock_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Wall Clock S",
+          "type": "number"
+        },
+        "cost_usd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Cost Usd",
+          "type": "number"
+        },
+        "versions_written": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Versions Written",
+          "type": "integer"
+        }
+      },
+      "title": "Spend",
+      "type": "object"
+    },
+    "StepWave": {
+      "additionalProperties": false,
+      "properties": {
+        "wave": {
+          "minimum": 0,
+          "title": "Wave",
+          "type": "integer"
+        },
+        "step_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Step Ids",
+          "type": "array"
+        },
+        "attempt_no": {
+          "default": 0,
+          "title": "Attempt No",
+          "type": "integer"
+        },
+        "snapshot_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Ref"
+        },
+        "duration_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration S"
+        },
+        "serial_duration_s": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serial Duration S"
+        }
+      },
+      "required": [
+        "wave",
+        "step_ids"
+      ],
+      "title": "StepWave",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Goal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Preferred primary input (Variant B). Compiles to TaskCriterion[] at intake."
+        },
+        "request": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional natural-language context / legacy entry point. Never the sole success contract when a Goal is present.",
+          "title": "Request"
+        },
+        "task_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Class"
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workspace"
+        },
+        "submitted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submitted By"
+        },
+        "submitted_at": {
+          "format": "date-time",
+          "title": "Submitted At",
+          "type": "string"
+        },
+        "is_eval_fixture": {
+          "default": false,
+          "description": "When true, distill must not author library memory (M3 firewall ahead of M4's full eval firewall). Golden / promotion runs set this so the regression gate cannot recursively learn from itself.",
+          "title": "Is Eval Fixture",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "task_id",
+        "submitted_at"
+      ],
+      "title": "Task",
+      "type": "object"
+    },
+    "TaskCriterion": {
+      "additionalProperties": false,
+      "description": "Locked at ``intake`` for one run. Never authored by a chosen skill.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "command",
+            "assertion",
+            "schema",
+            "metric",
+            "judge"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "expect_exit": {
+          "default": 0,
+          "title": "Expect Exit",
+          "type": "integer"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "schema_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Ref"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "enum": [
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "eq"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Op"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "isolation": {
+          "default": "fresh_context",
+          "enum": [
+            "fresh_context",
+            "inherits_context"
+          ],
+          "title": "Isolation",
+          "type": "string"
+        },
+        "lens": {
+          "anyOf": [
+            {
+              "enum": [
+                "correctness",
+                "currency",
+                "provenance",
+                "scope",
+                "safety"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lens"
+        },
+        "timeout_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "sensitivity_proof": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensitivityProof"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "caller",
+            "task_class_template",
+            "critic"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "preregistered": {
+          "default": true,
+          "title": "Preregistered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "source"
+      ],
+      "title": "TaskCriterion",
+      "type": "object"
+    },
+    "WorkspaceSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_no": {
+          "minimum": 0,
+          "title": "Attempt No",
+          "type": "integer"
+        },
+        "snapshot_ref": {
+          "title": "Snapshot Ref",
+          "type": "string"
+        },
+        "restored": {
+          "default": false,
+          "title": "Restored",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "attempt_no",
+        "snapshot_ref"
+      ],
+      "title": "WorkspaceSnapshot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Normative node return shape (specs \u00a74); runtime ``NodeOutcome`` mirrors this.",
+  "properties": {
+    "state": {
+      "$ref": "#/$defs/RunState"
+    },
+    "route": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Route"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "NodeOutput",
+  "type": "object"
+}

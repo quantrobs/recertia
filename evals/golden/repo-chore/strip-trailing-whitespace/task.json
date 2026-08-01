@@ -1,0 +1,4 @@
+{
+  "request": "Strip trailing whitespace from README.md",
+  "expected_skill_id": "strip-trailing-whitespace"
+}

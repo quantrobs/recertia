@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/fandea/schema/LedgerEntry",
+  "additionalProperties": false,
+  "description": "One hash-chained record of a memory-plane write (specs \u00a721).\n\n``entry_hash`` is computed over the canonical serialisation of every other field; a chain\nis valid when each entry's ``prev_hash`` equals its predecessor's ``entry_hash`` and every\nentry's own ``entry_hash`` recomputes correctly.",
+  "properties": {
+    "seq": {
+      "minimum": 0,
+      "title": "Seq",
+      "type": "integer"
+    },
+    "prev_hash": {
+      "title": "Prev Hash",
+      "type": "string"
+    },
+    "entry_hash": {
+      "title": "Entry Hash",
+      "type": "string"
+    },
+    "actor": {
+      "title": "Actor",
+      "type": "string"
+    },
+    "action": {
+      "enum": [
+        "write",
+        "advance_to_candidate",
+        "quarantine_version",
+        "deprecate",
+        "policy_change"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "target": {
+      "title": "Target",
+      "type": "string"
+    },
+    "evidence": {
+      "additionalProperties": true,
+      "title": "Evidence",
+      "type": "object"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "seq",
+    "prev_hash",
+    "entry_hash",
+    "actor",
+    "action",
+    "target",
+    "at"
+  ],
+  "title": "LedgerEntry",
+  "type": "object"
+}

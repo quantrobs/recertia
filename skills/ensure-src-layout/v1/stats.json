@@ -1,0 +1,19 @@
+{
+  "skill_id": "ensure-src-layout",
+  "version": 1,
+  "contribution": {
+    "applications": 0,
+    "successes": 0,
+    "interval_low": null,
+    "interval_high": null,
+    "last_evaluated_at": null,
+    "suppressed_applications": 0,
+    "suppressed_successes": 0
+  },
+  "predictive_trust": {
+    "applications": 0,
+    "successes": 0,
+    "last_used_at": null,
+    "decayed_score": null
+  }
+}
