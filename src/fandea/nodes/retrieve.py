@@ -7,8 +7,19 @@ tool cautions (M2). Control arm still returns an empty suppressed bundle.
 from __future__ import annotations
 
 from contracts.run import MemoryBundle, MemoryElementRef, RunState, Task
-from fandea.bootstrap import retrieval_query
 from fandea.nodes.context import NodeContext, NodeOutcome
+
+
+def retrieval_query(*, request: str | None, goal_context: str | None, goal_terms: str = "") -> str:
+    """Build a non-None retrieval query from request, goal context, or goal terms."""
+
+    if request is not None and request.strip():
+        return request.strip()
+    if goal_context is not None and goal_context.strip():
+        return goal_context.strip()
+    if goal_terms.strip():
+        return goal_terms.strip()
+    return ""
 
 
 def _query_for(task: Task) -> str:

@@ -16,7 +16,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 from contracts.budget import Budget
 from contracts.common import Arm
