@@ -49,7 +49,7 @@ class DesiredState(BaseModel):
     target: str | None = None
     schema_ref: str | None = None
     metric: str | None = None
-    op: Literal["lt", "le", "gt", "ge", "eq"] | None = None
+    op: Literal["lt", "lte", "gt", "gte", "eq"] | None = None
     threshold: float | None = None
     rubric: str | None = None
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
