@@ -68,6 +68,27 @@ reasonable time window at our expected task volume.
   lower-volume setting may mean most skills sit below the floor indefinitely, which is itself a
   useful negative result, not a bug, if Practice cannot close the gap.
 
+## a4. Judge false-pass bias stays below the threshold that disables retirement
+
+**Claim:** with judge isolation (§26.3) and the contribution-estimate restriction to
+non-`judge` criteria, the verifier's false-pass rate at our judge configurations stays below
+the threshold past which contribution-based retirement silently disables (Blind Curator,
+[`references.md` §1.8](references.md#18-a-biased-judge-silently-disables-retirement) **[B]**).
+
+- **Depends on:** the Phase-1 verifier configuration and the Phase-2 judge false-pass canary
+  ([`architecture/one-year-roadmap.md`](architecture/one-year-roadmap.md)): planted-failure
+  artifacts scored by the verifier on a schedule, false-pass rate reported per model version.
+- **Engineering gate (not this claim):** the canary harness exists and correctly measures a
+  known, injected false-pass rate on synthetic artifacts, and reports a number per
+  provider × model version on the real schedule.
+- **Research outcome (this claim):** whether the measured rate at our judge configurations
+  actually stays below the disabling threshold over time, per model version.
+- **Status:** `untested` — isolation is enforced (necessary), but no false-pass measurement
+  has ever been taken on this system (not sufficient).
+- **Why it might be false anyway:** an isolated judge can still be false-pass-biased, and the
+  Blind Curator result is that more data cannot cross the threshold once past it; model
+  upgrades can move the rate in either direction without any code change on our side.
+
 ## a3. A tiered self-modification boundary is sufficient without an externally reported precedent
 
 **Claim:** the T0–T3 self-modification boundary in [ADR-0005](adr/0005-self-modification-boundary.md)
