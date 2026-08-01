@@ -1,4 +1,4 @@
-# Fandea Specifications
+# Recertia Specifications
 
 > This index replaces the former monolithic specifications document. Existing links remain valid; use the topic files below for direct references.
 

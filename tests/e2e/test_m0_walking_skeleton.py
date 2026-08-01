@@ -11,7 +11,7 @@ from pathlib import Path
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
 from contracts.run import Task
-from fandea.graph.engine import GraphOrchestrator
+from recertia.graph.engine import GraphOrchestrator
 
 
 def _task(workdir: Path) -> Task:

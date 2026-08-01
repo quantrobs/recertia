@@ -8,4 +8,4 @@ from __future__ import annotations
 
 import os
 
-os.environ.setdefault("FANDEA_EXECUTION_BACKEND", "local")
+os.environ.setdefault("RECERTIA_EXECUTION_BACKEND", "local")

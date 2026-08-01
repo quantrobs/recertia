@@ -10,9 +10,9 @@ import pytest
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
 from contracts.run import RunState
-from fandea.nodes.context import NodeContext
-from fandea.nodes.validate import PathEscapeError, _resolve_path, score_criteria, validate
-from fandea.validation.sensitivity import author_sensitivity_proof, sensitivity_evidence_hash
+from recertia.nodes.context import NodeContext
+from recertia.nodes.validate import PathEscapeError, _resolve_path, score_criteria, validate
+from recertia.validation.sensitivity import author_sensitivity_proof, sensitivity_evidence_hash
 
 
 def _proven(criterion: TaskCriterion) -> TaskCriterion:

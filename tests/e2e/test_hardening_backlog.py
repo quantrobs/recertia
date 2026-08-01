@@ -8,19 +8,19 @@ from pathlib import Path
 import pytest
 
 from contracts.fact import Fact, FactProvenance
-from fandea.governance.sandbox import DEFAULT_SANDBOX, ApprovalGate, SandboxPolicy
-from fandea.ledger import HashChainLedger
-from fandea.memory.scope import ScopeError, promote_fact_scope
-from fandea.memory.semantic import FactStore
-from fandea.solver.container import container_runtime
-from fandea.solver.sandbox import SandboxError, SandboxLimits, run_sandboxed
-from fandea.solver.tools import ApprovalRequiredError, ToolRuntime, default_registry
-from fandea.store import (
+from recertia.governance.sandbox import DEFAULT_SANDBOX, ApprovalGate, SandboxPolicy
+from recertia.ledger import HashChainLedger
+from recertia.memory.scope import ScopeError, promote_fact_scope
+from recertia.memory.semantic import FactStore
+from recertia.solver.container import container_runtime
+from recertia.solver.sandbox import SandboxError, SandboxLimits, run_sandboxed
+from recertia.solver.tools import ApprovalRequiredError, ToolRuntime, default_registry
+from recertia.store import (
     apply_sqlite_migrations,
     postgres_migration_sql,
     verify_sqlite_schema,
 )
-from fandea.telemetry import REQUIRED_EVENTS, reset_telemetry
+from recertia.telemetry import REQUIRED_EVENTS, reset_telemetry
 
 
 def test_non_read_tools_require_approval(tmp_path: Path, monkeypatch) -> None:
@@ -36,7 +36,7 @@ def test_non_read_tools_require_approval(tmp_path: Path, monkeypatch) -> None:
     gate = ApprovalGate()
     gate.approve("shell", actor="alice")
     runtime.approval_gate = gate
-    monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "container")
+    monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "container")
     approved = runtime.invoke("shell", {"command": "true"}, workdir=work, step_id="s3")
     if container_runtime() is not None:
         assert approved.ok

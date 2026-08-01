@@ -65,7 +65,7 @@ def render(model: type) -> str:
     schema = model.model_json_schema()
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": f"https://github.com/quantrobs/fandea/schema/{model.__name__}",
+        "$id": f"https://github.com/quantrobs/recertia/schema/{model.__name__}",
         **schema,
     }
     return json.dumps(schema, indent=2, sort_keys=False) + "\n"

@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-from fandea.api import create_app
+from recertia.api import create_app
 
 
 def _proven_output_criterion() -> dict:

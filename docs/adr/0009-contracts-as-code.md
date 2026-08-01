@@ -75,14 +75,14 @@ types and let a type checker and a test suite find the seams.
 
 ## Consequences
 
-- `contracts/` exists in the repository before `src/fandea/` is scaffolded. This is a deliberate,
+- `contracts/` exists in the repository before `src/recertia/` is scaffolded. This is a deliberate,
   narrow exception to "no runtime code before M0": `contracts/` is specification tooling, not
-  the graph engine, the solver, or any node implementation. `src/fandea/` continues to wait for
-  M0, and when it arrives, `src/fandea/memory/procedural` (etc.) import from `contracts/` rather
+  the graph engine, the solver, or any node implementation. `src/recertia/` continues to wait for
+  M0, and when it arrives, `src/recertia/memory/procedural` (etc.) import from `contracts/` rather
   than redefining these types.
 - `implementation-plan.md`'s repository layout gains a top-level `contracts/` directory ahead of
   `src/`; its R2 milestone task ("Pydantic models as the working hand") is now "wire
-  `src/fandea/` to `contracts/`" rather than "write the models."
+  `src/recertia/` to `contracts/`" rather than "write the models."
 - Every future new mutable surface or entity is added by writing a Pydantic model first; a
   hand-written JSON Schema change with no corresponding model change is a review-blocking smell.
 - `docs/refactor-plan.md`'s R3 "Structural schema validity" and "Lifecycle profiles" CI checks

@@ -1,4 +1,4 @@
-# Fandea Implementation Plan
+# Recertia Implementation Plan
 
 Build order for the system in the [architecture overview](architecture/overview.md) against the
 contracts in [core entities and skill contracts](specifications/core-entities.md). Milestones are
@@ -39,17 +39,17 @@ is in [`references.md`](references.md).
 | Job scheduling | APScheduler in v1 → external scheduler | Improvement plane jobs (specs §20) |
 | Sandbox | Subprocess with rlimits in v1; container isolation before any non-`read` tool ships | |
 | Tests | `pytest` (+ `jsonschema` for contract checks) | See `pyproject.toml` `[project.optional-dependencies].dev` |
-| Lint/type | `ruff`, `mypy` on `contracts/` and `src/fandea/` | Not `--strict`; config in `pyproject.toml` |
+| Lint/type | `ruff`, `mypy` on `contracts/` and `src/recertia/` | Not `--strict`; config in `pyproject.toml` |
 | Tracing | OpenTelemetry → local collector | |
 
 ## Repository layout
 
 Per [ADR-0009](adr/0009-contracts-as-code.md), `contracts/` (Pydantic models, generated
-`schema/`, semantic profiles) exists ahead of `src/fandea/` — specification tooling, not the
-runtime. `src/fandea/` imports from it rather than redefining these types.
+`schema/`, semantic profiles) exists ahead of `src/recertia/` — specification tooling, not the
+runtime. `src/recertia/` imports from it rather than redefining these types.
 
 ```text
-fandea/
+recertia/
 ├── pyproject.toml
 ├── contracts/                  # normative structural source (ADR-0009); Pydantic models
 ├── schema/                     # JSON Schema, generated from contracts/ — never hand-edited
@@ -57,7 +57,7 @@ fandea/
 ├── facts/                          # semantic memory; empty until first FactStore write
 │   └── <scope>/<slug>.json         # created on first write (see facts/README.md)
 ├── policy/                          # T2 config, versioned and reviewed
-├── src/fandea/
+├── src/recertia/
 │   ├── graph/                 # engine: registry, router, checkpoints, budgets, fan-out
 │   ├── nodes/                 # intake, retrieve, plan, fan_out, solve, validate, join,
 │   │                          # classify_failure, evolve, distill, review, store,
@@ -118,7 +118,7 @@ full eventual form:
 - **Ledger:** append-only hash chain with `verify`.
 - **Governance skeleton:** tier registry plus a CI import-boundary test proving `nodes/` and
   `jobs/` cannot import `governance/` or `evals/ablation`.
-- CLI `fandea run`, `fandea runs show --route-log`, `fandea ledger verify`.
+- CLI `recertia run`, `recertia runs show --route-log`, `recertia ledger verify`.
 
 **Done when:** a run reaches `finalize` with `terminal="solved"`; killing the process mid-run
 and resuming completes it from the last checkpoint with no operation double-applied (proven by
@@ -158,7 +158,7 @@ every promotion).
 - 8–12 hand-authored `repo-chore` skills, marked `curation: human_authored`, each with hygiene
   scan run and a hand-authored sensitivity proof per required criterion (both structural
   prerequisites from M0, applied here to real content for the first time).
-- `fandea skills lint`, `fandea skills search --explain`.
+- `recertia skills lint`, `recertia skills search --explain`.
 
 **Done when:** `retrieval_precision_at_3` ≥ 0.7 on a labelled probe set; unrelated tasks return
 an empty bundle; novel tasks route to `scratch`; a skill whose environment fingerprint does not
@@ -240,7 +240,7 @@ persuasive but wrong solver transcript still fails the artifact because it never
   blocking distillation on fixture runs.
 - Harness pinning library snapshot and model version; results stored per snapshot.
 - **Ablation arm:** stratified control sampling at the governed rate, `causal_lift` with Wilson
-  intervals, `fandea lift`.
+  intervals, `recertia lift`.
 - Calibration scoring of `predicted_success`; abstention precision.
 - Per-task-class control baselines persisted, since per-skill contribution in M5 is measured
   against them.

@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 
 from contracts.run import RunState, Task
-from fandea.graph.ops import OperationLedger
-from fandea.ledger import HashChainLedger
-from fandea.nodes.context import NodeContext
-from fandea.workspace import WorkspaceManager
+from recertia.graph.ops import OperationLedger
+from recertia.ledger import HashChainLedger
+from recertia.nodes.context import NodeContext
+from recertia.workspace import WorkspaceManager
 
 
 @pytest.fixture

@@ -8,8 +8,8 @@ import time
 import pytest
 
 from contracts.resources import ResourceClaim
-from fandea.solver.claims import ClaimScheduler, ClaimTimeoutError
-from fandea.solver.tools import ClaimScheduler as ToolsClaimScheduler
+from recertia.solver.claims import ClaimScheduler, ClaimTimeoutError
+from recertia.solver.tools import ClaimScheduler as ToolsClaimScheduler
 
 
 def test_conflicts_with_modes() -> None:

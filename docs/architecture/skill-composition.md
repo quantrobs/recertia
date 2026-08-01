@@ -1,4 +1,4 @@
-# Fandea Architecture: 6. Skill algebra: composition and hierarchy
+# Recertia Architecture: 6. Skill algebra: composition and hierarchy
 
 ## 6. Skill algebra: composition and hierarchy
 

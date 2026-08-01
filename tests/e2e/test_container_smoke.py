@@ -16,18 +16,18 @@ from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, TaskCriterion
 from contracts.goal import DesiredState, Goal
 from contracts.run import Task
-from fandea.bootstrap import build_default_orchestrator
-from fandea.solver.container import (
+from recertia.bootstrap import build_default_orchestrator
+from recertia.solver.container import (
     container_runtime,
     ensure_execution_ready,
     ensure_workdir_writable_by_container,
     probe_container_runtime,
 )
-from fandea.solver.sandbox import SandboxError
+from recertia.solver.sandbox import SandboxError
 
 
 def _require_working_container(monkeypatch: pytest.MonkeyPatch) -> str:
-    monkeypatch.setenv("FANDEA_EXECUTION_BACKEND", "container")
+    monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "container")
     runtime = container_runtime()
     if runtime is None:
         pytest.skip("Docker/Podman not on PATH")
@@ -40,10 +40,10 @@ def _require_working_container(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def test_default_container_image_accepts_digest_pin(monkeypatch: pytest.MonkeyPatch) -> None:
-    from fandea.solver.container import default_container_image
+    from recertia.solver.container import default_container_image
 
     monkeypatch.setenv(
-        "FANDEA_CONTAINER_IMAGE",
+        "RECERTIA_CONTAINER_IMAGE",
         "python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
     )
     assert default_container_image().startswith("python:3.12-slim@sha256:")
@@ -109,4 +109,4 @@ def test_container_smoke_solves_goal_via_oci(tmp_path: Path, monkeypatch: pytest
     assert state.terminal == "solved"
     assert (workdir / "SMOKE_OK").read_text() == "ok"
     # Ensure we did not silently flip to local.
-    assert os.environ.get("FANDEA_EXECUTION_BACKEND") == "container"
+    assert os.environ.get("RECERTIA_EXECUTION_BACKEND") == "container"

@@ -13,37 +13,37 @@ from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.fact import Fact, FactProvenance
 from contracts.run import RunState, Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
-from fandea.api import create_app
-from fandea.evals.second_domain import research_synthesis_lift, second_domain_fixture_ready
-from fandea.graph.ops import OperationLedger
-from fandea.jobs import JobRunner
-from fandea.jobs.workers import (
+from recertia.api import create_app
+from recertia.evals.second_domain import research_synthesis_lift, second_domain_fixture_ready
+from recertia.graph.ops import OperationLedger
+from recertia.jobs import JobRunner
+from recertia.jobs.workers import (
     draft_from_mine_proposal,
     mine_from_repo_hints,
     practice_from_one_offs,
 )
-from fandea.ledger import HashChainLedger
-from fandea.memory.procedural.promote import promote_to_approved
-from fandea.memory.procedural.seeds import seed_approved_for_tests
-from fandea.memory.procedural.store import SkillStore
-from fandea.memory.scope import (
+from recertia.ledger import HashChainLedger
+from recertia.memory.procedural.promote import promote_to_approved
+from recertia.memory.procedural.seeds import seed_approved_for_tests
+from recertia.memory.procedural.store import SkillStore
+from recertia.memory.scope import (
     promote_fact_scope,
     promote_skill_scope,
     tenant_readable,
 )
-from fandea.memory.semantic import FactStore
-from fandea.nodes.context import NodeContext
-from fandea.nodes.join import LAYER_THRESHOLD, join
-from fandea.solver.container import run_with_backend
-from fandea.store.backend import open_backend, postgres_dialect_mentions_pgvector
-from fandea.store.blobs import FilesystemBlobStore
-from fandea.store.vectors import open_vector_index
-from fandea.telemetry import (
+from recertia.memory.semantic import FactStore
+from recertia.nodes.context import NodeContext
+from recertia.nodes.join import LAYER_THRESHOLD, join
+from recertia.solver.container import run_with_backend
+from recertia.store.backend import open_backend, postgres_dialect_mentions_pgvector
+from recertia.store.blobs import FilesystemBlobStore
+from recertia.store.vectors import open_vector_index
+from recertia.telemetry import (
     JsonlSpanExporter,
     reset_telemetry,
     write_dashboard,
 )
-from fandea.workspace import WorkspaceManager
+from recertia.workspace import WorkspaceManager
 
 
 def _ctx(tmp_path: Path, node: str = "join") -> NodeContext:
@@ -104,7 +104,7 @@ def _skill(skill_id: str, *, scope: str = "project") -> SkillVersion:
 def test_container_backend_fails_closed_without_runtime(tmp_path: Path, monkeypatch) -> None:
     work = tmp_path / "jail"
     work.mkdir()
-    monkeypatch.setattr("fandea.solver.container.container_runtime", lambda: None)
+    monkeypatch.setattr("recertia.solver.container.container_runtime", lambda: None)
     with pytest.raises(Exception, match="container runtime"):
         run_with_backend("true", workdir=work)
 

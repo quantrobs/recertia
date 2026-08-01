@@ -9,8 +9,8 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-from fandea.api import create_app
-from fandea.store.blobs import FilesystemBlobStore, normalize_blob_digest
+from recertia.api import create_app
+from recertia.store.blobs import FilesystemBlobStore, normalize_blob_digest
 
 
 def test_normalize_blob_digest_requires_sha256_and_64_hex() -> None:

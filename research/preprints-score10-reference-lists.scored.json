@@ -3,31 +3,31 @@
   "sheets": {
     "Index": [
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "Extracted (UTC): 2026-07-30 19:42:07"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "Extracted (UTC): 2026-07-30 19:42:07"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "Source format: arXiv HTML bibliographies (ltx_bibitem). \"Cited by\" backrefs stripped."
+        "Reference lists extracted from Recertia applicability score-10 preprints": "Source format: arXiv HTML bibliographies (ltx_bibitem). \"Cited by\" backrefs stripped."
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "Source papers (applicability score 10)"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "Source papers (applicability score 10)"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "- Ratchet: A Minimal Hygiene Recipe for Self-Evolving LLM Agents — arXiv:2605.22148 — 30 refs — https://arxiv.org/abs/2605.22148"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "- Ratchet: A Minimal Hygiene Recipe for Self-Evolving LLM Agents — arXiv:2605.22148 — 30 refs — https://arxiv.org/abs/2605.22148"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "- SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks — arXiv:2602.12670 — 48 refs — https://arxiv.org/abs/2602.12670"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "- SkillsBench: Benchmarking How Well Agent Skills Work Across Diverse Tasks — arXiv:2602.12670 — 48 refs — https://arxiv.org/abs/2602.12670"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "- Dynamic Agent Skills: A Lifecycle Survey and Taxonomy of Evolving Skill Libraries — arXiv:2607.10113 — 132 refs — https://arxiv.org/abs/2607.10113"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "- Dynamic Agent Skills: A Lifecycle Survey and Taxonomy of Evolving Skill Libraries — arXiv:2607.10113 — 132 refs — https://arxiv.org/abs/2607.10113"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "- The Blind Curator: How a Biased Judge Silently Disables Skill Retirement in Self-Evolving Agents — arXiv:2607.07436 — 30 refs — https://arxiv.org/abs/2607.07436"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "- The Blind Curator: How a Biased Judge Silently Disables Skill Retirement in Self-Evolving Agents — arXiv:2607.07436 — 30 refs — https://arxiv.org/abs/2607.07436"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "Total references extracted: 240"
+        "Reference lists extracted from Recertia applicability score-10 preprints": "Total references extracted: 240"
       },
       {
-        "Reference lists extracted from Fandea applicability score-10 preprints": "Also under docs/score10-references/ (per-paper markdown + JSON)."
+        "Reference lists extracted from Recertia applicability score-10 preprints": "Also under docs/score10-references/ (per-paper markdown + JSON)."
       }
     ],
     "All References": [

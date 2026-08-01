@@ -6,8 +6,8 @@ from contracts.branch import BranchState
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
 from contracts.run import RunState, Task
-from fandea.nodes.fan_out import fan_out
-from fandea.nodes.join import join
+from recertia.nodes.fan_out import fan_out
+from recertia.nodes.join import join
 
 
 def _task() -> Task:
