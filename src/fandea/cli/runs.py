@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,8 +15,11 @@ from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
 from contracts.goal import Goal, compile_goal
 from contracts.run import Task
+from fandea.bootstrap import build_default_orchestrator, resolve_task_class
 from fandea.graph.engine import GraphOrchestrator
 from fandea.ledger import HashChainLedger, LedgerVerificationError
+from fandea.solver.container import ensure_execution_ready
+from fandea.solver.sandbox import SandboxError
 
 runs_app = typer.Typer(help="Inspect runs.")
 ledger_app = typer.Typer(help="Verify the provenance ledger.")
@@ -26,30 +30,16 @@ def _load_spec(spec_path: Path) -> dict:
     return json.loads(spec_path.read_text())
 
 
-def _build_orchestrator(
-    runs_root: Path,
-    *,
-    skills_root: Path,
-    index_path: Path,
-) -> tuple[GraphOrchestrator, object]:
-    """Wire SkillStore + Retriever so ``fandea run`` can apply the skill library."""
+def _prepare_execution(*, local_exec: bool) -> None:
+    """Apply ``--local-exec`` then fail fast if the configured backend cannot run."""
 
-    from fandea.memory.procedural.store import SkillStore
-    from fandea.retrieval.index import SkillIndex
-    from fandea.retrieval.pipeline import Retriever
-
-    store = SkillStore(skills_root)
-    index = SkillIndex(index_path)
-    index.rebuild(store.iter_loaded())
-    retriever = Retriever(index)
-    orch = GraphOrchestrator(
-        runs_root,
-        store=store,
-        retriever=retriever,
-        # Empty fingerprint: only mismatch when both sides declare a tool (retrieval §preconditions).
-        env_fingerprint={},
-    )
-    return orch, index
+    if local_exec:
+        os.environ["FANDEA_EXECUTION_BACKEND"] = "local"
+    try:
+        ensure_execution_ready()
+    except SandboxError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
 
 
 def register_run_commands(app: typer.Typer) -> None:
@@ -75,10 +65,18 @@ def run_cmd(
     skills_root: Path = typer.Option(
         Path("skills"), "--skills-root", help="Procedural skill library root."
     ),
+    facts_root: Path = typer.Option(
+        Path("facts"), "--facts-root", help="Semantic facts root."
+    ),
     index: Path = typer.Option(
         Path(".fandea/skill_index.db"),
         "--index",
         help="Skill retrieval index (default: under --runs-root).",
+    ),
+    local_exec: bool = typer.Option(
+        False,
+        "--local-exec",
+        help="Set FANDEA_EXECUTION_BACKEND=local for this process (dev; no Docker).",
     ),
     ablation: bool = typer.Option(
         False, "--ablation", help="Assign control arm via T3 ablation sampler (outside nodes)."
@@ -89,6 +87,8 @@ def run_cmd(
     if goal is None and spec is None:
         typer.echo("Provide --goal or --spec", err=True)
         raise typer.Exit(code=2)
+
+    _prepare_execution(local_exec=local_exec)
 
     rid = run_id or uuid.uuid4().hex[:12]
     data: dict = {}
@@ -110,9 +110,11 @@ def run_cmd(
         task_id=task_data.get("task_id", rid),
         goal=task_goal,
         request=request,
-        task_class=task_data.get("task_class")
-        or (task_goal.task_class if task_goal else None)
-        or data.get("task_class"),
+        task_class=resolve_task_class(
+            explicit=task_data.get("task_class") or data.get("task_class"),
+            goal_task_class=task_goal.task_class if task_goal else None,
+            default="repo-chore",
+        ),
         submitted_at=datetime.now(timezone.utc),
         is_eval_fixture=bool(task_data.get("is_eval_fixture", False)),
     )
@@ -142,16 +144,18 @@ def run_cmd(
     if index == Path(".fandea/skill_index.db"):
         index_path = runs_root / "skill_index.db"
 
-    orchestrator, skill_index = _build_orchestrator(
-        runs_root, skills_root=skills_root, index_path=index_path
+    bundle = build_default_orchestrator(
+        runs_root,
+        skills_root=skills_root,
+        facts_root=facts_root,
+        index_path=index_path,
     )
     try:
-        state = orchestrator.start(
+        state = bundle.orchestrator.start(
             rid, task, criteria, budget=budget, workdir=wd, script=script, arm=arm
         )
     finally:
-        orchestrator.close()
-        skill_index.close()
+        bundle.close()
 
     typer.echo(f"run_id={rid} terminal={state.terminal} arm={state.arm}")
     if state.failure is not None:
@@ -165,8 +169,17 @@ def resume_cmd(
     spec: Optional[Path] = typer.Option(
         None, "--spec", help="Re-supply script/workdir if not resuming in place."
     ),
+    skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
+    facts_root: Path = typer.Option(Path("facts"), "--facts-root"),
+    local_exec: bool = typer.Option(
+        False,
+        "--local-exec",
+        help="Set FANDEA_EXECUTION_BACKEND=local for this process (dev; no Docker).",
+    ),
 ) -> None:
     """Resume a run from its last checkpoint. Safe to call after a killed process."""
+
+    _prepare_execution(local_exec=local_exec)
 
     workdir = runs_root / "workspaces" / run_id
     script = None
@@ -176,11 +189,16 @@ def resume_cmd(
         if "workdir" in data:
             workdir = Path(data["workdir"])
 
-    orchestrator = GraphOrchestrator(runs_root)
+    bundle = build_default_orchestrator(
+        runs_root,
+        skills_root=skills_root,
+        facts_root=facts_root,
+        index_path=runs_root / "skill_index.db",
+    )
     try:
-        state = orchestrator.resume(run_id, workdir=workdir, script=script)
+        state = bundle.orchestrator.resume(run_id, workdir=workdir, script=script)
     finally:
-        orchestrator.close()
+        bundle.close()
 
     typer.echo(f"run_id={run_id} terminal={state.terminal}")
     raise typer.Exit(code=0 if state.terminal in ("solved", "abstained") else 1)

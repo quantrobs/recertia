@@ -60,6 +60,26 @@ def local_execution_capability() -> LocalExecutionCapability | None:
     return LocalExecutionCapability() if configured_backend() == "local" else None
 
 
+def ensure_execution_ready() -> Backend:
+    """Fail fast with guidance when the configured backend cannot run commands.
+
+    Avoids burning solve attempts on a missing Docker/Podman install. Callers that
+    want the non-OCI path must set ``FANDEA_EXECUTION_BACKEND=local`` (CLI:
+    ``--local-exec``).
+    """
+
+    backend = configured_backend()
+    if backend == "container" and container_runtime() is None:
+        raise SandboxError(
+            "FANDEA_EXECUTION_BACKEND=container but no Docker/Podman is available. "
+            "Install Docker or Podman, or set FANDEA_EXECUTION_BACKEND=local "
+            "(CLI: fandea run --local-exec) for development."
+        )
+    if backend == "local" and local_execution_capability() is None:
+        raise SandboxError("local execution capability missing despite FANDEA_EXECUTION_BACKEND=local")
+    return backend
+
+
 def run_in_container(
     command: str,
     *,
