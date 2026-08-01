@@ -58,7 +58,9 @@ Fandea calls `ensure_workdir_writable_by_container` before each invocation (adds
 other-write/traverse on the workdir). You should still:
 
 1. Keep runs under a path the runtime may bind-mount (Docker Desktop: grant file sharing).
-2. On Linux, ensure your user can talk to the daemon (`docker` group, or rootless Podman).
+2. On Linux, ensure your user can talk to the daemon (`usermod -aG docker $USER` then
+   re-login, or rootless Podman). A `permission denied … docker.sock` error means the CLI
+   is present but the daemon socket is not writable to your user.
 3. For rootless Podman, confirm UID mapping so `65534` can write the mounted volume.
 4. Avoid placing `.fandea/workspaces` on filesystems that reject `chmod` or overlay mounts.
 
