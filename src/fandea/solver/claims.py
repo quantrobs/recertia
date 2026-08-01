@@ -25,6 +25,9 @@ class ClaimScheduler:
         self.claim_timeout_s = claim_timeout_s
         self._holders: dict[tuple[str, str], str] = {}
         self._lock = threading.Lock()
+        # Waiters block on this condition instead of a 1ms sleep-poll loop: releases
+        # wake contenders immediately, which both lowers latency and stops the spin.
+        self._cond = threading.Condition(self._lock)
         self._conflicts: list[ResourceConflict] = []
 
     @property
@@ -50,10 +53,11 @@ class ClaimScheduler:
         acquired: list[ResourceClaim] = []
         waits: list[ResourceConflict] = []
         started = time.monotonic()
-        for claim in ordered:
-            key = (claim.kind, claim.id)
-            while True:
-                with self._lock:
+        deadline = started + self.claim_timeout_s
+        with self._cond:
+            for claim in ordered:
+                key = (claim.kind, claim.id)
+                while True:
                     holder = self._holders.get(key)
                     if holder is None or holder == step_id:
                         self._holders[key] = step_id
@@ -70,27 +74,33 @@ class ClaimScheduler:
                             waits.append(conflict)
                             self._conflicts.append(conflict)
                         break
-                waited_ms = int((time.monotonic() - started) * 1000)
-                if time.monotonic() - started > self.claim_timeout_s:
-                    conflict = ResourceConflict(
-                        claim=claim,
-                        waiting=step_id,
-                        holder=holder or "unknown",
-                        waited_ms=waited_ms,
-                        resolution="timed_out",
-                    )
-                    self._conflicts.append(conflict)
-                    self.release(step_id, acquired)
-                    raise ClaimTimeoutError(conflict)
-                time.sleep(0.001)
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        waited_ms = int((time.monotonic() - started) * 1000)
+                        conflict = ResourceConflict(
+                            claim=claim,
+                            waiting=step_id,
+                            holder=holder or "unknown",
+                            waited_ms=waited_ms,
+                            resolution="timed_out",
+                        )
+                        self._conflicts.append(conflict)
+                        self._release_unlocked(step_id, acquired)
+                        self._cond.notify_all()
+                        raise ClaimTimeoutError(conflict)
+                    self._cond.wait(timeout=remaining)
         return waits
 
+    def _release_unlocked(self, step_id: str, claims: list[ResourceClaim]) -> None:
+        for claim in claims:
+            key = (claim.kind, claim.id)
+            if self._holders.get(key) == step_id:
+                del self._holders[key]
+
     def release(self, step_id: str, claims: list[ResourceClaim]) -> None:
-        with self._lock:
-            for claim in claims:
-                key = (claim.kind, claim.id)
-                if self._holders.get(key) == step_id:
-                    del self._holders[key]
+        with self._cond:
+            self._release_unlocked(step_id, claims)
+            self._cond.notify_all()
 
     def held_by(self) -> dict[tuple[str, str], str]:
         with self._lock:

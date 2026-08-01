@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from contracts.common import RETRIEVABLE_LIFECYCLES
+from contracts.eval import BinomialSample
 from contracts.status import SkillStatus
 from fandea.evals.store import EvalStore
 from fandea.memory.procedural.contribution import (
@@ -88,6 +89,7 @@ def recompute_active_set(
     for version, status, stats in store.iter_loaded():
         by_class.setdefault(version.task_class, []).append((version, status, stats))
 
+    empty_sample = BinomialSample(successes=0, trials=0)
     updated: list[SkillStatus] = []
     pressure: dict[str, float] = {}
     for task_class, rows in by_class.items():
@@ -103,11 +105,12 @@ def recompute_active_set(
                 retrieval_suppressed=retrieval_suppressed,
             )
             eval_store.write_retrieval_ablation(retrieval_ablation)
+            # Two grouped scans for the whole class instead of two queries per skill.
+            samples = eval_store.contribution_samples_bulk(task_class=task_class)
             for version, status, stats in approved:
-                shadow, suppression = eval_store.contribution_samples(
-                    skill_id=version.skill_id,
-                    version=version.version,
-                    task_class=task_class,
+                shadow, suppression = samples.get(
+                    (version.skill_id, version.version),
+                    (empty_sample, empty_sample),
                 )
                 contribution = estimate_contribution(
                     shadow=shadow,
@@ -133,14 +136,11 @@ def recompute_active_set(
         evidenced.sort(key=rank, reverse=True)
         cap = config.active_cap_per_task_class
         pressure[task_class] = max(0, len(approved) - cap) / cap if cap else 0.0
-        top = evidenced[:cap]
+        top_ids = {(v.skill_id, v.version) for v, _s, _st in evidenced[:cap]}
 
         for version, status, stats in rows:
             if status.lifecycle == "approved":
-                want_active = any(
-                    kept_v.skill_id == version.skill_id and kept_v.version == version.version
-                    for kept_v, _s, _st in top
-                )
+                want_active = (version.skill_id, version.version) in top_ids
                 new_status = status.model_copy(update={"active": want_active})
             else:
                 new_status = assign_active_on_approval(status)

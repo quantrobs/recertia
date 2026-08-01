@@ -27,6 +27,7 @@ class EvalStore:
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._init()
 
     def close(self) -> None:
@@ -79,6 +80,9 @@ class EvalStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_obs_snap ON observations(snapshot_id, task_class);
                 CREATE INDEX IF NOT EXISTS idx_obs_skill ON observations(skill_id, skill_version, task_class);
+                CREATE INDEX IF NOT EXISTS idx_obs_suppressed
+                    ON observations(suppressed_skill_id, suppressed_skill_version, task_class, arm);
+                CREATE INDEX IF NOT EXISTS idx_obs_arm ON observations(task_class, arm, is_eval_fixture);
                 CREATE INDEX IF NOT EXISTS idx_base_class ON baselines(task_class, created_at);
                 """
             )
@@ -303,6 +307,63 @@ class EvalStore:
             suppression_params,
         )
         return shadow, suppression
+
+    def contribution_samples_bulk(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[tuple[str, int], tuple[BinomialSample, BinomialSample]]:
+        """Shadow + suppression samples for every evidenced skill, two scans total.
+
+        Equivalent to calling :meth:`contribution_samples` for each skill, without the
+        per-skill round trips; skills with no evidence are absent from the result.
+        """
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        shadow_rows = self._conn.execute(
+            """
+            SELECT skill_id, skill_version,
+                   SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'shadow' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+              AND skill_id IS NOT NULL AND skill_version IS NOT NULL
+            """
+            + suffix
+            + " GROUP BY skill_id, skill_version",
+            params,
+        ).fetchall()
+        suppression_rows = self._conn.execute(
+            """
+            SELECT suppressed_skill_id, suppressed_skill_version,
+                   SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+              AND suppressed_skill_id IS NOT NULL AND suppressed_skill_version IS NOT NULL
+            """
+            + suffix
+            + " GROUP BY suppressed_skill_id, suppressed_skill_version",
+            list(params),
+        ).fetchall()
+
+        empty = BinomialSample(successes=0, trials=0)
+        out: dict[tuple[str, int], list[BinomialSample]] = {}
+        for row in shadow_rows:
+            out.setdefault((row["skill_id"], int(row["skill_version"])), [empty, empty])[0] = (
+                BinomialSample(
+                    successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
+                )
+            )
+        for row in suppression_rows:
+            out.setdefault(
+                (row["suppressed_skill_id"], int(row["suppressed_skill_version"])),
+                [empty, empty],
+            )[1] = BinomialSample(
+                successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
+            )
+        return {key: (pair[0], pair[1]) for key, pair in out.items()}
 
     def retrieval_ablation_samples(
         self, *, task_class: str, snapshot_id: str | None = None

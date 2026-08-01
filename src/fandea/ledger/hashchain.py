@@ -41,16 +41,41 @@ class HashChainLedger:
     Thread-safe within a process via a lock; safe across process restarts because every
     ``append`` is a single atomic line write and ``verify`` recomputes the whole chain from
     disk rather than trusting in-memory state.
+
+    ``append`` needs only the current tip ``(seq, entry_hash)``, so both are cached after
+    the first scan. The cache is validated against the file's ``(size, mtime_ns)`` before
+    every use: an external append or rewrite changes the stat and forces one rescan, which
+    keeps the fast path correct without re-parsing history on every write.
     """
 
     def __init__(self, path: Path | str) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._tip: tuple[int, str] | None = None  # (next_seq, tip_hash)
+        self._stat: tuple[int, int] | None = None  # (size, mtime_ns) when _tip was computed
 
     @property
     def path(self) -> Path:
         return self._path
+
+    def _file_stat(self) -> tuple[int, int] | None:
+        try:
+            st = self._path.stat()
+        except FileNotFoundError:
+            return None
+        return (st.st_size, st.st_mtime_ns)
+
+    def _tip_unlocked(self) -> tuple[int, str]:
+        """Current ``(next_seq, tip_hash)``; rescans only when the file changed on disk."""
+
+        if self._tip is not None and self._stat == self._file_stat():
+            return self._tip
+        entries = self._read_all()
+        tip = (len(entries), entries[-1].entry_hash if entries else GENESIS_HASH)
+        self._tip = tip
+        self._stat = self._file_stat()
+        return tip
 
     def _read_all(self) -> list[LedgerEntry]:
         if not self._path.exists():
@@ -64,8 +89,8 @@ class HashChainLedger:
         return entries
 
     def tip_hash(self) -> str:
-        entries = self._read_all()
-        return entries[-1].entry_hash if entries else GENESIS_HASH
+        with self._lock:
+            return self._tip_unlocked()[1]
 
     def append(
         self,
@@ -79,9 +104,7 @@ class HashChainLedger:
         """Append one entry. Returns the entry as written, with ``seq`` and hashes filled in."""
 
         with self._lock:
-            existing = self._read_all()
-            seq = len(existing)
-            prev_hash = existing[-1].entry_hash if existing else GENESIS_HASH
+            seq, prev_hash = self._tip_unlocked()
             draft = LedgerEntry(
                 seq=seq,
                 prev_hash=prev_hash,
@@ -95,6 +118,8 @@ class HashChainLedger:
             entry = draft.model_copy(update={"entry_hash": compute_entry_hash(draft)})
             with self._path.open("a", encoding="utf-8") as f:
                 f.write(entry.model_dump_json() + "\n")
+            self._tip = (seq + 1, entry.entry_hash)
+            self._stat = self._file_stat()
             return entry
 
     def entries(self) -> list[LedgerEntry]:
@@ -109,6 +134,9 @@ class HashChainLedger:
         """
 
         entries = self._read_all()
+        with self._lock:
+            self._tip = (len(entries), entries[-1].entry_hash if entries else GENESIS_HASH)
+            self._stat = self._file_stat()
         prev_hash = GENESIS_HASH
         for i, entry in enumerate(entries):
             if entry.seq != i:

@@ -282,6 +282,10 @@ def _merge_changed_sources(baseline: Path, sources: list[Path], target: Path) ->
                 continue
             relative = path.relative_to(source)
             original = baseline / relative
+            # Untouched files still carry the baseline's exact size+mtime from the
+            # metadata-preserving workspace copy; skip both byte reads for them.
+            if original.is_file() and _same_stat(path, original):
+                continue
             data = path.read_bytes()
             if original.exists() and original.is_file() and original.read_bytes() == data:
                 continue
@@ -292,6 +296,14 @@ def _merge_changed_sources(baseline: Path, sources: list[Path], target: Path) ->
             destination = target / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(data)
+
+
+def _same_stat(a: Path, b: Path) -> bool:
+    try:
+        sa, sb = a.stat(), b.stat()
+    except OSError:
+        return False
+    return sa.st_size == sb.st_size and sa.st_mtime_ns == sb.st_mtime_ns
 
 
 def _copy_changed_files(

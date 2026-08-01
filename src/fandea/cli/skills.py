@@ -58,7 +58,9 @@ def skills_search(
     store = SkillStore(skills_root)
     index = SkillIndex(index_path)
     try:
-        index.rebuild(store.iter_loaded())
+        fingerprint = store.library_fingerprint()
+        if not index.is_fresh(fingerprint):
+            index.rebuild(store.iter_loaded(), library_fingerprint=fingerprint)
         retriever = Retriever(index)
         env_fp = json.loads(env) if env else {}
         bundle, explanation = retriever.search(

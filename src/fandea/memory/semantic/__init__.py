@@ -11,16 +11,39 @@ from contracts.fact import Fact
 
 
 class FactStore:
-    """Canonical JSON-in-git layout: ``facts/<scope>/<slug>.json`` plus a review queue file."""
+    """Canonical JSON-in-git layout: ``facts/<scope>/<slug>.json`` plus a review queue file.
+
+    Parsed facts are cached and reused across ``retrieve`` calls (the retrieval hot path);
+    the cache is invalidated by any write through this store, or when the tree's
+    ``(file count, total size, max mtime_ns)`` stat key changes underneath us.
+    """
 
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.queue_path = self.root / "_contradiction_queue.jsonl"
         self._lock = threading.Lock()
+        self._facts_cache: list[Fact] | None = None
+        self._facts_stat: tuple[int, int, int] | None = None
 
     def path_for(self, fact: Fact) -> Path:
         return self.root / fact.scope / f"{fact.slug}.json"
+
+    def _tree_stat(self) -> tuple[int, int, int]:
+        count = 0
+        total_size = 0
+        max_mtime = 0
+        for path in self.root.rglob("*.json"):
+            if path.name.startswith("_"):
+                continue
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            count += 1
+            total_size += st.st_size
+            max_mtime = max(max_mtime, st.st_mtime_ns)
+        return (count, total_size, max_mtime)
 
     def write(self, fact: Fact) -> Fact:
         """Persist ``fact``; on contradiction with an existing assertion, retain both and demote."""
@@ -28,6 +51,7 @@ class FactStore:
         dest = self.path_for(fact)
         dest.parent.mkdir(parents=True, exist_ok=True)
         with self._lock:
+            self._facts_cache = None
             if dest.exists():
                 existing = Fact.model_validate_json(dest.read_text(encoding="utf-8"))
                 if existing.assertion != fact.assertion:
@@ -40,16 +64,26 @@ class FactStore:
             (self.root / scope / f"{slug}.json").read_text(encoding="utf-8")
         )
 
-    def list_facts(self, *, scope: str | None = None) -> list[Fact]:
+    def _all_facts_unlocked(self) -> list[Fact]:
+        stat = self._tree_stat()
+        if self._facts_cache is not None and stat == self._facts_stat:
+            return self._facts_cache
         facts: list[Fact] = []
-        root = self.root / scope if scope else self.root
-        if not root.exists():
-            return facts
-        for path in sorted(root.rglob("*.json")):
-            if path.name.startswith("_"):
-                continue
-            facts.append(Fact.model_validate_json(path.read_text(encoding="utf-8")))
+        if self.root.exists():
+            for path in sorted(self.root.rglob("*.json")):
+                if path.name.startswith("_"):
+                    continue
+                facts.append(Fact.model_validate_json(path.read_text(encoding="utf-8")))
+        self._facts_cache = facts
+        self._facts_stat = stat
         return facts
+
+    def list_facts(self, *, scope: str | None = None) -> list[Fact]:
+        with self._lock:
+            facts = self._all_facts_unlocked()
+            if scope is None:
+                return list(facts)
+            return [f for f in facts if f.scope == scope]
 
     def retrieve(self, query: str, *, scope: str = "project", limit: int = 10) -> list[Fact]:
         q = query.lower()

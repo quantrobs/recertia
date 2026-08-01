@@ -44,6 +44,7 @@ class OperationLedger:
         self._pending_timeout_s = pending_timeout_s
         self._pending_poll_s = pending_poll_s
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             """
             CREATE TABLE IF NOT EXISTS operations (

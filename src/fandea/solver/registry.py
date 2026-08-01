@@ -44,6 +44,12 @@ class ToolResult:
 
 Handler = Callable[[dict, Path], ToolResult]
 
+_GREP_MAX_FILE_BYTES = 2 * 1024 * 1024
+"""Files larger than this are skipped by the in-process grep tool (vendored bundles, blobs)."""
+
+_READ_FILE_TAIL_BYTES = 64 * 1024
+"""read_file returns only a tail slice; files beyond this size are read from the end."""
+
 
 class ToolRegistry:
     """Process-global catalogue. Populate at startup; treat as immutable thereafter."""
@@ -128,6 +134,13 @@ def default_registry() -> ToolRegistry:
             return ToolResult(
                 tool="read_file", ok=False, exit_code=1, stderr=f"missing {path}"
             )
+        # Only the trailing 8000 chars are returned; avoid loading very large
+        # files into memory just to slice their tail.
+        if path.stat().st_size > _READ_FILE_TAIL_BYTES:
+            with path.open("rb") as fh:
+                fh.seek(-_READ_FILE_TAIL_BYTES, 2)
+                tail = fh.read().decode("utf-8", errors="replace")
+            return ToolResult(tool="read_file", ok=True, stdout=tail[-8000:])
         return ToolResult(tool="read_file", ok=True, stdout=path.read_text()[-8000:])
 
     def grep_handler(inputs: dict, workdir: Path) -> ToolResult:
@@ -135,7 +148,9 @@ def default_registry() -> ToolRegistry:
         path = confined_path(workdir, inputs.get("path", "."))
         root = workdir.resolve()
         # Read-only search is implemented in-process, so it does not create a
-        # host subprocess escape hatch in the production tool runtime.
+        # host subprocess escape hatch in the production tool runtime. Oversized
+        # and binary files are skipped: scanning vendored bundles or blobs fully
+        # dominated the tool's latency and could never yield readable matches.
         matches: list[str] = []
         try:
             for candidate in path.rglob("*"):
@@ -147,6 +162,11 @@ def default_registry() -> ToolRegistry:
                 except ValueError:
                     continue
                 try:
+                    if resolved.stat().st_size > _GREP_MAX_FILE_BYTES:
+                        continue
+                    with resolved.open("rb") as fh:
+                        if b"\0" in fh.read(4096):
+                            continue
                     for line_no, line in enumerate(
                         resolved.read_text(errors="replace").splitlines(), 1
                     ):

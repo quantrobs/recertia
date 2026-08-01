@@ -132,10 +132,17 @@ class GraphOrchestrator:
         latest = self.checkpoints.latest(run_id)
         if latest is None:
             raise ValueError(f"no checkpoint found for run {run_id!r}")
-        _, _, next_node, state = latest
+        seq, _, next_node, state = latest
         if next_node is None:
             return state
-        return self._execute(state, next_node, workdir=Path(workdir), script=script, max_steps=max_steps)
+        return self._execute(
+            state,
+            next_node,
+            workdir=Path(workdir),
+            script=script,
+            max_steps=max_steps,
+            next_seq=seq + 1,
+        )
 
     def _execute(
         self,
@@ -145,9 +152,11 @@ class GraphOrchestrator:
         workdir: Path,
         script: list[str] | None,
         max_steps: int | None = None,
+        next_seq: int | None = None,
     ) -> RunState:
-        seq = self.checkpoints.latest(state.run_id)
-        next_seq = (seq[0] + 1) if seq is not None else 0
+        if next_seq is None:
+            latest_seq = self.checkpoints.latest_seq(state.run_id)
+            next_seq = (latest_seq + 1) if latest_seq is not None else 0
         steps_taken = 0
 
         while True:
