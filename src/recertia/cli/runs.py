@@ -17,6 +17,7 @@ from contracts.goal import Goal, compile_goal
 from contracts.run import Task
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
+from recertia.ids import InvalidIdError, validate_run_id
 from recertia.ledger import HashChainLedger, LedgerVerificationError
 from recertia.solver.container import ensure_execution_ready
 from recertia.solver.sandbox import SandboxError
@@ -91,6 +92,11 @@ def run_cmd(
     _prepare_execution(local_exec=local_exec)
 
     rid = run_id or uuid.uuid4().hex[:12]
+    try:
+        rid = validate_run_id(rid)
+    except InvalidIdError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
     data: dict = {}
     if spec is not None:
         data = _load_spec(spec)

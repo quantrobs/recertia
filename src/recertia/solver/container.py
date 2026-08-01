@@ -83,20 +83,43 @@ def ensure_execution_ready() -> Backend:
     return backend
 
 
+def ensure_api_execution_ready() -> Backend:
+    """Like :func:`ensure_execution_ready`, but refuse ``local`` without break-glass.
+
+    Host-local execution via the HTTP API is a direct RCE surface for any
+    ``runs``-scoped key. Require ``RECERTIA_API_ALLOW_LOCAL_EXEC=1`` explicitly.
+    """
+
+    backend = ensure_execution_ready()
+    if backend == "local":
+        flag = os.environ.get("RECERTIA_API_ALLOW_LOCAL_EXEC", "").strip().lower()
+        if flag not in {"1", "true", "yes"}:
+            raise SandboxError(
+                "RECERTIA_EXECUTION_BACKEND=local is not allowed for the HTTP API. "
+                "Use the container backend, or set RECERTIA_API_ALLOW_LOCAL_EXEC=1 "
+                "as an explicit break-glass for development only."
+            )
+    return backend
+
+
 def ensure_workdir_writable_by_container(workdir: Path) -> None:
     """Ensure the bind-mounted workdir is writable by the sandbox user (nobody).
 
     Containers run as ``65534:65534``. Host-created directories are often ``0755`` owned
-    by the invoking user, which blocks writes inside the sandbox. We add other-write
-    (and traverse) bits on the workdir only — not a recursive chmod of the tree.
+    by the invoking user, which blocks writes inside the sandbox. Default mode adds
+    owner/group write (``0770``). World-write (``0777``) is opt-in via
+    ``RECERTIA_WORKDIR_WORLD_WRITE=1`` for hosts without a shared GID / rootless map.
     """
 
     workdir = workdir.resolve()
     if not workdir.is_dir():
         raise SandboxError(f"workdir does not exist: {workdir}")
     mode = workdir.stat().st_mode
-    # u+rwx,g+rwx,o+rwx — container nobody must create artifacts here.
-    workdir.chmod(mode | 0o0777)
+    new_mode = mode | 0o0770
+    flag = os.environ.get("RECERTIA_WORKDIR_WORLD_WRITE", "").strip().lower()
+    if flag in {"1", "true", "yes"}:
+        new_mode |= 0o0007
+    workdir.chmod(new_mode)
 
 
 def default_container_image() -> str:
@@ -202,6 +225,8 @@ def _container_run(
         "--cap-drop=ALL",
         "--security-opt",
         "no-new-privileges",
+        "--pids-limit",
+        "256",
         "-v",
         f"{workdir}:{spec.workdir_mount}:rw",
         "--memory",
@@ -209,6 +234,9 @@ def _container_run(
         "--cpus",
         "1",
     ]
+    # Digest-pinned images should not be retargeted by a mutable tag pull.
+    if "@sha256:" in spec.image:
+        args.extend(["--pull", "never"])
     if spec.read_only_root:
         args.append("--read-only")
         args.extend(["--tmpfs", "/tmp:rw,size=64m"])

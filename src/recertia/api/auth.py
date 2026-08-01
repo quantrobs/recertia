@@ -7,15 +7,20 @@ import hmac
 import re
 import secrets
 import sqlite3
+import time
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Callable
 
 from fastapi import Header, HTTPException
 
 _TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-_ALLOWED_SCOPES = frozenset({"runs", "blobs", "metrics", "admin"})
+_ALLOWED_SCOPES = frozenset({"runs", "blobs", "metrics", "admin", "exec"})
+# New secrets: rec_<key_id>.<token> — enables O(1) lookup by key_id.
+_STRUCTURED_SECRET_RE = re.compile(r"^rec_(key_[0-9a-f]+)\.([A-Za-z0-9_-]+)$")
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,33 @@ def validate_scopes(scopes: set[str] | frozenset[str]) -> frozenset[str]:
     return normalized
 
 
+class _AuthRateLimiter:
+    """Simple in-process failed-auth throttle (per secret fingerprint)."""
+
+    def __init__(self, *, max_failures: int = 20, window_s: float = 60.0) -> None:
+        self._max = max_failures
+        self._window = window_s
+        self._failures: dict[str, list[float]] = defaultdict(list)
+        self._lock = Lock()
+
+    def _key(self, secret: str) -> str:
+        return hashlib.sha256(secret.encode("utf-8")).hexdigest()[:32]
+
+    def check(self, secret: str) -> bool:
+        """Return False when the caller should be rejected for rate limiting."""
+
+        now = time.monotonic()
+        key = self._key(secret)
+        with self._lock:
+            stamps = [t for t in self._failures[key] if now - t < self._window]
+            self._failures[key] = stamps
+            return len(stamps) < self._max
+
+    def record_failure(self, secret: str) -> None:
+        with self._lock:
+            self._failures[self._key(secret)].append(time.monotonic())
+
+
 class ApiKeyStore:
     """SQLite-backed key registry. Only salted PBKDF2 hashes are persisted."""
 
@@ -62,6 +94,7 @@ class ApiKeyStore:
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._limiter = _AuthRateLimiter()
         with self._connect() as conn:
             conn.executescript(
                 """
@@ -115,7 +148,8 @@ class ApiKeyStore:
         tenant_id = validate_tenant_id(tenant_id)
         scopes = validate_scopes(scopes)
         key_id = f"key_{secrets.token_hex(8)}"
-        secret = f"fnd_{secrets.token_urlsafe(32)}"
+        token = secrets.token_urlsafe(32)
+        secret = f"rec_{key_id}.{token}"
         salt = secrets.token_bytes(16)
         with self._connect() as conn:
             conn.execute(
@@ -133,31 +167,84 @@ class ApiKeyStore:
             self._audit(conn, "issued", key_id=key_id, actor=actor, detail=f"tenant={tenant_id}")
         return IssuedApiKey(key_id, secret, tenant_id, scopes)
 
+    def _principal_from_row(
+        self,
+        conn: sqlite3.Connection,
+        *,
+        key_id: str,
+        tenant_id: str,
+        scopes: str,
+        salt: bytes,
+        stored_hash: bytes,
+        secret: str,
+    ) -> Principal | None:
+        if not hmac.compare_digest(self._hash(secret, salt), stored_hash):
+            return None
+        try:
+            validate_tenant_id(tenant_id)
+            scope_set = validate_scopes(set(scopes.split(",")))
+        except ValueError:
+            self._audit(
+                conn,
+                "authentication_failed",
+                key_id=key_id,
+                actor=key_id,
+                detail="invalid tenant or scopes",
+            )
+            return None
+        self._audit(conn, "authenticated", key_id=key_id, actor=key_id, detail="success")
+        return Principal(key_id=key_id, tenant_id=tenant_id, scopes=scope_set)
+
     def authenticate(self, secret: str | None) -> Principal | None:
         if not secret:
             return None
-        # Key IDs are intentionally not encoded in the bearer secret. Scan active
-        # records so lookup itself does not disclose a valid key identifier.
+        if not self._limiter.check(secret):
+            return None
+
+        structured = _STRUCTURED_SECRET_RE.fullmatch(secret)
         with self._connect() as conn:
+            if structured:
+                key_id = structured.group(1)
+                row = conn.execute(
+                    """SELECT key_id, tenant_id, scopes, salt, key_hash FROM api_keys
+                       WHERE key_id=? AND revoked_at IS NULL""",
+                    (key_id,),
+                ).fetchone()
+                if row is not None:
+                    principal = self._principal_from_row(
+                        conn,
+                        key_id=row[0],
+                        tenant_id=row[1],
+                        scopes=row[2],
+                        salt=row[3],
+                        stored_hash=row[4],
+                        secret=secret,
+                    )
+                    if principal is not None:
+                        return principal
+                self._limiter.record_failure(secret)
+                self._audit(
+                    conn, "authentication_failed", key_id=key_id, actor="anonymous", detail="invalid key"
+                )
+                return None
+
+            # Legacy secrets (e.g. fnd_…) — O(n) scan for one compatibility window.
             rows = conn.execute(
                 "SELECT key_id, tenant_id, scopes, salt, key_hash FROM api_keys WHERE revoked_at IS NULL"
             ).fetchall()
             for key_id, tenant_id, scopes, salt, stored_hash in rows:
-                if hmac.compare_digest(self._hash(secret, salt), stored_hash):
-                    try:
-                        validate_tenant_id(tenant_id)
-                        scope_set = validate_scopes(set(scopes.split(",")))
-                    except ValueError:
-                        self._audit(
-                            conn,
-                            "authentication_failed",
-                            key_id=key_id,
-                            actor=key_id,
-                            detail="invalid tenant or scopes",
-                        )
-                        return None
-                    self._audit(conn, "authenticated", key_id=key_id, actor=key_id, detail="success")
-                    return Principal(key_id=key_id, tenant_id=tenant_id, scopes=scope_set)
+                principal = self._principal_from_row(
+                    conn,
+                    key_id=key_id,
+                    tenant_id=tenant_id,
+                    scopes=scopes,
+                    salt=salt,
+                    stored_hash=stored_hash,
+                    secret=secret,
+                )
+                if principal is not None:
+                    return principal
+            self._limiter.record_failure(secret)
             self._audit(
                 conn, "authentication_failed", key_id=None, actor="anonymous", detail="invalid key"
             )

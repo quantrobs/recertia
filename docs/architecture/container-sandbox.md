@@ -33,6 +33,8 @@ Development escape hatch (no OCI): `recertia run --local-exec …` or
 | `RECERTIA_CONTAINER_RUNTIME` | Force `docker` or `podman` when both are installed |
 | `RECERTIA_CONTAINER_IMAGE` | Allowlisted tag, optionally pinned: `python:3.12-slim@sha256:…` |
 | `RECERTIA_ALLOW_CUSTOM_IMAGE` | Set to allow a non-allowlisted image (reviewed exceptions only) |
+| `RECERTIA_API_ALLOW_LOCAL_EXEC` | Break-glass: allow `local` backend on the HTTP API (dev only) |
+| `RECERTIA_WORKDIR_WORLD_WRITE` | Opt-in `0777` on bind-mounted workdirs (prefer shared GID / rootless) |
 
 Allowlisted tags: `python:3.12-slim`, `python:3.11-slim`, `python:3.12`, `python:3.11`.
 

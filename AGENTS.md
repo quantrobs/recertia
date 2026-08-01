@@ -21,10 +21,11 @@ files under a gitignored `.recertia/` dir; no external database is required for 
   cannot run here.
 - For development, always use the local executor instead:
   - CLI: add `--local-exec` to `recertia run` / `recertia resume`.
-  - API: start uvicorn with `RECERTIA_EXECUTION_BACKEND=local` in the environment, otherwise
-    `POST /v1/runs` returns `503` (SandboxError).
-- The pytest suite already forces the local backend via `tests/conftest.py`, so `pytest` needs
-  no Docker.
+  - API: local backend is refused unless `RECERTIA_API_ALLOW_LOCAL_EXEC=1` is also set
+    (break-glass). Without it, `POST /v1/runs` returns `503`.
+  - API `script` fields require an API key with the `exec` scope (or `admin`).
+- The pytest suite already forces the local backend + API break-glass via `tests/conftest.py`,
+  so `pytest` needs no Docker.
 
 ### Lint / test / build
 

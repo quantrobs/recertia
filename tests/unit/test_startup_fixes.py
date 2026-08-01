@@ -39,7 +39,7 @@ def test_api_goal_task_class_not_masked_by_default(tmp_path: Path) -> None:
     from recertia.api import create_app
 
     app_api = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
-    issued = app_api.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    issued = app_api.state.api_keys.issue(tenant_id="t1", scopes={"runs", "exec"}, actor="test")
     client = TestClient(app_api)
 
     created = client.post(

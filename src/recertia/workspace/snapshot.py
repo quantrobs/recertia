@@ -5,6 +5,10 @@ snapshot directory before every attempt; ``evolve`` restores from the most recen
 before re-dispatching to ``solve``, so every retry starts from a byte-identical clean state
 regardless of what the previous attempt left behind — including a half-applied edit or a
 partially-run tool sequence.
+
+Security: snapshot/restore never follow symlinks that escape the source tree. Absolute
+symlinks and outbound relative symlinks are skipped. ``run_id`` / ``snapshot_ref`` are
+path-contained under the snapshots root.
 """
 
 from __future__ import annotations
@@ -13,6 +17,9 @@ import os
 import shutil
 import uuid
 from pathlib import Path
+
+from recertia.ids import InvalidIdError, validate_run_id
+from recertia.paths import PathEscapeError, contained_path, is_within
 
 
 class WorkspaceManager:
@@ -37,10 +44,11 @@ class WorkspaceManager:
     def snapshot(self, workdir: Path, run_id: str, attempt_no: int) -> str:
         """Copy ``workdir`` into a new snapshot; return its ``snapshot_ref``."""
 
+        run_id = validate_run_id(run_id)
         ref = f"{run_id}-attempt{attempt_no}-{uuid.uuid4().hex[:8]}"
-        dest = self._snapshots_root / ref
+        dest = contained_path(self._snapshots_root, ref)
         if workdir.exists():
-            shutil.copytree(workdir, dest, dirs_exist_ok=True)
+            _copy_tree_contained(workdir, dest)
         else:
             dest.mkdir(parents=True, exist_ok=True)
         return ref
@@ -48,41 +56,104 @@ class WorkspaceManager:
     def restore(self, workdir: Path, snapshot_ref: str) -> None:
         """Make ``workdir`` an exact mirror of ``snapshot_ref``, with minimal writes."""
 
-        src = self._snapshots_root / snapshot_ref
+        src = self.snapshot_path(snapshot_ref)
         if not src.exists():
-            raise FileNotFoundError(f"snapshot {snapshot_ref!r} not found under {self._snapshots_root}")
+            raise FileNotFoundError(
+                f"snapshot {snapshot_ref!r} not found under {self._snapshots_root}"
+            )
         if not workdir.exists():
             workdir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src, workdir)
+            _copy_tree_contained(src, workdir)
             return
         _sync_directory(src, workdir)
 
     def snapshot_path(self, snapshot_ref: str) -> Path:
-        return self._snapshots_root / snapshot_ref
+        if not snapshot_ref or "/" in snapshot_ref or "\\" in snapshot_ref or ".." in snapshot_ref:
+            raise PathEscapeError(f"invalid snapshot_ref: {snapshot_ref!r}")
+        # snapshot refs are "{run_id}-attemptN-hex"; run_id portion must stay path-safe.
+        run_part = snapshot_ref.split("-attempt", 1)[0]
+        try:
+            validate_run_id(run_part)
+        except InvalidIdError as exc:
+            raise PathEscapeError(f"invalid snapshot_ref: {snapshot_ref!r}") from exc
+        return contained_path(self._snapshots_root, snapshot_ref)
+
+
+def _copy_tree_contained(src: Path, dst: Path) -> None:
+    """Copy ``src`` → ``dst`` without following outbound symlinks."""
+
+    src = src.resolve()
+    dst.mkdir(parents=True, exist_ok=True)
+    for root, dirnames, filenames in os.walk(src, followlinks=False):
+        root_path = Path(root)
+        # Do not descend into symlinked directories.
+        dirnames[:] = [d for d in dirnames if not (root_path / d).is_symlink()]
+        rel_root = os.path.relpath(root, src)
+        dest_root = dst if rel_root == "." else dst / rel_root
+        dest_root.mkdir(parents=True, exist_ok=True)
+        for name in dirnames:
+            (dest_root / name).mkdir(parents=True, exist_ok=True)
+        for name in filenames:
+            src_file = root_path / name
+            dest_file = dest_root / name
+            if src_file.is_symlink():
+                _copy_symlink_if_contained(src_file, dest_file, tree_root=src)
+            elif src_file.is_file():
+                shutil.copy2(src_file, dest_file)
+
+
+def _copy_symlink_if_contained(src_link: Path, dest_link: Path, *, tree_root: Path) -> None:
+    """Recreate a symlink only when its target resolves inside ``tree_root``."""
+
+    target = os.readlink(src_link)
+    # Absolute links always escape a workdir tree for our purposes.
+    if os.path.isabs(target):
+        return
+    resolved = (src_link.parent / target).resolve()
+    if not is_within(tree_root, resolved):
+        return
+    if dest_link.exists() or dest_link.is_symlink():
+        dest_link.unlink()
+    os.symlink(target, dest_link)
 
 
 def _sync_directory(src: Path, dst: Path) -> None:
     """Mirror ``src`` into ``dst``: delete what src lacks, rewrite only changed files."""
 
+    src = src.resolve()
     dst.mkdir(parents=True, exist_ok=True)
 
     src_dirs: set[str] = set()
     src_files: dict[str, Path] = {}
-    for root, dirnames, filenames in os.walk(src):
+    src_links: dict[str, str] = {}
+    for root, dirnames, filenames in os.walk(src, followlinks=False):
+        root_path = Path(root)
+        dirnames[:] = [d for d in dirnames if not (root_path / d).is_symlink()]
         rel_root = os.path.relpath(root, src)
         for name in dirnames:
             src_dirs.add(os.path.normpath(os.path.join(rel_root, name)))
         for name in filenames:
-            src_files[os.path.normpath(os.path.join(rel_root, name))] = Path(root) / name
+            rel = os.path.normpath(os.path.join(rel_root, name))
+            path = root_path / name
+            if path.is_symlink():
+                target = os.readlink(path)
+                if os.path.isabs(target):
+                    continue
+                resolved = (path.parent / target).resolve()
+                if not is_within(src, resolved):
+                    continue
+                src_links[rel] = target
+            elif path.is_file():
+                src_files[rel] = path
 
-    # Remove dst entries the snapshot does not have. Bottom-up so stale directories
-    # are empty (or gone) by the time their parent is considered.
     for root, dirnames, filenames in os.walk(dst, topdown=False, followlinks=False):
         rel_root = os.path.relpath(root, dst)
         for name in filenames:
             rel = os.path.normpath(os.path.join(rel_root, name))
             dst_file = Path(root) / name
-            if rel not in src_files or dst_file.is_symlink():
+            if rel not in src_files and rel not in src_links:
+                dst_file.unlink(missing_ok=True)
+            elif dst_file.is_symlink() and rel in src_files:
                 dst_file.unlink(missing_ok=True)
         for name in dirnames:
             rel = os.path.normpath(os.path.join(rel_root, name))
@@ -93,16 +164,26 @@ def _sync_directory(src: Path, dst: Path) -> None:
                 shutil.rmtree(dst_dir, ignore_errors=True)
 
     for rel in sorted(src_dirs):
-        target = dst / rel
-        if target.is_symlink():
-            target.unlink()
-        target.mkdir(parents=True, exist_ok=True)
+        dir_path = dst / rel
+        if dir_path.is_symlink():
+            dir_path.unlink()
+        dir_path.mkdir(parents=True, exist_ok=True)
     for rel, src_file in src_files.items():
         dst_file = dst / rel
         if _unchanged(src_file, dst_file):
             continue
         dst_file.parent.mkdir(parents=True, exist_ok=True)
+        if dst_file.is_symlink():
+            dst_file.unlink()
         shutil.copy2(src_file, dst_file)
+    for rel, link_target in src_links.items():
+        dst_file = dst / rel
+        dst_file.parent.mkdir(parents=True, exist_ok=True)
+        if dst_file.exists() or dst_file.is_symlink():
+            if dst_file.is_symlink() and os.readlink(dst_file) == link_target:
+                continue
+            dst_file.unlink()
+        os.symlink(link_target, dst_file)
 
 
 def _unchanged(src_file: Path, dst_file: Path) -> bool:

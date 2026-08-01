@@ -9,7 +9,8 @@
 from __future__ import annotations
 
 import json
-import re
+import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -26,22 +27,39 @@ from contracts.run import Task
 from recertia.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
-from recertia.solver.container import ensure_execution_ready
+from recertia.ids import InvalidIdError, validate_run_id
+from recertia.solver.container import configured_backend, ensure_api_execution_ready
 from recertia.solver.sandbox import SandboxError
 from recertia.store.blobs import FilesystemBlobStore, normalize_blob_digest
 from recertia.telemetry import get_telemetry, render_dashboard
 
 DEFAULT_ROOT = Path(".recertia")
-_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_MAX_BLOB_BYTES = int(os.environ.get("RECERTIA_MAX_BLOB_BYTES", str(16 * 1024 * 1024)))
+_API_MAX_CRITERION_TIMEOUT_S = int(os.environ.get("RECERTIA_API_MAX_CRITERION_TIMEOUT_S", "300"))
+_MAX_IN_FLIGHT_RUNS = int(os.environ.get("RECERTIA_API_MAX_IN_FLIGHT_RUNS", "4"))
 
 
 def _validate_run_id(run_id: str) -> str:
-    if not _RUN_ID_RE.fullmatch(run_id):
-        raise HTTPException(
-            status_code=400,
-            detail="run_id must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
-        )
-    return run_id
+    try:
+        return validate_run_id(run_id)
+    except InvalidIdError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _clamp_criteria_for_api(criteria: list[TaskCriterion]) -> list[TaskCriterion]:
+    clamped: list[TaskCriterion] = []
+    for criterion in criteria:
+        if criterion.timeout_s > _API_MAX_CRITERION_TIMEOUT_S:
+            clamped.append(
+                criterion.model_copy(update={"timeout_s": _API_MAX_CRITERION_TIMEOUT_S})
+            )
+        else:
+            clamped.append(criterion)
+    return clamped
+
+
+def _principal_may_exec(principal: Principal) -> bool:
+    return "exec" in principal.scopes or "admin" in principal.scopes
 
 
 def _tenant_blob_root(root: Path, tenant_id: str) -> Path:
@@ -176,6 +194,7 @@ def create_app(
     blobs_by_tenant: dict[str, FilesystemBlobStore] = {}
     # Keyed by (tenant_id, run_id) so tenants cannot collide on run_id.
     runs: dict[tuple[str, str], RunRecord] = {}
+    run_slots = threading.Semaphore(_MAX_IN_FLIGHT_RUNS)
     app = FastAPI(title="Recertia", version="0.1.0")
 
     @app.get("/health")
@@ -187,9 +206,15 @@ def create_app(
         body: RunCreate, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
         try:
-            ensure_execution_ready()
+            ensure_api_execution_ready()
         except SandboxError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        if body.script and not _principal_may_exec(principal):
+            raise HTTPException(
+                status_code=403,
+                detail="script requires the 'exec' scope (or admin)",
+            )
 
         run_id = _validate_run_id(body.run_id or f"run-{uuid4().hex[:12]}")
         run_key = (principal.tenant_id, run_id)
@@ -216,7 +241,9 @@ def create_app(
             submitted_at=datetime.now(timezone.utc),
             submitted_by=principal.key_id,
         )
-        criteria = [TaskCriterion.model_validate(c) for c in (body.criteria or [])]
+        criteria = _clamp_criteria_for_api(
+            [TaskCriterion.model_validate(c) for c in (body.criteria or [])]
+        )
         budget = Budget.model_validate(body.budget) if body.budget else Budget()
 
         get_telemetry().emit(
@@ -226,11 +253,17 @@ def create_app(
             task_class=task_class,
         )
 
+        if not run_slots.acquire(blocking=False):
+            raise HTTPException(status_code=429, detail="too many in-flight runs")
+
+        # Container backend isolates tools; local API requires exec (or admin) for grants.
+        approve_tools = _principal_may_exec(principal) or configured_backend() == "container"
         bundle = build_default_orchestrator(
             root / "runs" / principal.tenant_id,
             skills_root=skills_root,
             facts_root=facts_root,
             index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+            approve_default_tools=approve_tools,
         )
         try:
             state = bundle.orchestrator.start(
@@ -242,16 +275,17 @@ def create_app(
                 script=body.script,
                 arm=body.arm,
             )
-        except Exception as exc:
+        except Exception:
             get_telemetry().emit(
                 "run.finished",
                 tenant_id=principal.tenant_id,
                 run_id=run_id,
                 terminal="error",
             )
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=500, detail="internal server error") from None
         finally:
             bundle.close()
+            run_slots.release()
 
         rec = _record_from_state(
             run_id=run_id,
@@ -288,7 +322,7 @@ def create_app(
         run_id: str, principal: Principal = Depends(require_scope("runs", key_store))
     ) -> RunRecord:
         try:
-            ensure_execution_ready()
+            ensure_api_execution_ready()
         except SandboxError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -300,20 +334,26 @@ def create_app(
             workdir = _canonical_run_workdir(root, principal.tenant_id, run_id)
         if not workdir.exists():
             raise HTTPException(status_code=404, detail="run workdir not found")
+        if not run_slots.acquire(blocking=False):
+            raise HTTPException(status_code=429, detail="too many in-flight runs")
         bundle = build_default_orchestrator(
             root / "runs" / principal.tenant_id,
             skills_root=skills_root,
             facts_root=facts_root,
             index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+            approve_default_tools=(
+                _principal_may_exec(principal) or configured_backend() == "container"
+            ),
         )
         try:
             state = bundle.orchestrator.resume(run_id, workdir=workdir)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except Exception:
+            raise HTTPException(status_code=500, detail="internal server error") from None
         finally:
             bundle.close()
+            run_slots.release()
 
         existing = runs.get(run_key)
         rec = _record_from_state(
@@ -337,6 +377,11 @@ def create_app(
             principal.tenant_id, FilesystemBlobStore(_tenant_blob_root(root, principal.tenant_id))
         )
         data = str(payload.get("data", "")).encode()
+        if len(data) > _MAX_BLOB_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"blob exceeds max size of {_MAX_BLOB_BYTES} bytes",
+            )
         digest = blobs.put(data, content_type=str(payload.get("content_type", "text/plain")))
         return {"digest": digest}
 
