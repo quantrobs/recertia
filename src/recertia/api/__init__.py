@@ -17,6 +17,8 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, model_validator
 
 from contracts.budget import Budget
@@ -25,6 +27,7 @@ from contracts.criteria import TaskCriterion
 from contracts.goal import Goal
 from contracts.run import Task
 from recertia.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
+from recertia.api.console_routes import ConsoleContext, register_console_routes
 from recertia.api.quotas import QuotaExceeded, QuotaStore
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
@@ -33,6 +36,7 @@ from recertia.solver.container import configured_backend, ensure_api_execution_r
 from recertia.solver.sandbox import SandboxError
 from recertia.store.blobs import FilesystemBlobStore, normalize_blob_digest
 from recertia.telemetry import get_telemetry, render_dashboard
+from recertia.workers.run_worker import AsyncRunRequest
 
 DEFAULT_ROOT = Path(".recertia")
 _MAX_BLOB_BYTES = int(os.environ.get("RECERTIA_MAX_BLOB_BYTES", str(16 * 1024 * 1024)))
@@ -158,11 +162,14 @@ class RunCreate(BaseModel):
     workdir: str | None = None
     run_id: str | None = None
     arm: Arm = "treatment"
+    mode: str = "sync"  # sync | async (console C2)
 
     @model_validator(mode="after")
     def _require_goal_or_request(self) -> "RunCreate":
         if self.goal is None and (self.request is None or not self.request.strip()):
             raise ValueError("Provide goal or non-empty request")
+        if self.mode not in {"sync", "async"}:
+            raise ValueError("mode must be sync or async")
         return self
 
 
@@ -179,6 +186,8 @@ class RunRecord(BaseModel):
     arm: str | None = None
     route_log: list[dict[str, Any]] | None = None
     has_goal: bool = False
+    cost_usd: float | None = None
+    mode: str | None = None
 
 
 def create_app(
@@ -199,14 +208,43 @@ def create_app(
     run_slots = threading.Semaphore(_MAX_IN_FLIGHT_RUNS)
     app = FastAPI(title="Recertia", version="0.1.0")
 
+    console_ctx = ConsoleContext(
+        root=root,
+        skills_root=skills_root,
+        facts_root=facts_root,
+        key_store=key_store,
+        quota_store=quota_store,
+        runs=runs,
+        run_slots=run_slots,
+        record_from_state=_record_from_state,
+        load_from_checkpoints=_load_from_checkpoints,
+        resolve_create_workdir=_resolve_create_workdir,
+        persist_workdir=_persist_workdir,
+        canonical_run_workdir=_canonical_run_workdir,
+        clamp_criteria=_clamp_criteria_for_api,
+        principal_may_exec=_principal_may_exec,
+        require_scope=require_scope,
+        validate_run_id=_validate_run_id,
+    )
+    register_console_routes(app, console_ctx)
+
+    console_dir = Path(__file__).resolve().parents[3] / "console" / "static"
+    if console_dir.is_dir():
+        app.mount("/console/assets", StaticFiles(directory=console_dir), name="console-assets")
+
+        @app.get("/console")
+        @app.get("/console/")
+        def console_index() -> FileResponse:
+            return FileResponse(console_dir / "index.html")
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.post("/v1/runs", response_model=RunRecord)
+    @app.post("/v1/runs", response_model=None)
     def create_run(
         body: RunCreate, principal: Principal = Depends(require_scope("runs", key_store))
-    ) -> RunRecord:
+    ) -> Any:
         try:
             ensure_api_execution_ready()
         except SandboxError as exc:
@@ -235,6 +273,62 @@ def create_app(
             explicit=body.task_class,
             goal_task_class=body.goal.task_class if body.goal else None,
         )
+        criteria = _clamp_criteria_for_api(
+            [TaskCriterion.model_validate(c) for c in (body.criteria or [])]
+        )
+        budget = Budget.model_validate(body.budget) if body.budget else Budget()
+        approve_tools = _principal_may_exec(principal) or configured_backend() == "container"
+
+        # ----- async path (console C2) -----
+        if body.mode == "async":
+            try:
+                quota_store.admit(principal.tenant_id)
+            except QuotaExceeded as exc:
+                raise HTTPException(status_code=429, detail=str(exc)) from exc
+            placeholder = RunRecord(
+                run_id=run_id,
+                request=request,
+                task_class=task_class,
+                status="queued",
+                created_at=datetime.now(timezone.utc),
+                tenant_id=principal.tenant_id,
+                terminal=None,
+                has_goal=body.goal is not None,
+                mode="async",
+            )
+            runs[run_key] = placeholder
+            console_ctx.worker.submit(
+                AsyncRunRequest(
+                    run_id=run_id,
+                    tenant_id=principal.tenant_id,
+                    goal=body.goal,
+                    request=request,
+                    task_class=body.task_class,
+                    criteria=criteria,
+                    budget=budget,
+                    workdir=workdir,
+                    script=body.script,
+                    arm=body.arm,
+                    approve_tools=approve_tools,
+                    skills_root=skills_root,
+                    facts_root=facts_root,
+                    runs_root=root / "runs" / principal.tenant_id,
+                    index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+                )
+            )
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "run_id": run_id,
+                    "status": "queued",
+                    "mode": "async",
+                    "tenant_id": principal.tenant_id,
+                    "task_class": task_class,
+                },
+            )
+
         task = Task(
             task_id=run_id,
             goal=body.goal,
@@ -243,10 +337,6 @@ def create_app(
             submitted_at=datetime.now(timezone.utc),
             submitted_by=principal.key_id,
         )
-        criteria = _clamp_criteria_for_api(
-            [TaskCriterion.model_validate(c) for c in (body.criteria or [])]
-        )
-        budget = Budget.model_validate(body.budget) if body.budget else Budget()
 
         get_telemetry().emit(
             "run.started",
@@ -265,7 +355,6 @@ def create_app(
             raise HTTPException(status_code=429, detail="too many in-flight runs")
 
         # Container backend isolates tools; local API requires exec (or admin) for grants.
-        approve_tools = _principal_may_exec(principal) or configured_backend() == "container"
         bundle = build_default_orchestrator(
             root / "runs" / principal.tenant_id,
             skills_root=skills_root,
@@ -313,6 +402,7 @@ def create_app(
             created_at=datetime.now(timezone.utc),
             has_goal=body.goal is not None,
         )
+        rec = rec.model_copy(update={"cost_usd": cost_usd, "mode": "sync"})
         runs[run_key] = rec
         get_telemetry().emit(
             "run.finished",
@@ -440,6 +530,7 @@ def create_app(
     app.state.quota_store = quota_store
     app.state.blobs_by_tenant = blobs_by_tenant
     app.state.runs = runs
+    app.state.console_ctx = console_ctx
     return app
 
 
@@ -465,6 +556,11 @@ def _record_from_state(
         }
         for e in state.route_log
     ]
+    cost = None
+    try:
+        cost = float(state.spent.cost_usd)
+    except Exception:  # noqa: BLE001
+        cost = None
     return RunRecord(
         run_id=run_id,
         request=request,
@@ -478,6 +574,7 @@ def _record_from_state(
         arm=state.arm,
         route_log=route_log,
         has_goal=has_goal,
+        cost_usd=cost,
     )
 
 

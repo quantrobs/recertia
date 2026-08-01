@@ -6,6 +6,7 @@
 - [Graph state and node contracts](specifications/graph-execution.md)
 - [Retrieval, validation, and reusability](specifications/retrieval-and-validation.md)
 - [Promotion, API, CLI, metrics, and observability](specifications/promotion-api-and-observability.md)
+- [Product console (Pilot / Tower HTTP, events, UX)](specifications/product-console.md)
 - [Memory, composition, and criteria integrity](specifications/memory-composition-and-criteria.md)
 - [Goal objects (Variant B)](specifications/goal-objects.md)
 - [Failure taxonomy, isolation, and fan-out](specifications/failure-isolation-and-fanout.md)

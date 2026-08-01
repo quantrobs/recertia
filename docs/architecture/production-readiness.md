@@ -17,6 +17,7 @@ Companion to [`one-year-roadmap.md`](one-year-roadmap.md) §5 and
 | NIST AI RMF Govern/Map (tenant surface) | open | Required only if multi-tenant GA proceeds |
 | Assumption `a1` / `a2` resolved on real traffic | research | Must not be marked `supported` without intervals (B7) |
 | Multi-tenant GA gate | deferred until criteria met | Operator GA + `a1` supported in ≥1 domain + P2 closed + signed threat model |
+| Product console C5 (tenant switcher) | deferred until criteria met | See [`product-console.md`](product-console.md); C0–C4 single-operator console may proceed earlier |
 
 ## Multi-tenant go / defer
 

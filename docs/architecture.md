@@ -17,5 +17,6 @@
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
+- [Product console architecture](architecture/product-console.md)
 
-Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md).
+Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md) and the [console implementation plan](implementation-plan-console.md).

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recertia Console</title>
+  <link rel="stylesheet" href="/console/assets/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <aside class="nav">
+      <div class="brand">Recertia</div>
+      <p class="brand-sub">Pilot · Tower · Ops</p>
+      <nav>
+        <button data-view="pilot" class="active">Pilot</button>
+        <button data-view="runs">Runs</button>
+        <button data-view="skills">Skills</button>
+        <button data-view="tower">Tower</button>
+        <button data-view="metrics">Metrics</button>
+        <button data-view="auth">Auth / Tenant</button>
+      </nav>
+      <div class="nav-foot">
+        <label>API key</label>
+        <input id="apiKey" type="password" placeholder="rec_key_…" autocomplete="off" />
+        <label>Tenant header</label>
+        <input id="tenantHeader" type="text" placeholder="(key tenant)" />
+      </div>
+    </aside>
+    <main>
+      <section id="view-pilot" class="view active">
+        <h1>Pilot — Goal form</h1>
+        <p class="lede">Build a machine-checkable Goal, preview criteria, then run sync or async.</p>
+        <div class="row">
+          <label>Template
+            <select id="templateSelect"><option value="">— custom —</option></select>
+          </label>
+          <label>Mode
+            <select id="runMode"><option value="sync">sync</option><option value="async">async</option></select>
+          </label>
+        </div>
+        <label>Context <input id="goalContext" type="text" placeholder="Short description" /></label>
+        <label>Task class <input id="taskClass" type="text" value="repo-chore" /></label>
+        <div class="desired">
+          <h2>Desired states</h2>
+          <div id="desiredList"></div>
+          <button type="button" id="addDesired" class="secondary">Add desired</button>
+        </div>
+        <div class="actions">
+          <button type="button" id="previewGoal">Preview criteria</button>
+          <button type="button" id="submitRun" class="primary">Submit run</button>
+        </div>
+        <pre id="previewOut" class="panel"></pre>
+      </section>
+
+      <section id="view-runs" class="view">
+        <h1>Runs</h1>
+        <button type="button" id="refreshRuns" class="secondary">Refresh</button>
+        <table id="runsTable"><thead><tr><th>ID</th><th>Class</th><th>Terminal</th><th>Cost</th><th></th></tr></thead><tbody></tbody></table>
+        <div id="runDetail" class="panel hidden"></div>
+        <pre id="eventStream" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-skills" class="view">
+        <h1>Skill library</h1>
+        <button type="button" id="refreshSkills" class="secondary">Refresh</button>
+        <table id="skillsTable"><thead><tr><th>Skill</th><th>Ver</th><th>Lifecycle</th><th>Active</th><th></th></tr></thead><tbody></tbody></table>
+        <pre id="skillDetail" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-tower" class="view">
+        <h1>Tower — proposals & jobs</h1>
+        <div id="towerSummary" class="cards"></div>
+        <div class="actions">
+          <button type="button" id="runCurator" class="secondary">Run curator (dry)</button>
+          <button type="button" id="runPractice" class="secondary">Run practice (dry)</button>
+          <button type="button" id="refreshProposals" class="secondary">Refresh proposals</button>
+        </div>
+        <table id="proposalsTable"><thead><tr><th>ID</th><th>Kind</th><th>Skill</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+        <pre id="proposalDetail" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-metrics" class="view">
+        <h1>Ops — metrics & canary</h1>
+        <button type="button" id="refreshMetrics" class="secondary">Refresh</button>
+        <pre id="metricsOut" class="panel"></pre>
+      </section>
+
+      <section id="view-auth" class="view">
+        <h1>Auth / tenant (C3–C5)</h1>
+        <p class="lede">Dev login issues a console session. Switch tenant when membership has more than one.</p>
+        <div class="actions">
+          <button type="button" id="devLogin" class="primary">Dev login</button>
+          <button type="button" id="loadMe" class="secondary">GET /v1/me</button>
+          <button type="button" id="logout" class="secondary">Logout</button>
+        </div>
+        <label>Switch tenant <input id="switchTenant" type="text" placeholder="tenant-b" /></label>
+        <button type="button" id="doSwitch" class="secondary">Switch</button>
+        <pre id="authOut" class="panel"></pre>
+      </section>
+    </main>
+  </div>
+  <script src="/console/assets/app.js"></script>
+</body>
+</html>

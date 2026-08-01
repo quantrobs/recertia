@@ -117,6 +117,29 @@ Every CLI/API run pins `RunManifest.model`, `model_version`, `index_snapshot_id`
 `library_commit` (git HEAD, or `RECERTIA_LIBRARY_COMMIT`) at start so lift and cost
 metrics stay attributable.
 
+## Console (Pilot / Tower / Ops)
+
+Prefer the product console for day-to-day operator chores once the API is up:
+
+```bash
+# From a configured environment with RECERTIA_* model credentials as above:
+python -m uvicorn recertia.api.app:app --host 127.0.0.1 --port 8080
+# Open http://127.0.0.1:8080/console
+```
+
+| Surface | Use |
+| --- | --- |
+| Pilot | Goal form, templates, sync/async submit, live event stream |
+| Runs / Skills | Browse transcripts, promote (golden-gated) |
+| Tower | Proposals, jobs (`dry_run` default), practice / pressure panels |
+| Metrics | `MetricReport` + canary (unavailable reasons preserved) |
+| Auth | Dev login / OIDC session; tenant switcher (Phase-4 gated) |
+
+Issue an API key with `runs` (+ `metrics` / `exec` as needed) for the sidebar. Browser
+sessions (`RECERTIA_CONSOLE_AUTH=dev` or `oidc`) carry human roles; do not embed long-lived
+keys in frontend source. Specs: [`../specifications/product-console.md`](../specifications/product-console.md).
+Plan: [`../implementation-plan-console.md`](../implementation-plan-console.md).
+
 ## Soak and durability (operator GA)
 
 Durability unit: the entire `.recertia/` tree (checkpoints, operations, ledger,
