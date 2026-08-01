@@ -36,7 +36,7 @@ def record_dead_end(state: RunState, ctx: NodeContext) -> NodeOutcome:
             run_id=ctx.run_id,
             attempt_no=state.attempt_no,
             task_class=state.task.task_class,
-            request_excerpt=state.task.request[:200],
+            request_excerpt=(state.task.request or "")[:200],
             outcome="failed",
             failure_class=failure_class if failure_class != "unknown" else None,
             dead_end=DeadEnd(

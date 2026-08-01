@@ -61,7 +61,7 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             run_id=ctx.run_id,
             attempt_no=state.attempt_no,
             task_class=state.task.task_class,
-            request_excerpt=state.task.request[:200],
+            request_excerpt=(state.task.request or "")[:200],
             outcome="solved",
             transcript_ref=state.transcript_ref,
             approach=approach,
@@ -91,7 +91,7 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
     prior = load_authoring_prior()
     commands = _commands_from_context(state, ctx)
     sightings = _task_class_sightings(ctx, state.task.task_class)
-    near = _nearest_duplicate(ctx, state.task.request)
+    near = _nearest_duplicate(ctx, state.task.request or "")
 
     draft, facts, verdict = distill_success(
         state,
@@ -103,7 +103,14 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
     )
 
     # Without a skill store the graph cannot persist memory — keep M0/M1 one_off behaviour.
-    if ctx.store is None and verdict.verdict == "reusable":
+    # Without a reviewer, do not enter review (which would mark a *solved* task as
+    # terminal=rejected); retain the draft on state for later promotion.
+    if verdict.verdict == "reusable" and (ctx.store is None or ctx.reviewer is None):
+        if ctx.store is None:
+            reason = "skill store not configured; recording as one_off evidence"
+            draft = None
+        else:
+            reason = "reviewer not configured; draft retained without promotion"
         verdict = ReusabilityVerdict(
             verdict="one_off",
             parameterisable=verdict.parameterisable,
@@ -111,9 +118,8 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             checkable=verdict.checkable,
             not_duplicate=verdict.not_duplicate,
             bounded=verdict.bounded,
-            reason="skill store not configured; recording as one_off evidence",
+            reason=reason,
         )
-        draft = None
 
     # Failure-cluster side path: author pitfall skills when threshold met (does not block success path).
     pitfall_note = None
