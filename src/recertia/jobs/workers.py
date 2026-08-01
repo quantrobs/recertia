@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 
 from contracts.criteria import SkillCertificationCriterion
+from contracts.replay import WorldState
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from recertia.evals.store import EvalStore
 from recertia.jobs import Proposal
 from recertia.memory.procedural.store import SkillStore
 from recertia.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
+from recertia.trajectory.store import TrajectoryStore
 from recertia.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
 
 
@@ -34,19 +37,107 @@ def mine_from_repo_hints(store: SkillStore, *, hints: list[str]) -> list[Proposa
     return proposals
 
 
-def curator_active_set_and_dedup(store: SkillStore) -> list[Proposal]:
+def curator_active_set_and_dedup(
+    store: SkillStore,
+    *,
+    trajectory_store: TrajectoryStore | None = None,
+    replay_limit: int = 50,
+) -> list[Proposal]:
+    """Recompute the active set and attach retrieval-only ReplayPacks when trajectories exist."""
+
     from recertia.memory.procedural.active_set import recompute_active_set
+    from recertia.replay.pack import build_replay_pack
+    from recertia.replay.sample import sample_trajectories_for_skill
 
     _updated, pressure = recompute_active_set(store)
-    return [
+    mean_pressure = (
+        sum(pressure.values()) / len(pressure) if pressure else 0.0
+    )
+    proposals: list[Proposal] = [
         Proposal(
             kind="curate",
             skill_id="active-set",
             version=0,
             rationale=f"recomputed active set; pressure={pressure}",
-            payload={"pressure": pressure},
+            payload={
+                "pressure": pressure,
+                "active_cap_pressure": mean_pressure,
+            },
         )
     ]
+    if trajectory_store is None:
+        return proposals
+
+    packs_attached = 0
+    max_packs = 5
+    for version, status, _stats in store.iter_loaded():
+        if packs_attached >= max_packs:
+            break
+        if status.lifecycle != "approved" or not status.active:
+            continue
+        trajectories = sample_trajectories_for_skill(
+            trajectory_store, skill_id=version.skill_id, limit=replay_limit
+        )
+        if not trajectories:
+            continue
+        world = WorldState(
+            suppressed_skill_ids=[version.skill_id],
+            skill_status_overrides={
+                f"{version.skill_id}@{version.version}": "benched"
+            },
+            library_commit=None,
+            index_snapshot_id=None,
+        )
+        pack = build_replay_pack(
+            trajectory_store,
+            trajectories=trajectories,
+            world=world,
+            mode="retrieval_only",
+            purpose="curator_counterfactual",
+        )
+        proposals.append(
+            Proposal(
+                kind="curate",
+                skill_id=version.skill_id,
+                version=version.version,
+                rationale=(
+                    f"replay pack ({len(pack.observations)} traj) for "
+                    f"{version.skill_id}@v{version.version}"
+                ),
+                payload={
+                    "replay_pack": pack.model_dump(mode="json"),
+                    "purpose": "curator_counterfactual",
+                },
+            )
+        )
+        packs_attached += 1
+    return proposals
+
+
+def load_one_off_reasons(one_off_log: Path | str | None) -> list[str]:
+    """Cluster reasons from distill ``one_off_log`` JSONL (newest last, unique order)."""
+
+    if one_off_log is None:
+        return []
+    path = Path(one_off_log)
+    if not path.exists():
+        return []
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        reason = str(row.get("reason") or "").strip()
+        if not reason or reason in seen:
+            continue
+        seen.add(reason)
+        ordered.append(reason)
+    return ordered
 
 
 def practice_from_one_offs(
@@ -72,7 +163,7 @@ def practice_from_one_offs(
         if curriculum_dir is not None:
             path = curriculum_dir / f"{skill_id}.json"
             path.write_text(
-                __import__("json").dumps(
+                json.dumps(
                     {
                         "skill_id": skill_id,
                         "predicted_success": 0.5,
@@ -102,7 +193,6 @@ def enqueue_mined_candidate(store: SkillStore, proposal: Proposal) -> SkillVersi
 
     draft = draft_from_mine_proposal(proposal)
     return store.write_candidate(draft)
-
 
 
 def recertify_stale(store: SkillStore, *, tool_upgraded: str | None = None) -> list[Proposal]:
@@ -208,9 +298,100 @@ def propose_parallelise(
                 "remove_input_binding": True,
                 "bindings": remove,
                 "fake_edge_failures": fake_edge_failures,
+                "expected_parallel_speedup_note": "report beside merge_gap_rate only",
             },
         )
     ]
+
+
+def propose_serialise(
+    skill_id: str,
+    version: int,
+    *,
+    merge_conflict_count: int | None = None,
+    merge_audits: list[dict] | None = None,
+    threshold: int = 5,
+) -> list[Proposal]:
+    """Propose adding serial edges when parallel waves lose work (merge conflicts/gaps)."""
+
+    conflicts = merge_conflict_count
+    if conflicts is None and merge_audits is not None:
+        conflicts = sum(
+            1
+            for audit in merge_audits
+            if audit.get("missing") or audit.get("conflict") or audit.get("incomplete")
+        )
+    if conflicts is None or conflicts < threshold:
+        return []
+    return [
+        Proposal(
+            kind="serialise",
+            skill_id=skill_id,
+            version=version + 1,
+            rationale=f"add serial binding after {conflicts} merge conflicts/gaps",
+            payload={
+                "add_input_binding": True,
+                "merge_conflict_count": conflicts,
+                "expected_parallel_speedup_note": "speedup alone is refused without merge_gap_rate",
+            },
+        )
+    ]
+
+
+def correction_miner_from_reviewer_edits(
+    edits: list[dict],
+    *,
+    threshold: int = 2,
+) -> list[Proposal]:
+    """Cluster reviewer edits into T2 ``correction`` proposals (never self-apply)."""
+
+    clusters: dict[str, list[dict]] = {}
+    for edit in edits:
+        skill_id = str(edit.get("skill_id") or "").strip()
+        if not skill_id:
+            continue
+        clusters.setdefault(skill_id, []).append(edit)
+
+    proposals: list[Proposal] = []
+    for skill_id, group in clusters.items():
+        if len(group) < threshold:
+            continue
+        version = int(group[-1].get("version") or 1)
+        proposals.append(
+            Proposal(
+                kind="correction",
+                skill_id=skill_id,
+                version=version,
+                rationale=f"reviewer-edit cluster size={len(group)} (T2; human gate)",
+                payload={
+                    "tier": "T2",
+                    "edit_count": len(group),
+                    "edits": group,
+                    "self_apply": False,
+                },
+            )
+        )
+    return proposals
+
+
+def load_reviewer_edits(path: Path | str | None) -> list[dict]:
+    if path is None:
+        return []
+    p = Path(path)
+    if not p.exists():
+        return []
+    out: list[dict] = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            out.append(row)
+    return out
 
 
 def draft_from_mine_proposal(proposal: Proposal) -> SkillVersion:

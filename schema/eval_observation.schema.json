@@ -205,6 +205,35 @@
       ],
       "default": null,
       "title": "Evidence Hash"
+    },
+    "curation": {
+      "anyOf": [
+        {
+          "enum": [
+            "human_authored",
+            "mined_from_human_artifact",
+            "self_distilled"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Curation"
+    },
+    "practice_converted": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Practice Converted"
     }
   },
   "required": [
