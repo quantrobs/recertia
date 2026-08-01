@@ -181,7 +181,14 @@ def run_cmd(
         raise typer.Exit(code=2) from exc
     try:
         state = bundle.orchestrator.start(
-            rid, task, criteria, budget=budget, workdir=wd, script=script, arm=arm
+            rid,
+            task,
+            criteria,
+            budget=budget,
+            workdir=wd,
+            script=script,
+            arm=arm,
+            manifest=bundle.run_manifest(),
         )
     finally:
         bundle.close()
