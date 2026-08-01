@@ -21,6 +21,13 @@ recertia run --spec task.json --model openai:gpt-4.1
 
 ### OpenAI-compatible gateways (OpenRouter, etc.)
 
+OpenRouter is configured as the OpenAI provider plus a gateway URL — not a separate
+provider enum. Specs and remaining polish milestones:
+[`openai-compat-gateways.md`](openai-compat-gateways.md),
+[`../specifications/openai-compat-gateways.md`](../specifications/openai-compat-gateways.md),
+[`../implementation-plan-openai-compat.md`](../implementation-plan-openai-compat.md),
+[ADR-0013](../adr/0013-openai-compat-gateways.md).
+
 Point the OpenAI client at a full Chat Completions URL and pass gateway metadata via env:
 
 ```bash
