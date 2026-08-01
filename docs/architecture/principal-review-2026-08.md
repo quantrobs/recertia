@@ -33,6 +33,12 @@ and 30% to new capability. Multi-tenant work is a Phase-4 gate decision, not a p
 workstream. The detailed plan is the companion document
 [`one-year-roadmap.md`](one-year-roadmap.md).
 
+**Update (same engagement):** Phase-1 P0 engineering gates P0-1…P0-5 are implemented on
+`main` via the operator-GA follow-up (cost accounting, command policy + untrusted delimiters,
+observe–act scratch loop, run-manifest pinning, soak/backup guidance in
+[`go-live.md`](go-live.md)). Remaining Phase-1 work is the weekly soak ops cadence, not more
+code.
+
 ## 3. What is settled — stop re-litigating
 
 These decisions are correct, implemented, and enforced. Re-opening them costs more than any
