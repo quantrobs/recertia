@@ -6,14 +6,14 @@ from datetime import datetime, timezone
 
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, InputBinding, Provenance, SkillVersion, Step, StepOutput
-from fandea.evals.fake_edges import (
+from recertia.evals.fake_edges import (
     fake_edge_checks,
     fake_edge_failure_count,
     iter_bound_outputs,
     unused_bound_outputs,
 )
-from fandea.evals.metrics import build_metric_report
-from fandea.jobs.workers import propose_parallelise
+from recertia.evals.metrics import build_metric_report
+from recertia.jobs.workers import propose_parallelise
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 

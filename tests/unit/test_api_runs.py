@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
-from fandea.api import create_app
+from recertia.api import create_app
 
 
 def _proven_output_criterion() -> dict:
@@ -30,7 +30,7 @@ def _proven_output_criterion() -> dict:
 
 def test_create_run_executes_graph_and_returns_terminal(tmp_path: Path) -> None:
     app = create_app(root=tmp_path / "api-root")
-    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs", "exec"}, actor="test")
     client = TestClient(app)
     headers = {"X-API-Key": issued.secret}
 
@@ -61,7 +61,7 @@ def test_create_run_executes_graph_and_returns_terminal(tmp_path: Path) -> None:
 
 def test_create_run_without_script_still_reaches_terminal(tmp_path: Path) -> None:
     app = create_app(root=tmp_path / "api-root")
-    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs", "exec"}, actor="test")
     client = TestClient(app)
     headers = {"X-API-Key": issued.secret}
 
@@ -82,7 +82,7 @@ def test_create_run_without_script_still_reaches_terminal(tmp_path: Path) -> Non
 
 def test_create_run_rejects_absolute_and_escaped_workdir(tmp_path: Path) -> None:
     app = create_app(root=tmp_path / "api-root")
-    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs", "exec"}, actor="test")
     client = TestClient(app)
     headers = {"X-API-Key": issued.secret}
 
@@ -115,7 +115,7 @@ def test_create_run_rejects_absolute_and_escaped_workdir(tmp_path: Path) -> None
 
 def test_relative_workdir_persists_for_resume(tmp_path: Path) -> None:
     app = create_app(root=tmp_path / "api-root")
-    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs", "exec"}, actor="test")
     client = TestClient(app)
     headers = {"X-API-Key": issued.secret}
 
@@ -147,8 +147,8 @@ def test_relative_workdir_persists_for_resume(tmp_path: Path) -> None:
 
 def test_cross_tenant_run_id_isolation(tmp_path: Path) -> None:
     app = create_app(root=tmp_path / "api-root")
-    a = app.state.api_keys.issue(tenant_id="tenant-a", scopes={"runs"}, actor="a")
-    b = app.state.api_keys.issue(tenant_id="tenant-b", scopes={"runs"}, actor="b")
+    a = app.state.api_keys.issue(tenant_id="tenant-a", scopes={"runs", "exec"}, actor="a")
+    b = app.state.api_keys.issue(tenant_id="tenant-b", scopes={"runs", "exec"}, actor="b")
     client = TestClient(app)
 
     created = client.post(

@@ -11,15 +11,15 @@ from contracts.branch import BranchState
 from contracts.budget import Budget
 from contracts.failure import FailureVerdict
 from contracts.run import RunState
-from fandea.nodes.context import NodeContext
-from fandea.nodes.fan_out import fan_out
-from fandea.nodes.finalize import finalize
-from fandea.nodes.join import join
-from fandea.nodes.record_dead_end import record_dead_end
-from fandea.nodes.reject_draft import reject_draft
-from fandea.nodes.retrieve import retrieve
-from fandea.nodes.review import review
-from fandea.nodes.store import store
+from recertia.nodes.context import NodeContext
+from recertia.nodes.fan_out import fan_out
+from recertia.nodes.finalize import finalize
+from recertia.nodes.join import join
+from recertia.nodes.record_dead_end import record_dead_end
+from recertia.nodes.reject_draft import reject_draft
+from recertia.nodes.retrieve import retrieve
+from recertia.nodes.review import review
+from recertia.nodes.store import store
 
 
 def _branch(branch_id: str, status: str) -> BranchState:
@@ -73,7 +73,7 @@ def test_store_writes_skill_and_ledger(base_state: RunState, ctx: NodeContext, t
 
     from contracts.criteria import SensitivityProof, SkillCertificationCriterion
     from contracts.skill import Hygiene, Provenance, SkillVersion, Step
-    from fandea.memory.procedural.store import SkillStore
+    from recertia.memory.procedural.store import SkillStore
 
     proof = SensitivityProof(
         criterion_id="ok",

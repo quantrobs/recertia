@@ -19,13 +19,13 @@ from contracts.run import Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import SkillStats
 from contracts.status import SkillStatus
-from fandea.evals.statistics import causal_lift
-from fandea.evals.store import EvalStore, baseline_from_control
-from fandea.graph.engine import GraphOrchestrator
-from fandea.memory.episodic import EpisodicStore
-from fandea.memory.procedural.promote import PromotionError, promote_to_approved
-from fandea.memory.procedural.store import SkillStore
-from fandea.memory.semantic import FactStore
+from recertia.evals.statistics import causal_lift
+from recertia.evals.store import EvalStore, baseline_from_control
+from recertia.graph.engine import GraphOrchestrator
+from recertia.memory.episodic import EpisodicStore
+from recertia.memory.procedural.promote import PromotionError, promote_to_approved
+from recertia.memory.procedural.store import SkillStore
+from recertia.memory.semantic import FactStore
 
 
 def test_synthetic_lift_and_null_are_classified() -> None:

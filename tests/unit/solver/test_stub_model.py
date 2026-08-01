@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fandea.solver.model import ModelSpend, StubModelClient
+from recertia.solver.model import ModelSpend, StubModelClient
 
 
 def test_stub_queue_and_spend_accounting() -> None:

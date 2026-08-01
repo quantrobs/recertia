@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from fandea.memory.procedural.store import SkillStore
-from fandea.retrieval.index import SkillIndex
-from fandea.retrieval.pipeline import Retriever
+from recertia.memory.procedural.store import SkillStore
+from recertia.retrieval.index import SkillIndex
+from recertia.retrieval.pipeline import Retriever
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_ROOT = REPO / "skills"
@@ -116,10 +116,10 @@ def test_novel_task_routes_to_scratch(tmp_path: Path) -> None:
 
     from contracts.criteria import SensitivityProof, TaskCriterion
     from contracts.run import Task
-    from fandea.graph.engine import GraphOrchestrator
-    from fandea.memory.procedural.store import SkillStore
-    from fandea.retrieval.index import SkillIndex
-    from fandea.retrieval.pipeline import Retriever
+    from recertia.graph.engine import GraphOrchestrator
+    from recertia.memory.procedural.store import SkillStore
+    from recertia.retrieval.index import SkillIndex
+    from recertia.retrieval.pipeline import Retriever
 
     store = SkillStore(SKILLS_ROOT)
     index = SkillIndex(tmp_path / "index.db")
@@ -171,7 +171,7 @@ def test_novel_task_routes_to_scratch(tmp_path: Path) -> None:
 def test_every_seed_skill_has_golden_promotion_log() -> None:
     """Every seed skill passed its golden task before approved; the log is the evidence."""
 
-    from fandea.memory.procedural.seeds import SEED_SKILLS
+    from recertia.memory.procedural.seeds import SEED_SKILLS
 
     store = SkillStore(SKILLS_ROOT)
     log_dir = REPO / "evals" / "golden" / "_promotion_logs"
@@ -208,10 +208,10 @@ def test_matching_task_routes_to_apply(tmp_path: Path) -> None:
 
     from contracts.criteria import SensitivityProof, TaskCriterion
     from contracts.run import Task
-    from fandea.graph.engine import GraphOrchestrator
-    from fandea.memory.procedural.store import SkillStore
-    from fandea.retrieval.index import SkillIndex
-    from fandea.retrieval.pipeline import Retriever
+    from recertia.graph.engine import GraphOrchestrator
+    from recertia.memory.procedural.store import SkillStore
+    from recertia.retrieval.index import SkillIndex
+    from recertia.retrieval.pipeline import Retriever
 
     store = SkillStore(SKILLS_ROOT)
     index = SkillIndex(tmp_path / "index.db")

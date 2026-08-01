@@ -9,10 +9,10 @@ import pytest
 from contracts.criteria import CriterionResult, SkillCertificationCriterion, TaskCriterion
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
-from fandea.evals.metrics import build_metric_report
-from fandea.evals.store import EvalStore, ObservationError
-from fandea.memory.procedural.allocate import allocate_and_write
-from fandea.memory.procedural.store import SkillStore
+from recertia.evals.metrics import build_metric_report
+from recertia.evals.store import EvalStore, ObservationError
+from recertia.memory.procedural.allocate import allocate_and_write
+from recertia.memory.procedural.store import SkillStore
 
 
 def _state(

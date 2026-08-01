@@ -1,4 +1,4 @@
-# Fandea Architecture: 9. Storage choices
+# Recertia Architecture: 9. Storage choices
 
 ## 9. Storage choices
 

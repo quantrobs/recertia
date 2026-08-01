@@ -17,20 +17,20 @@ from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
 from contracts.stats import Contribution, PredictiveTrust, SkillStats
 from contracts.status import SkillStatus
-from fandea.evals.store import EvalStore
-from fandea.ledger import HashChainLedger
-from fandea.memory.procedural.active_set import recompute_active_set, select_shadow_slots
-from fandea.memory.procedural.seeds import seed_approved_for_tests
-from fandea.memory.procedural.store import SkillStore
-from fandea.review.autonomy_config import DEFAULT_AUTONOMY, HARSH_AUTONOMY
-from fandea.review.lifecycle import (
+from recertia.evals.store import EvalStore
+from recertia.ledger import HashChainLedger
+from recertia.memory.procedural.active_set import recompute_active_set, select_shadow_slots
+from recertia.memory.procedural.seeds import seed_approved_for_tests
+from recertia.memory.procedural.store import SkillStore
+from recertia.review.autonomy_config import DEFAULT_AUTONOMY, HARSH_AUTONOMY
+from recertia.review.lifecycle import (
     LifecycleError,
     maybe_advance_shadow_to_candidate,
     maybe_bench_on_contribution,
     quarantine_on_failures,
     restore_benched,
 )
-from fandea.review.shadow import record_shadow_outcome
+from recertia.review.shadow import record_shadow_outcome
 
 
 def _skill(
@@ -297,8 +297,8 @@ def test_shadow_slots_are_bounded_and_never_expand_active_cap(tmp_path: Path) ->
 
 
 def test_shadow_scheduling_job_persists_offline_outcomes(tmp_path: Path) -> None:
-    from fandea.jobs.workers import schedule_shadow_evaluations
-    from fandea.review.shadow import schedule_shadow_slots
+    from recertia.jobs.workers import schedule_shadow_evaluations
+    from recertia.review.shadow import schedule_shadow_slots
 
     store = SkillStore(tmp_path / "skills")
     eval_store = EvalStore(tmp_path / "shadow-evals.sqlite")

@@ -3,7 +3,7 @@
 
 Usage:
   python3 scripts/install_seed_library.py --skills-root skills --golden-root evals/golden
-  python3 scripts/install_seed_library.py --promote --runs-root /tmp/fandea-seed
+  python3 scripts/install_seed_library.py --promote --runs-root /tmp/recertia-seed
 """
 
 from __future__ import annotations
@@ -17,10 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from fandea.memory.procedural.promote import PromotionError, promote_to_approved  # noqa: E402
-from fandea.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft  # noqa: E402
-from fandea.memory.procedural.store import ImmutabilityError, SkillStore  # noqa: E402
-from fandea.retrieval.index import SkillIndex  # noqa: E402
+from recertia.memory.procedural.promote import PromotionError, promote_to_approved  # noqa: E402
+from recertia.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft  # noqa: E402
+from recertia.memory.procedural.store import ImmutabilityError, SkillStore  # noqa: E402
+from recertia.retrieval.index import SkillIndex  # noqa: E402
 
 # Golden workspace fixtures and task specs keyed by skill_id.
 GOLDEN_FIXTURES: dict[str, dict] = {
@@ -178,9 +178,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skills-root", type=Path, default=ROOT / "skills")
     parser.add_argument("--golden-root", type=Path, default=ROOT / "evals" / "golden")
-    parser.add_argument("--index", type=Path, default=ROOT / ".fandea" / "skill_index.db")
+    parser.add_argument("--index", type=Path, default=ROOT / ".recertia" / "skill_index.db")
     parser.add_argument("--promote", action="store_true")
-    parser.add_argument("--runs-root", type=Path, default=ROOT / ".fandea" / "seed-runs")
+    parser.add_argument("--runs-root", type=Path, default=ROOT / ".recertia" / "seed-runs")
     parser.add_argument("--log-dir", type=Path, default=ROOT / "evals" / "golden" / "_promotion_logs")
     args = parser.parse_args()
 

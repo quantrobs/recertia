@@ -5,7 +5,7 @@
 
 ## Context
 
-Fandea's learning loop (retrieve → solve → validate → distill → store, with revision
+Recertia's learning loop (retrieve → solve → validate → distill → store, with revision
 cycles) is inherently cyclic. Three implementation shapes were considered:
 
 1. **Nested control flow in a solver** — retries as loops inside a function.

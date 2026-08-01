@@ -6,8 +6,8 @@ import pytest
 
 from contracts.resources import ResourceClaim
 from contracts.skill import InputBinding, Step
-from fandea.solver.apply import bind_inputs as apply_bind_inputs
-from fandea.solver.bindings import (
+from recertia.solver.apply import bind_inputs as apply_bind_inputs
+from recertia.solver.bindings import (
     bind_inputs,
     bind_parameters,
     claims_conflict,

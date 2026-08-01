@@ -1,4 +1,4 @@
-# Fandea Specifications: 19. Ablation and eval integrity
+# Recertia Specifications: 19. Ablation and eval integrity
 
 ## 19. Ablation and eval integrity
 

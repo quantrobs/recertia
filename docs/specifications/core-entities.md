@@ -1,4 +1,4 @@
-# Fandea Specifications: 1. Core entities
+# Recertia Specifications: 1. Core entities
 
 ## 1. Core entities
 

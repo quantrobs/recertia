@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/fandea/schema/EvalObservation",
+  "$id": "https://github.com/quantrobs/recertia/schema/EvalObservation",
   "additionalProperties": false,
   "description": "One immutable, run-derived observation keyed for aggregation.",
   "properties": {

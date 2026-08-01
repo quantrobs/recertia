@@ -1,4 +1,4 @@
-# Fandea Specifications: 24. Library capacity and retirement
+# Recertia Specifications: 24. Library capacity and retirement
 
 ## 24. Library capacity and retirement
 

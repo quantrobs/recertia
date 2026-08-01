@@ -9,14 +9,14 @@ from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import PredictiveTrust, SkillStats
 from contracts.status import SkillStatus
-from fandea.memory.procedural.hygiene import require_clean, scan_skill
-from fandea.memory.procedural.seeds import (
+from recertia.memory.procedural.hygiene import require_clean, scan_skill
+from recertia.memory.procedural.seeds import (
     add_gitignore_entry,
     seed_approved_for_tests,
     seed_stats,
     seed_status_draft,
 )
-from fandea.memory.procedural.store import ApprovedLifecycleError, ImmutabilityError, SkillStore
+from recertia.memory.procedural.store import ApprovedLifecycleError, ImmutabilityError, SkillStore
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 

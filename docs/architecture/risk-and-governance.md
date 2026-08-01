@@ -1,4 +1,4 @@
-# Fandea Architecture: 12. Failure taxonomy
+# Recertia Architecture: 12. Failure taxonomy
 
 ## 12. Failure taxonomy
 

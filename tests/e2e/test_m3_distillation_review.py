@@ -8,17 +8,17 @@ from pathlib import Path
 from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, TaskCriterion
 from contracts.run import Task
-from fandea.distill.failure_clusters import author_pitfall_skill, cluster_dead_ends, normalize_signature
-from fandea.graph.engine import GraphOrchestrator
-from fandea.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
-from fandea.memory.procedural.store import SkillStore
-from fandea.memory.semantic import FactStore
-from fandea.retrieval.index import SkillIndex
-from fandea.retrieval.pipeline import Retriever
-from fandea.review import ReviewService
-from fandea.solver.model import StubModelClient
-from fandea.validation.judge import artifact_only_context, context_hash, evaluate_judge
-from fandea.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
+from recertia.distill.failure_clusters import author_pitfall_skill, cluster_dead_ends, normalize_signature
+from recertia.graph.engine import GraphOrchestrator
+from recertia.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
+from recertia.memory.procedural.store import SkillStore
+from recertia.memory.semantic import FactStore
+from recertia.retrieval.index import SkillIndex
+from recertia.retrieval.pipeline import Retriever
+from recertia.review import ReviewService
+from recertia.solver.model import StubModelClient
+from recertia.validation.judge import artifact_only_context, context_hash, evaluate_judge
+from recertia.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
 
 
 def _proven(cmd: str, criterion_id: str = "gate") -> TaskCriterion:

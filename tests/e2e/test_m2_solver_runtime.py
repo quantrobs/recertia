@@ -12,14 +12,14 @@ from contracts.resources import ResourceClaim
 from contracts.run import Task
 from contracts.skill import Hygiene, InputBinding, Provenance, SkillVersion, Step, StepOutput
 from contracts.status import Certification
-from fandea.governance.sandbox import ApprovalGate
-from fandea.graph.engine import GraphOrchestrator
-from fandea.memory.affordance import AffordanceStore
-from fandea.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
-from fandea.memory.procedural.active_set import assign_active_on_approval
-from fandea.memory.procedural.store import SkillStore
-from fandea.solver.apply import SkillApplicator
-from fandea.solver.tools import (
+from recertia.governance.sandbox import ApprovalGate
+from recertia.graph.engine import GraphOrchestrator
+from recertia.memory.affordance import AffordanceStore
+from recertia.memory.episodic import CaseRecord, DeadEnd, EpisodicStore
+from recertia.memory.procedural.active_set import assign_active_on_approval
+from recertia.memory.procedural.store import SkillStore
+from recertia.solver.apply import SkillApplicator
+from recertia.solver.tools import (
     ClaimScheduler,
     Tool,
     ToolRegistry,
@@ -27,8 +27,8 @@ from fandea.solver.tools import (
     ToolRuntime,
     default_registry,
 )
-from fandea.solver.transcript import TranscriptStore, TranscriptWriter
-from fandea.workspace import WorkspaceManager
+from recertia.solver.transcript import TranscriptStore, TranscriptWriter
+from recertia.workspace import WorkspaceManager
 
 
 def _approved_runtime(registry: ToolRegistry, scheduler: ClaimScheduler | None = None) -> ToolRuntime:
@@ -95,7 +95,7 @@ def _skill(
 
 
 def _approve(store: SkillStore, version: SkillVersion) -> None:
-    from fandea.memory.procedural.seeds import seed_approved_for_tests
+    from recertia.memory.procedural.seeds import seed_approved_for_tests
 
     seed_approved_for_tests(
         store,
@@ -150,8 +150,8 @@ def test_golden_repo_chore_solved_via_applied_skill(tmp_path: Path) -> None:
     )
     _approve(store, version)
 
-    from fandea.retrieval.index import SkillIndex
-    from fandea.retrieval.pipeline import Retriever
+    from recertia.retrieval.index import SkillIndex
+    from recertia.retrieval.pipeline import Retriever
 
     index = SkillIndex(tmp_path / "idx.db")
     index.rebuild(store.iter_loaded())
@@ -209,10 +209,10 @@ def test_dead_end_suppresses_repeated_approach(tmp_path: Path) -> None:
 
     from contracts.failure import FailureVerdict
     from contracts.run import RunState, SkillCandidateRef
-    from fandea.graph.ops import OperationLedger
-    from fandea.ledger import HashChainLedger
-    from fandea.nodes.context import NodeContext
-    from fandea.nodes.evolve import evolve
+    from recertia.graph.ops import OperationLedger
+    from recertia.ledger import HashChainLedger
+    from recertia.nodes.context import NodeContext
+    from recertia.nodes.evolve import evolve
 
     workspaces = WorkspaceManager(tmp_path / "snaps")
     workdir = tmp_path / "work"
@@ -255,7 +255,7 @@ def test_flaky_tool_classifies_as_tool_without_trust_impact(tmp_path: Path) -> N
     registry = ToolRegistry()
 
     def flaky_handler(inputs: dict, workdir: Path):
-        from fandea.solver.tools import ToolResult
+        from recertia.solver.tools import ToolResult
 
         return ToolResult(
             tool="flaky_net",
@@ -277,7 +277,7 @@ def test_flaky_tool_classifies_as_tool_without_trust_impact(tmp_path: Path) -> N
     tools = _approved_runtime(registry)
     affordances = AffordanceStore(tmp_path / "aff.json")
     # Seed affordance history so flake_rate is observable.
-    from fandea.solver.tools import ToolResult
+    from recertia.solver.tools import ToolResult
 
     for _ in range(5):
         affordances.record_tool(
@@ -286,11 +286,11 @@ def test_flaky_tool_classifies_as_tool_without_trust_impact(tmp_path: Path) -> N
 
     from contracts.failure import FailureSignal
     from contracts.run import RunState
-    from fandea.graph.ops import OperationLedger
-    from fandea.ledger import HashChainLedger
-    from fandea.nodes.classify_failure import classify_failure
-    from fandea.nodes.context import NodeContext
-    from fandea.workspace import WorkspaceManager
+    from recertia.graph.ops import OperationLedger
+    from recertia.ledger import HashChainLedger
+    from recertia.nodes.classify_failure import classify_failure
+    from recertia.nodes.context import NodeContext
+    from recertia.workspace import WorkspaceManager
 
     state = RunState(
         run_id="r",

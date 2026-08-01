@@ -1,4 +1,4 @@
-# Fandea Architecture: 8. Improvement plane
+# Recertia Architecture: 8. Improvement plane
 
 ## 8. Improvement plane
 

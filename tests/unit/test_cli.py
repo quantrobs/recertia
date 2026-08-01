@@ -5,7 +5,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from fandea.cli.main import app
+from recertia.cli.main import app
 
 runner = CliRunner()
 
@@ -93,8 +93,8 @@ def test_run_reports_unreservable_portfolio_budget_without_routing_error(tmp_pat
 
 
 def test_skills_promote_via_cli(tmp_path: Path) -> None:
-    from fandea.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft
-    from fandea.memory.procedural.store import SkillStore
+    from recertia.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft
+    from recertia.memory.procedural.store import SkillStore
 
     version = next(s for s in SEED_SKILLS if s.skill_id == "add-gitignore-entry")
     # Golden gate requires hashed rejecting sensitivity evidence on certification criteria.
