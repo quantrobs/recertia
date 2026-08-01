@@ -204,7 +204,12 @@ and must not be marked `supported` without real traffic (B7).
 | 1 Operator GA | Cost, injection, observe–act, manifest, soak compose + weekly workflow, tabletop doc | Four consecutive soak weeks; baseline metrics on real traffic; live incident (or completed tabletop log) |
 | 2 Measured compounding | `recertia metrics` + `scripts/weekly_metrics_report.py`; judge canary fixtures; `curation_gap` / `practice_conversion` on `MetricReport`; Practice reads `one_off_log` | Scheduled probe runs on live traffic; `a1`/`a2`/`a4` status changes with intervals |
 | 3 Library economics | Trajectory emit + ReplayPack on Curator; `parallelise`/`serialise`/`correction` jobs + CLI; retirement / composition / pressure fields | Real-traffic composition; library_yield / retrieval_decay trends |
-| 4 Second domain + tenant gate | research-synthesis fixture gate; planted-secret scope e2e; `QuotaStore`; [`production-readiness.md`](production-readiness.md) | Signed threat model; multi-tenant go/defer decision |
+| 4 Second domain + tenant gate | research-synthesis fixture gate; planted-secret scope e2e; `QuotaStore`; [`production-readiness.md`](production-readiness.md) | Signed threat model; multi-tenant go/defer decision; console **C5** only if GA gate passes ([`product-console.md`](product-console.md)) |
+
+Operator UX beyond CLI is specified separately: console milestones **C0–C5** in
+[`../implementation-plan-console.md`](../implementation-plan-console.md) (Goal form, runs/skills
+browsers, proposal queue, async+SSE, OIDC). C0–C4 may ship for single-operator mode without
+waiting on multi-tenant GA.
 
 ## 10. References
 

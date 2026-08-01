@@ -84,6 +84,10 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md).
 | [`docs/architecture/one-year-roadmap.md`](docs/architecture/one-year-roadmap.md) | 2026–2027 roadmap: operator GA → measured compounding → library economics → second domain + tenant gate |
 | [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |
 | [`docs/architecture/production-readiness.md`](docs/architecture/production-readiness.md) | Phase-4 multi-tenant readiness gate checklist |
+| [`docs/architecture/product-console.md`](docs/architecture/product-console.md) | Product console (Pilot / Tower) architecture |
+| [`docs/specifications/product-console.md`](docs/specifications/product-console.md) | Console HTTP, SSE events, UX, and conformance tests |
+| [`docs/implementation-plan-console.md`](docs/implementation-plan-console.md) | Console milestones C0–C5 |
+| [`docs/adr/0012-product-console-surfaces.md`](docs/adr/0012-product-console-surfaces.md) | ADR: console as control plane over headless Recertia |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |

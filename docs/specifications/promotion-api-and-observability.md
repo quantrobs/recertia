@@ -44,17 +44,26 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 
 ### Aspirational (not implemented)
 
+Console-oriented routes (list runs, async + SSE, proposals, jobs, promote enqueue, OIDC)
+are specified normatively in [`product-console.md`](product-console.md) and sequenced as
+milestones **C0–C5** in [`../implementation-plan-console.md`](../implementation-plan-console.md).
+The table below remains the short index; **product-console.md wins on conflicts** for those
+milestones.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/v1/runs` | List/filter runs (console C0) |
 | `GET` | `/v1/runs/{run_id}/transcript` | Structured transcript |
+| `GET` | `/v1/runs/{run_id}/events` | SSE run event stream (console C2) |
 | `POST` | `/v1/runs/{run_id}/cancel` | Cooperative cancel at next node boundary |
 | `GET` | `/v1/skills` | List/filter by `task_class`, `lifecycle`, `tag` |
 | `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full skill version |
 | `POST` | `/v1/skills/search` | Retrieval debug endpoint: scores and drop reasons |
+| `POST` | `/v1/skills/…/promote` | Enqueue golden-gated promote (console C1) |
 | `GET` | `/v1/reviews?status=pending` | Review queue |
 | `POST` | `/v1/reviews/{decision_id}` | `approve` / `reject` / `request_changes` |
 | `POST` | `/v1/evals/runs` | Run a golden set against a library snapshot |
-| `GET` | `/v1/metrics` | Compounding metrics by task class and snapshot |
+| `GET` | `/v1/metrics` · `/v1/metrics/report` | Compounding metrics by task class and snapshot |
 | `GET` | `/v1/facts` · `/v1/cases` · `/v1/affordances` | Read the non-procedural memory planes (§13) |
 | `POST` | `/v1/memory/query` | Federated retrieval debug across all planes with drop reasons |
 | `GET` | `/v1/jobs` · `POST` `/v1/jobs/{job}/run` | Improvement-plane job status and manual trigger (§20) |
