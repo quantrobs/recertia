@@ -618,9 +618,9 @@
             {
               "enum": [
                 "lt",
-                "le",
+                "lte",
                 "gt",
-                "ge",
+                "gte",
                 "eq"
               ],
               "type": "string"
