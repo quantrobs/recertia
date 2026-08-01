@@ -2,11 +2,16 @@
 
 Uses the standard library only so the core package stays dependency-light. Optional
 extras may wrap richer SDKs later; these clients are enough for single-user go-live.
+
+OpenAI-compatible gateways (OpenRouter, etc.) can set optional headers / body fields via
+``RECERTIA_OPENAI_HTTP_REFERER``, ``RECERTIA_OPENAI_TITLE``, ``RECERTIA_OPENAI_EXTRA_HEADERS``,
+and ``RECERTIA_OPENAI_EXTRA_BODY``.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from typing import Any
@@ -42,6 +47,55 @@ def _http_json(
     if not isinstance(parsed, dict):
         raise ProviderError(f"unexpected JSON payload from {url}")
     return parsed
+
+
+def openai_compat_headers() -> dict[str, str]:
+    """Optional headers for OpenAI-compatible gateways (e.g. OpenRouter rankings)."""
+
+    headers: dict[str, str] = {}
+    referer = os.environ.get("RECERTIA_OPENAI_HTTP_REFERER", "").strip()
+    if referer:
+        headers["HTTP-Referer"] = referer
+    title = (
+        os.environ.get("RECERTIA_OPENAI_TITLE", "").strip()
+        or os.environ.get("RECERTIA_OPENROUTER_TITLE", "").strip()
+    )
+    if title:
+        # OpenRouter accepts both; send the documented header plus the short alias.
+        headers["X-OpenRouter-Title"] = title
+        headers["X-Title"] = title
+    extra_raw = os.environ.get("RECERTIA_OPENAI_EXTRA_HEADERS", "").strip()
+    if extra_raw:
+        try:
+            extra = json.loads(extra_raw)
+        except json.JSONDecodeError as exc:
+            raise ProviderError(
+                "RECERTIA_OPENAI_EXTRA_HEADERS must be a JSON object of string headers"
+            ) from exc
+        if not isinstance(extra, dict):
+            raise ProviderError(
+                "RECERTIA_OPENAI_EXTRA_HEADERS must be a JSON object of string headers"
+            )
+        for key, value in extra.items():
+            headers[str(key)] = str(value)
+    return headers
+
+
+def openai_compat_extra_body() -> dict[str, Any]:
+    """Optional Chat Completions body fields (temperature, provider prefs, …)."""
+
+    raw = os.environ.get("RECERTIA_OPENAI_EXTRA_BODY", "").strip()
+    if not raw:
+        return {}
+    try:
+        extra = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object") from exc
+    if not isinstance(extra, dict):
+        raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object")
+    # Never let env override the core chat turn.
+    blocked = {"model", "messages"}
+    return {str(k): v for k, v in extra.items() if str(k) not in blocked}
 
 
 class AnthropicModelClient(ModelClient):
@@ -139,13 +193,17 @@ class OpenAIModelClient(ModelClient):
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
+        body: dict[str, Any] = {"model": self.model_id, "messages": messages}
+        body.update(openai_compat_extra_body())
+        headers = {
+            "content-type": "application/json",
+            "authorization": f"Bearer {self._api_key}",
+            **openai_compat_headers(),
+        }
         payload = _http_json(
             self._base_url,
-            headers={
-                "content-type": "application/json",
-                "authorization": f"Bearer {self._api_key}",
-            },
-            body={"model": self.model_id, "messages": messages},
+            headers=headers,
+            body=body,
             timeout_s=self.timeout_s,
         )
         text = _openai_text(payload)

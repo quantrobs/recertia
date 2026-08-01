@@ -19,6 +19,24 @@ recertia run --goal goal.json --model anthropic:claude-sonnet-4-20250514 --local
 recertia run --spec task.json --model openai:gpt-4.1
 ```
 
+### OpenAI-compatible gateways (OpenRouter, etc.)
+
+Point the OpenAI client at a full Chat Completions URL and pass gateway metadata via env:
+
+```bash
+export RECERTIA_MODEL_PROVIDER=openai
+export RECERTIA_MODEL_ID=moonshotai/kimi-k2   # exact OpenRouter slug
+export OPENAI_API_KEY=sk-or-…
+export RECERTIA_OPENAI_BASE_URL=https://openrouter.ai/api/v1/chat/completions
+# Optional OpenRouter rankings / app attribution:
+export RECERTIA_OPENAI_HTTP_REFERER=https://github.com/your-org/your-app
+export RECERTIA_OPENAI_TITLE=Recertia
+# Optional extra Chat Completions fields (JSON object; cannot override model/messages):
+export RECERTIA_OPENAI_EXTRA_BODY='{"temperature":0.2}'
+# Optional arbitrary headers (JSON object of strings):
+# export RECERTIA_OPENAI_EXTRA_HEADERS='{"X-Custom":"value"}'
+```
+
 Stub (default) leaves the solver model unset so scratch fails loudly instead of
 running a silent `true`. For offline demos only:
 
