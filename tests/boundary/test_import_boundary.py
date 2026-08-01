@@ -61,3 +61,17 @@ def test_guarded_files_is_non_empty() -> None:
     """A guard against this test silently checking nothing (e.g. a path typo)."""
 
     assert _guarded_files(), "expected at least recertia/nodes/*.py to exist and be scanned"
+
+
+def test_nodes_must_not_import_replay_surface() -> None:
+    """ADR-0011: solver nodes never import the offline replay package."""
+
+    nodes_dir = REPO_ROOT / "src" / "recertia" / "nodes"
+    for source_path in nodes_dir.rglob("*.py"):
+        imported = _imported_module_names(source_path)
+        violating = {
+            name
+            for name in imported
+            if name == "recertia.replay" or name.startswith("recertia.replay.")
+        }
+        assert not violating, f"{source_path} imports replay surface {violating}"

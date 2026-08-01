@@ -28,6 +28,8 @@ SPLIT_DOCS: dict[str, tuple[str, ...]] = {
         "architecture/go-live.md",
         "architecture/principal-review-2026-08.md",
         "architecture/one-year-roadmap.md",
+        "architecture/incident-tabletop.md",
+        "architecture/production-readiness.md",
     ),
     "specifications.md": (
         "specifications/core-entities.md",

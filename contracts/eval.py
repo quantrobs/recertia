@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from contracts.common import Curation
+
 
 class ConfidenceInterval(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -103,6 +105,8 @@ class EvalObservation(BaseModel):
     suppressed_skill_version: int | None = Field(default=None, ge=1)
     valid_non_judge_evidence: bool = False
     evidence_hash: str | None = None
+    curation: Curation | None = None
+    practice_converted: bool | None = None
 
 
 class MetricReport(BaseModel):
@@ -125,5 +129,11 @@ class MetricReport(BaseModel):
     parallel_speedup: float | None = None
     fake_edge_rate: float | None = None
     judge_isolation_violations: int = 0
+    curation_gap: float | None = None
+    practice_conversion: float | None = None
+    retirement_reversal_rate: float | None = None
+    active_cap_pressure: float | None = None
+    judge_false_pass_rate: float | None = None
+    mean_composition_depth: float | None = None
     unavailable: dict[str, str] = Field(default_factory=dict)
     at: datetime

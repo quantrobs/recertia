@@ -107,10 +107,10 @@ snapshots, transcripts, episodic, skill index, API keys).
 | Item | Guidance |
 | --- | --- |
 | Backup / RPO | Nightly `tar` or volume snapshot of `.recertia/`; target RPO ≤ 24h for single-operator |
-| Postgres soak | `RECERTIA_STORE_BACKEND=postgres` (when configured) + weekly golden suite |
-| Dashboards | `GET /v1/metrics/dashboard` (scope `metrics`) or the OTel JSONL under the runs root |
+| Postgres soak | `docker compose -f docker-compose.soak.yml up -d` then `DATABASE_URL=postgresql://recertia:recertia@localhost:5432/recertia python3 scripts/soak_postgres.py` (weekly via `.github/workflows/weekly-ops.yml`) |
+| Dashboards | `GET /v1/metrics/dashboard` (scope `metrics`) or `recertia metrics`; OTel JSONL under the runs root |
 | Retention | `recertia gc --older-than-days 14` on a weekly cron |
-| SLOs (operator) | Run p95 latency and weekly eval-cadence tracked by the operator; alert on canary miss once Phase 2 lands |
+| SLOs (operator) | Run p95 latency and weekly eval-cadence tracked by the operator; alert on canary miss (`evals/canary/planted-failure`) |
+| Quotas | `RECERTIA_TENANT_MAX_RUNS_PER_DAY`, `RECERTIA_TENANT_MAX_COST_USD_PER_DAY`, `RECERTIA_TENANT_MAX_IN_FLIGHT` |
 
-Tabletop incident review: pick a run id, walk ledger → transcript → failure class → restore
-from the last `.recertia/` backup.
+Tabletop incident review: see [`incident-tabletop.md`](incident-tabletop.md).
