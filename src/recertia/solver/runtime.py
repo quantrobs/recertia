@@ -5,23 +5,53 @@ from __future__ import annotations
 import contextvars
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from contracts.resources import ResourceClaim
 from recertia.solver.claims import ClaimScheduler
 from recertia.solver.registry import ToolRegistry, ToolResult
 from recertia.solver.sandbox import SandboxLimits
 
+if TYPE_CHECKING:
+    from recertia.solver.model import ModelClient
+
 _ACTIVE_SANDBOX_LIMITS: contextvars.ContextVar[SandboxLimits | None] = contextvars.ContextVar(
     "recertia_active_sandbox_limits", default=None
 )
+_ACTIVE_MODEL: contextvars.ContextVar["ModelClient | None"] = contextvars.ContextVar(
+    "recertia_active_model", default=None
+)
+_ACTIVE_STEP_CONTEXT: contextvars.ContextVar["StepInvokeContext | None"] = contextvars.ContextVar(
+    "recertia_active_step_context", default=None
+)
+
+
+@dataclass(frozen=True)
+class StepInvokeContext:
+    """Skill-step metadata available to handlers without polluting tool inputs."""
+
+    intent: str = ""
+    params: dict = field(default_factory=dict)
 
 
 def active_sandbox_limits() -> SandboxLimits:
     """Limits for the in-flight ``ToolRuntime.invoke`` (handlers may read this)."""
 
     return _ACTIVE_SANDBOX_LIMITS.get() or SandboxLimits.from_policy()
+
+
+def active_model() -> "ModelClient | None":
+    """Model client for the in-flight invoke (``agent_subtask`` / model-backed tools)."""
+
+    return _ACTIVE_MODEL.get()
+
+
+def active_step_context() -> StepInvokeContext:
+    """Intent / bound params for the in-flight skill step (empty outside applicator)."""
+
+    return _ACTIVE_STEP_CONTEXT.get() or StepInvokeContext()
 
 
 class ApprovalGate(Protocol):
@@ -46,12 +76,14 @@ class ToolRuntime:
         approval_gate: ApprovalGate | None = None,
         sandbox_limits: SandboxLimits | None = None,
         sandbox_policy: object | None = None,
+        model: "ModelClient | None" = None,
     ) -> None:
         self._registry = registry
         self.scheduler = scheduler or ClaimScheduler()
         self._invocations: list[ToolResult] = []
         self.require_approval_for_non_read = require_approval_for_non_read
         self.approval_gate = approval_gate
+        self.model = model
         if sandbox_limits is not None:
             self.sandbox_limits = sandbox_limits
         else:
@@ -71,6 +103,7 @@ class ToolRuntime:
         workdir: Path,
         step_id: str,
         extra_claims: list[ResourceClaim] | None = None,
+        step_context: StepInvokeContext | None = None,
     ) -> ToolResult:
         tool = self._registry.get(tool_name)
         if (
@@ -85,7 +118,9 @@ class ToolRuntime:
         claims = list(tool.claims) + list(extra_claims or [])
         self.scheduler.acquire(step_id, claims)
         started = time.monotonic()
-        token = _ACTIVE_SANDBOX_LIMITS.set(self.sandbox_limits)
+        limits_token = _ACTIVE_SANDBOX_LIMITS.set(self.sandbox_limits)
+        model_token = _ACTIVE_MODEL.set(self.model)
+        step_token = _ACTIVE_STEP_CONTEXT.set(step_context or StepInvokeContext())
         try:
             handler = self._registry.handler(tool_name)
             result = handler(inputs, workdir)
@@ -99,7 +134,9 @@ class ToolRuntime:
             self._invocations.append(result)
             return result
         finally:
-            _ACTIVE_SANDBOX_LIMITS.reset(token)
+            _ACTIVE_STEP_CONTEXT.reset(step_token)
+            _ACTIVE_MODEL.reset(model_token)
+            _ACTIVE_SANDBOX_LIMITS.reset(limits_token)
             self.scheduler.release(step_id, claims)
 
     def is_flaky(self, tool_name: str) -> bool:

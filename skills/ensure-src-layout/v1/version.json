@@ -27,6 +27,7 @@
     {
       "kind": "file_exists",
       "value": "pyproject.toml",
+      "arguments": {},
       "description": null
     }
   ],
@@ -38,6 +39,8 @@
       "inputs": {
         "command": "mkdir -p src/demo_pkg && printf '\"\"\"demo package\"\"\"\\n' > src/demo_pkg/__init__.py"
       },
+      "outputs": [],
+      "input_bindings": [],
       "optional": false,
       "resources": [],
       "loop": null
@@ -65,7 +68,8 @@
         "negative_fixture": "no src package",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "07627d045da94606a7935981a1b803bbc940e649721f7ce9d1c3abfdf3b41940"
       },
       "authored_by": "human",
       "preregistered": true

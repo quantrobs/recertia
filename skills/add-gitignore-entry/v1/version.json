@@ -26,6 +26,7 @@
     {
       "kind": "file_exists",
       "value": ".gitignore",
+      "arguments": {},
       "description": null
     }
   ],
@@ -37,6 +38,8 @@
       "inputs": {
         "command": "pattern='*.pyc'; grep -qxF \"$pattern\" .gitignore || echo \"$pattern\" >> .gitignore"
       },
+      "outputs": [],
+      "input_bindings": [],
       "optional": false,
       "resources": [],
       "loop": null
@@ -64,7 +67,8 @@
         "negative_fixture": "gitignore without *.pyc",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "b5299accfd4ed38cf83992df906226de0413db5bf21820a4dd247cda9a22e648"
       },
       "authored_by": "human",
       "preregistered": true

@@ -22,6 +22,8 @@
       "inputs": {
         "command": "if [ ! -f Makefile ] || ! grep -q '^test:' Makefile; then printf 'test:\\n\\tpytest -q\\n' >> Makefile; fi"
       },
+      "outputs": [],
+      "input_bindings": [],
       "optional": false,
       "resources": [],
       "loop": null
@@ -49,7 +51,8 @@
         "negative_fixture": "no Makefile",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "185297b3c1c3e01c5cf6bb3dab39f7ef7d00021ec161fc007ba7fac03699b6a9"
       },
       "authored_by": "human",
       "preregistered": true
@@ -75,7 +78,8 @@
         "negative_fixture": "Makefile without test",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "ed90800fdd1e57385ac2280c4533509f4578a83b9e7c0e6b2acb4d5943e3d601"
       },
       "authored_by": "human",
       "preregistered": true

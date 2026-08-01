@@ -4,7 +4,8 @@ Fallback order:
 1. Explicit ``ctx.script`` (tests / golden override) — still recorded into a transcript.
 2. ``apply``/``adapt`` with a chosen skill + ``SkillApplicator`` (wave-based tool execution).
 3. ``scratch`` via the model client proposing a shell command, executed through the tool runtime.
-4. Legacy ``["true"]`` no-op when no M2 services are configured (M0/M1 tests).
+4. Legacy ``["true"]`` no-op only when no M2 services are configured (M0/M1 tests).
+   With tools/transcripts wired, scratch without a model fails loud.
 """
 
 from __future__ import annotations
@@ -33,7 +34,29 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if ctx.applicator is not None and state.strategy in ("apply", "adapt") and state.chosen and ctx.store:
         return _solve_via_applicator(state, ctx, attempt_no)
 
-    script = _resolve_script(state, ctx)
+    try:
+        script = _resolve_script(state, ctx)
+    except ModelRequiredError as exc:
+        signal = FailureSignal(
+            source="solver",
+            detail=f"environment: {exc}",
+            at=now(),
+            class_hint="environment",
+        )
+        return NodeOutcome(
+            state=state.model_copy(
+                update={
+                    "attempt_no": attempt_no,
+                    "spent": state.spent.model_copy(
+                        update={"attempts": state.spent.attempts + 1}
+                    ),
+                    "failure_signal": signal,
+                }
+            ),
+            route="pre_validation_failure_signal",
+            note="scratch requires a configured model",
+        )
+
     if ctx.transcripts is not None and ctx.tools is not None:
         return _solve_script_via_tools(state, ctx, attempt_no, script)
 
@@ -429,6 +452,10 @@ def _solve_legacy_script(
     return NodeOutcome(state=new_state, route="attempt_completed")
 
 
+class ModelRequiredError(RuntimeError):
+    """Scratch solving was selected but no model client is configured."""
+
+
 def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
     if ctx.script is not None:
         return ctx.script
@@ -448,6 +475,12 @@ def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
             "Reply with only the command, no markdown."
         )
         return [response.text.strip().splitlines()[0]]
+    if state.strategy == "scratch" and (ctx.tools is not None or ctx.transcripts is not None):
+        raise ModelRequiredError(
+            "scratch solving requires a model client; set RECERTIA_MODEL_PROVIDER "
+            "and credentials (or --model provider:id), or pass an explicit script / "
+            "RECERTIA_ALLOW_STUB_MODEL=1 for offline demos"
+        )
     return ["true"]
 
 

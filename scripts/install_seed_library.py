@@ -127,13 +127,18 @@ def write_goldens(golden_root: Path) -> None:
             path.write_text(content)
 
 
-def install_versions(store: SkillStore) -> list[str]:
+def install_versions(store: SkillStore, *, rewrite: bool = False) -> list[str]:
     installed: list[str] = []
     for version in SEED_SKILLS:
-        try:
-            store.write_version(version)
-        except ImmutabilityError:
-            pass  # already present — leave the immutable artifact alone
+        dest = store.version_dir(version.skill_id, version.version) / "version.json"
+        if rewrite and dest.exists():
+            # Seed bootstrap only: repair hash-bound proofs without bumping versions.
+            dest.write_text(version.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        else:
+            try:
+                store.write_version(version)
+            except ImmutabilityError:
+                pass  # already present — leave the immutable artifact alone
         status_path = store.version_dir(version.skill_id, version.version) / "status.json"
         if not status_path.exists():
             store.write_status(seed_status_draft(version))
@@ -180,13 +185,18 @@ def main() -> None:
     parser.add_argument("--golden-root", type=Path, default=ROOT / "evals" / "golden")
     parser.add_argument("--index", type=Path, default=ROOT / ".recertia" / "skill_index.db")
     parser.add_argument("--promote", action="store_true")
+    parser.add_argument(
+        "--rewrite-versions",
+        action="store_true",
+        help="Overwrite seed version.json from factories (bootstrap repair only).",
+    )
     parser.add_argument("--runs-root", type=Path, default=ROOT / ".recertia" / "seed-runs")
     parser.add_argument("--log-dir", type=Path, default=ROOT / "evals" / "golden" / "_promotion_logs")
     args = parser.parse_args()
 
     write_goldens(args.golden_root)
     store = SkillStore(args.skills_root)
-    installed = install_versions(store)
+    installed = install_versions(store, rewrite=args.rewrite_versions)
     print(f"installed {len(installed)} seed skill versions under {args.skills_root}")
 
     if args.promote:

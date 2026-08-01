@@ -22,6 +22,8 @@
       "inputs": {
         "command": "printf 'MIT License\\n\\nCopyright (c) 2026\\n\\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.\\n' > LICENSE"
       },
+      "outputs": [],
+      "input_bindings": [],
       "optional": false,
       "resources": [],
       "loop": null
@@ -49,7 +51,8 @@
         "negative_fixture": "no LICENSE",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "a7fb2fc8eb200c89abdf4d0bf6e541bc62a62e38dc6bbf5c81edfaa81729e12d"
       },
       "authored_by": "human",
       "preregistered": true
@@ -75,7 +78,8 @@
         "negative_fixture": "non-MIT LICENSE",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "2663bcba25656539f229e796f45b2ceea5a7ef36b2ded2d3b6d2d30c44f18b57"
       },
       "authored_by": "human",
       "preregistered": true

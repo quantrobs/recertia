@@ -19,6 +19,7 @@ from recertia.solver.bindings import (
     claims_conflict,
     topological_waves,
 )
+from recertia.solver.runtime import StepInvokeContext
 from recertia.solver.tools import ClaimTimeoutError, ToolResult, ToolRuntime
 from recertia.solver.transcript import TranscriptWriter
 from recertia.workspace import WorkspaceManager
@@ -245,6 +246,10 @@ class SkillApplicator:
                 inputs = bind_inputs(step.inputs, params, step.input_bindings, step_outputs)
             except ValueError as exc:
                 return StepOutcome(step_id=step.id, tool=tool_name, result=None, error=str(exc))
+            step_context = StepInvokeContext(
+                intent=bind_parameters(step.intent, params),
+                params=dict(params),
+            )
             # Bound loops: execute until success or max_iterations.
             max_iter = step.loop.max_iterations if step.loop else 1
             last: ToolResult | None = None
@@ -271,6 +276,7 @@ class SkillApplicator:
                         workdir=workdir,
                         step_id=step.id,
                         extra_claims=list(step.resources),
+                        step_context=step_context,
                     )
                 except ClaimTimeoutError as exc:
                     conflicts.append(exc.conflict)
