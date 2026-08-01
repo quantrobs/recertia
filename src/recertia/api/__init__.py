@@ -274,6 +274,7 @@ def create_app(
                 workdir=workdir,
                 script=body.script,
                 arm=body.arm,
+                manifest=bundle.run_manifest(),
             )
         except Exception:
             get_telemetry().emit(

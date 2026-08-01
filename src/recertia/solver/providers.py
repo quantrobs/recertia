@@ -93,11 +93,18 @@ class AnthropicModelClient(ModelClient):
         usage = payload.get("usage") or {}
         prompt_tokens = int(usage.get("input_tokens") or max(1, len(prompt) // 4))
         completion_tokens = int(usage.get("output_tokens") or max(1, len(text) // 4))
+        from recertia.solver.pricing import estimate_cost_usd
+
         return ModelResponse(
             text=text,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            cost_usd=0.0,
+            cost_usd=estimate_cost_usd(
+                provider="anthropic",
+                model_id=str(self.model_id or "anthropic"),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            ),
             model=str(self.model_id or "anthropic"),
         )
 
@@ -145,11 +152,18 @@ class OpenAIModelClient(ModelClient):
         usage = payload.get("usage") or {}
         prompt_tokens = int(usage.get("prompt_tokens") or max(1, len(prompt) // 4))
         completion_tokens = int(usage.get("completion_tokens") or max(1, len(text) // 4))
+        from recertia.solver.pricing import estimate_cost_usd
+
         return ModelResponse(
             text=text,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            cost_usd=0.0,
+            cost_usd=estimate_cost_usd(
+                provider="openai",
+                model_id=str(self.model_id or "openai"),
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            ),
             model=str(self.model_id or "openai"),
         )
 

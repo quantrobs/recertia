@@ -26,6 +26,23 @@ running a silent `true`. For offline demos only:
 RECERTIA_ALLOW_STUB_MODEL=1 recertia run --spec task.json --model stub
 ```
 
+## Verifier split
+
+Prefer a distinct verifier model (and ideally a distinct credential) so the solver
+cannot judge its own artifact:
+
+```bash
+export RECERTIA_VERIFIER_MODEL_ID=claude-haiku-4-20250514
+# or: recertia run … --model anthropic:claude-sonnet-4-… --verifier anthropic:claude-haiku-4-…
+```
+
+## Cost accounting
+
+Provider clients estimate `cost_usd` from token usage against a per-model pricing
+table (`src/recertia/solver/pricing.py`). Override with
+`RECERTIA_MODEL_PRICE_<PROVIDER>_<MODEL>_IN` / `_OUT` (USD per 1M tokens) or the
+blanket `RECERTIA_DEFAULT_INPUT_USD_PER_MTOK` / `RECERTIA_DEFAULT_OUTPUT_USD_PER_MTOK`.
+
 ## Tools required by seed skills
 
 | Tool | Role |
@@ -35,6 +52,13 @@ RECERTIA_ALLOW_STUB_MODEL=1 recertia run --spec task.json --model stub
 | `agent_subtask` | Model-backed one-command repair loop (needs a configured model) |
 
 Tune fetch with `RECERTIA_FETCH_ALLOWLIST`, `RECERTIA_FETCH_TIMEOUT_S`, `RECERTIA_FETCH_MAX_BYTES`.
+
+Fetched / tool text is delimited as untrusted data before it enters model prompts.
+Model-proposed shell commands pass a prefix allowlist (`RECERTIA_COMMAND_ALLOWLIST`,
+default repo-chore set). Break-glass only: `RECERTIA_COMMAND_POLICY=off`.
+
+Scratch solving uses a bounded observe–act loop (`RECERTIA_SCRATCH_MAX_STEPS`,
+default 5): each command’s output is fed back to the model within the attempt.
 
 ## Seed library
 
@@ -68,3 +92,25 @@ export RECERTIA_EXECUTION_BACKEND=container
 ```
 
 See [container-sandbox.md](container-sandbox.md).
+
+## Measurement pins
+
+Every CLI/API run pins `RunManifest.model`, `model_version`, `index_snapshot_id`, and
+`library_commit` (git HEAD, or `RECERTIA_LIBRARY_COMMIT`) at start so lift and cost
+metrics stay attributable.
+
+## Soak and durability (operator GA)
+
+Durability unit: the entire `.recertia/` tree (checkpoints, operations, ledger,
+snapshots, transcripts, episodic, skill index, API keys).
+
+| Item | Guidance |
+| --- | --- |
+| Backup / RPO | Nightly `tar` or volume snapshot of `.recertia/`; target RPO ≤ 24h for single-operator |
+| Postgres soak | `RECERTIA_STORE_BACKEND=postgres` (when configured) + weekly golden suite |
+| Dashboards | `GET /v1/metrics/dashboard` (scope `metrics`) or the OTel JSONL under the runs root |
+| Retention | `recertia gc --older-than-days 14` on a weekly cron |
+| SLOs (operator) | Run p95 latency and weekly eval-cadence tracked by the operator; alert on canary miss once Phase 2 lands |
+
+Tabletop incident review: pick a run id, walk ledger → transcript → failure class → restore
+from the last `.recertia/` backup.

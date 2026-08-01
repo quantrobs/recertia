@@ -6,10 +6,13 @@ library apply paths — not a bare checkpoint engine.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from contracts.run import RunManifest
 from recertia.config import ModelConfig, load_model_config
 from recertia.governance.sandbox import ApprovalGate
 from recertia.memory.affordance import AffordanceStore
@@ -31,14 +34,72 @@ if TYPE_CHECKING:
 
 @dataclass
 class OrchestratorBundle:
-    """Orchestrator plus closable index handle."""
+    """Orchestrator plus closable index handle and a pinned run manifest template."""
 
     orchestrator: "GraphOrchestrator"
     index: SkillIndex
+    model_config: ModelConfig | None = None
 
     def close(self) -> None:
         self.orchestrator.close()
         self.index.close()
+
+    def run_manifest(self, *, seed: int | None = None) -> RunManifest:
+        """Pin provider/model/index/library identity for measurement (P0-4)."""
+
+        return build_run_manifest(
+            self,
+            model_config=self.model_config,
+            seed=seed,
+        )
+
+
+def _git_head(cwd: Path | None = None) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd or Path.cwd(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    digest = proc.stdout.strip()
+    return digest or None
+
+
+def build_run_manifest(
+    bundle: OrchestratorBundle,
+    *,
+    model_config: ModelConfig | None = None,
+    seed: int | None = None,
+) -> RunManifest:
+    """Build a fully-pinned :class:`RunManifest` from the live orchestrator stack."""
+
+    cfg = model_config or bundle.model_config or load_model_config()
+    model = bundle.orchestrator.model
+    provider = (model.provider if model is not None else None) or cfg.provider
+    model_id = (model.model_id if model is not None else None) or cfg.model_id
+    snapshot_id = bundle.index.snapshot_id()
+    if not snapshot_id:
+        store = bundle.orchestrator.store
+        if store is not None and hasattr(store, "library_fingerprint"):
+            snapshot_id = f"fp:{store.library_fingerprint()}"
+    library_commit = os.environ.get("RECERTIA_LIBRARY_COMMIT") or _git_head()
+    if library_commit is None and snapshot_id:
+        library_commit = str(snapshot_id)
+    return RunManifest(
+        model=provider,
+        model_version=model_id,
+        index_snapshot_id=str(snapshot_id) if snapshot_id else None,
+        library_commit=library_commit,
+        policy_version=os.environ.get("RECERTIA_POLICY_VERSION"),
+        seed=seed,
+    )
 
 
 def build_default_orchestrator(
@@ -125,7 +186,7 @@ def build_default_orchestrator(
     )
     # Share the same WorkspaceManager the applicator uses for attempt isolation.
     orch.workspaces = workspaces
-    return OrchestratorBundle(orchestrator=orch, index=index)
+    return OrchestratorBundle(orchestrator=orch, index=index, model_config=cfg)
 
 
 def resolve_task_class(

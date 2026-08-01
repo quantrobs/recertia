@@ -34,6 +34,16 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if ctx.applicator is not None and state.strategy in ("apply", "adapt") and state.chosen and ctx.store:
         return _solve_via_applicator(state, ctx, attempt_no)
 
+    # P0-3: observe–act scratch loop (model sees command output within the attempt).
+    if (
+        ctx.script is None
+        and state.strategy == "scratch"
+        and ctx.model is not None
+        and ctx.tools is not None
+        and ctx.transcripts is not None
+    ):
+        return _solve_scratch_observe_act(state, ctx, attempt_no)
+
     try:
         script = _resolve_script(state, ctx)
     except ModelRequiredError as exc:
@@ -456,6 +466,205 @@ class ModelRequiredError(RuntimeError):
     """Scratch solving was selected but no model client is configured."""
 
 
+def _scratch_max_steps() -> int:
+    import os
+
+    raw = os.environ.get("RECERTIA_SCRATCH_MAX_STEPS", "5")
+    try:
+        return max(1, min(20, int(raw)))
+    except ValueError:
+        return 5
+
+
+def _solve_scratch_observe_act(
+    state: RunState, ctx: NodeContext, attempt_no: int
+) -> NodeOutcome:
+    """Bounded observe–act loop: model proposes → shell runs → model sees output."""
+
+    assert ctx.model is not None and ctx.tools is not None
+    from recertia.solver.command_policy import CommandPolicyError, assert_command_allowed
+
+    writer = (
+        TranscriptWriter(ctx.transcripts, ctx.run_id, attempt_no)
+        if ctx.transcripts is not None
+        else None
+    )
+    history: list[str] = []
+    tool_calls = 0
+    cost = 0.0
+    tokens = 0
+    last_error: str | None = None
+    max_steps = _scratch_max_steps()
+
+    for step in range(max_steps):
+        requested = BudgetReservation(tool_calls=tool_calls + 1)
+        exhausted = budget_excess(state.budget, state.spent, state.reserved, requested)
+        if exhausted is not None:
+            signal = FailureSignal(
+                source="solver",
+                detail=f"budget exhausted before tool dispatch: {exhausted}",
+                at=now(),
+                class_hint="budget",
+            )
+            return NodeOutcome(
+                state=state.model_copy(
+                    update={
+                        "attempt_no": attempt_no,
+                        "spent": state.spent.model_copy(
+                            update={
+                                "attempts": state.spent.attempts + 1,
+                                "tool_calls": state.spent.tool_calls + tool_calls,
+                                "cost_usd": state.spent.cost_usd + cost,
+                                "tokens": state.spent.tokens + tokens,
+                            }
+                        ),
+                        "failure_signal": signal,
+                        "transcript_ref": writer.finalize() if writer else None,
+                    }
+                ),
+                route="pre_validation_failure_signal",
+                note=f"scratch budget exhausted: {exhausted}",
+            )
+
+        history_block = "\n".join(history[-6:]) if history else "(no prior steps)"
+        prompt = (
+            f"Task: {state.task.request}\n"
+            f"Workspace: {ctx.workdir}\n"
+            f"Prior steps:\n{history_block}\n"
+            "Propose exactly one shell command that progresses the task. "
+            "Reply with only the command, no markdown. "
+            "If the task appears done, reply with: true"
+        )
+        try:
+            response = ctx.model.complete(
+                prompt,
+                system="Return a single shell command only.",
+            )
+        except Exception as exc:  # noqa: BLE001 — solver boundary
+            signal = FailureSignal(
+                source="solver",
+                detail=f"environment: model error during scratch: {exc}",
+                at=now(),
+                class_hint="environment",
+            )
+            return NodeOutcome(
+                state=state.model_copy(
+                    update={
+                        "attempt_no": attempt_no,
+                        "spent": state.spent.model_copy(
+                            update={
+                                "attempts": state.spent.attempts + 1,
+                                "tool_calls": state.spent.tool_calls + tool_calls,
+                                "cost_usd": state.spent.cost_usd + cost,
+                                "tokens": state.spent.tokens + tokens,
+                            }
+                        ),
+                        "failure_signal": signal,
+                        "transcript_ref": writer.finalize() if writer else None,
+                    }
+                ),
+                route="pre_validation_failure_signal",
+                note="scratch model error",
+            )
+        cost += response.cost_usd
+        tokens += response.prompt_tokens + response.completion_tokens
+        command = response.text.strip().splitlines()[0].strip().strip("`")
+        if not command:
+            last_error = "empty command from model"
+            continue
+        try:
+            command = assert_command_allowed(command)
+        except CommandPolicyError as exc:
+            last_error = str(exc)
+            history.append(f"$ {command}\n[refused] {exc}")
+            if writer:
+                writer.event("tool", tool="shell", command=command, refused=str(exc))
+            continue
+
+        def _run(cmd: str = command, seq: int = step) -> dict:
+            if writer:
+                writer.event("tool", tool="shell", command=cmd, step=seq)
+            result = ctx.tools.invoke(  # type: ignore[union-attr]
+                "shell", {"command": cmd}, workdir=ctx.workdir, step_id=f"scratch-{seq}"
+            )
+            if ctx.affordances is not None:
+                ctx.affordances.record_tool(result)
+                ctx.affordances.save()
+            return {
+                "returncode": result.exit_code,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+
+        result = ctx.op_once(step, _run)
+        tool_calls += 1
+        history.append(
+            f"$ {command}\nexit={result['returncode']}\n"
+            f"stdout:\n{result['stdout'][-1500:]}\nstderr:\n{result['stderr'][-800:]}"
+        )
+        if result["returncode"] != 0:
+            last_error = (
+                f"step {step} exited {result['returncode']}: {command}"
+            )
+            continue
+        # Successful command: leave the attempt for validate to judge.
+        # (A final `true` also ends the loop cleanly.)
+        transcript_ref = writer.finalize() if writer else f"{ctx.run_id}/attempt-{attempt_no}"
+        new_state = state.model_copy(
+            update={
+                "attempt_no": attempt_no,
+                "spent": state.spent.model_copy(
+                    update={
+                        "attempts": state.spent.attempts + 1,
+                        "tool_calls": state.spent.tool_calls + tool_calls,
+                        "cost_usd": state.spent.cost_usd + cost,
+                        "tokens": state.spent.tokens + tokens,
+                    }
+                ),
+                "transcript_ref": transcript_ref,
+                "artifacts": [
+                    *state.artifacts,
+                    Artifact(
+                        kind="text",
+                        ref=transcript_ref,
+                        description="scratch observe-act transcript",
+                    ),
+                ],
+                "failure_signal": None,
+            }
+        )
+        return NodeOutcome(
+            state=new_state,
+            route="attempt_completed",
+            note=f"scratch observe-act completed after {step + 1} step(s)",
+        )
+
+    signal = FailureSignal(
+        source="solver",
+        detail=last_error or f"scratch observe-act exhausted {max_steps} steps",
+        at=now(),
+    )
+    return NodeOutcome(
+        state=state.model_copy(
+            update={
+                "attempt_no": attempt_no,
+                "spent": state.spent.model_copy(
+                    update={
+                        "attempts": state.spent.attempts + 1,
+                        "tool_calls": state.spent.tool_calls + tool_calls,
+                        "cost_usd": state.spent.cost_usd + cost,
+                        "tokens": state.spent.tokens + tokens,
+                    }
+                ),
+                "failure_signal": signal,
+                "transcript_ref": writer.finalize() if writer else None,
+            }
+        ),
+        route="pre_validation_failure_signal",
+        note="scratch observe-act exhausted without success",
+    )
+
+
 def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
     if ctx.script is not None:
         return ctx.script
@@ -470,6 +679,7 @@ def _resolve_script(state: RunState, ctx: NodeContext) -> list[str]:
         raw = script_from_skill(version)
         return [bind_parameters(cmd, params) for cmd in raw]
     if state.strategy == "scratch" and ctx.model is not None:
+        # Legacy single-shot path (no tools/transcripts wired).
         response = ctx.model.complete(
             f"Propose a single shell command to: {state.task.request}\n"
             "Reply with only the command, no markdown."
