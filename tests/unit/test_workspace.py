@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fandea.workspace import WorkspaceManager
+from recertia.workspace import WorkspaceManager
 
 
 def test_snapshot_and_restore_round_trip(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-# Fandea Specifications: 5. Retrieval specification
+# Recertia Specifications: 5. Retrieval specification
 
 ## 5. Retrieval specification
 

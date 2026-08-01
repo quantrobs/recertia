@@ -1,4 +1,4 @@
-# Fandea Architecture
+# Recertia Architecture
 
 > This index replaces the former monolithic architecture document. Existing links remain valid; use the topic files below for direct references.
 

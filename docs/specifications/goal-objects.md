@@ -1,4 +1,4 @@
-# Fandea Specifications: Goal objects (Variant B)
+# Recertia Specifications: Goal objects (Variant B)
 
 ## 15.5 Goal objects
 

@@ -3,7 +3,7 @@
 
 Usage:
   python3 scripts/smoke_container.py
-  FANDEA_CONTAINER_RUNTIME=podman python3 scripts/smoke_container.py
+  RECERTIA_CONTAINER_RUNTIME=podman python3 scripts/smoke_container.py
 
 Exits 0 on solved, 2 if no runtime, 1 on failure.
 Requires Docker or Podman and a pulled allowlisted image (default python:3.12-slim).
@@ -22,20 +22,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-from fandea.bootstrap import build_default_orchestrator  # noqa: E402
-from fandea.solver.container import (  # noqa: E402
+from recertia.bootstrap import build_default_orchestrator  # noqa: E402
+from recertia.solver.container import (  # noqa: E402
     container_runtime,
     ensure_execution_ready,
     ensure_workdir_writable_by_container,
     probe_container_runtime,
 )
-from fandea.solver.sandbox import SandboxError  # noqa: E402
+from recertia.solver.sandbox import SandboxError  # noqa: E402
 
 
 def main() -> int:
-    os.environ["FANDEA_EXECUTION_BACKEND"] = "container"
+    os.environ["RECERTIA_EXECUTION_BACKEND"] = "container"
     # Do not inherit test-suite local default.
-    os.environ.pop("FANDEA_FORCE_LOCAL", None)
+    os.environ.pop("RECERTIA_FORCE_LOCAL", None)
 
     runtime = container_runtime()
     if runtime is None:
@@ -56,7 +56,7 @@ def main() -> int:
     from contracts.goal import DesiredState, Goal
     from contracts.run import Task
 
-    with tempfile.TemporaryDirectory(prefix="fandea-smoke-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="recertia-smoke-") as tmp:
         root = Path(tmp)
         workdir = root / "work"
         workdir.mkdir()

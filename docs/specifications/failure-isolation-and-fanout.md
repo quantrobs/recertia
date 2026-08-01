@@ -1,4 +1,4 @@
-# Fandea Specifications: 16. Failure taxonomy
+# Recertia Specifications: 16. Failure taxonomy
 
 ## 16. Failure taxonomy
 

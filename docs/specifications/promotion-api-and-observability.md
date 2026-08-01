@@ -1,4 +1,4 @@
-# Fandea Specifications: 8. Promotion policy
+# Recertia Specifications: 8. Promotion policy
 
 ## 8. Promotion policy
 
@@ -30,7 +30,7 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness |
-| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync, offline; same path as `fandea run`). Body: `request`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Returns terminal state + `route_log`. |
+| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync, offline; same path as `recertia run`). Body: `request`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Returns terminal state + `route_log`. |
 | `GET` | `/v1/runs/{run_id}` | Status / terminal / route log (memory + checkpoint fallback) |
 | `POST` | `/v1/runs/{run_id}/resume` | Resume from last checkpoint |
 | `POST` | `/v1/blobs` · `GET` `/v1/blobs/{digest}` | Content-addressed blob put/get |
@@ -40,7 +40,7 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 
 ### CLI-only today (not yet HTTP)
 
-`fandea skills search`, `fandea skills promote`, `fandea lift`, `fandea ledger verify` — use the CLI. Lift and skills search are intentionally not duplicated on HTTP yet.
+`recertia skills search`, `recertia skills promote`, `recertia lift`, `recertia ledger verify` — use the CLI. Lift and skills search are intentionally not duplicated on HTTP yet.
 
 ### Aspirational (not implemented)
 
@@ -73,36 +73,36 @@ Error envelope (target shape; current handlers may return FastAPI `{detail: ...}
 ### Implemented
 
 ```bash
-fandea run --spec task.json [--runs-root .fandea] [--run-id ...] [--ablation]
-fandea resume <run_id> [--runs-root .fandea] [--spec task.json]
-fandea runs show <run_id> [--route-log]
-fandea skills lint [--skills-root skills]
-fandea skills search "dependency bump" --explain
-fandea skills promote <skill_id> --version N --golden-dir PATH
+recertia run --spec task.json [--runs-root .recertia] [--run-id ...] [--ablation]
+recertia resume <run_id> [--runs-root .recertia] [--spec task.json]
+recertia runs show <run_id> [--route-log]
+recertia skills lint [--skills-root skills]
+recertia skills search "dependency bump" --explain
+recertia skills promote <skill_id> --version N --golden-dir PATH
 # or: --golden-root PATH [--require-task-class-gate]
-fandea ledger verify [--runs-root .fandea]
-fandea lift --task-class repo-chore
-fandea keys issue|revoke|list
+recertia ledger verify [--runs-root .recertia]
+recertia lift --task-class repo-chore
+recertia keys issue|revoke|list
 ```
 
 ### Aspirational (not implemented)
 
 ```bash
-fandea skills list [--task-class repo-chore] [--lifecycle candidate]
-fandea skills show bump-python-dep@3
-fandea review queue
-fandea review approve <decision_id> --note "..."
-fandea eval run --task-class repo-chore --snapshot HEAD
-fandea metrics --task-class repo-chore --compare HEAD~5..HEAD
-fandea memory query "dependency bump" --planes skills,facts,cases --explain
-fandea facts list --scope project
-fandea cases show <case_id>
-fandea jobs run curator --dry-run
-fandea jobs run practice --task-class repo-chore --budget cost=5.00
-fandea jobs run recertify --stale-days 30
-fandea proposals queue
-fandea policy show
-fandea policy propose retrieval.min_score=0.60 --eval-compare
+recertia skills list [--task-class repo-chore] [--lifecycle candidate]
+recertia skills show bump-python-dep@3
+recertia review queue
+recertia review approve <decision_id> --note "..."
+recertia eval run --task-class repo-chore --snapshot HEAD
+recertia metrics --task-class repo-chore --compare HEAD~5..HEAD
+recertia memory query "dependency bump" --planes skills,facts,cases --explain
+recertia facts list --scope project
+recertia cases show <case_id>
+recertia jobs run curator --dry-run
+recertia jobs run practice --task-class repo-chore --budget cost=5.00
+recertia jobs run recertify --stale-days 30
+recertia proposals queue
+recertia policy show
+recertia policy propose retrieval.min_score=0.60 --eval-compare
 ```
 
 ## 11. Metrics definitions

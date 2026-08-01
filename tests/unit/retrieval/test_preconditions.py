@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from contracts.skill import Precondition
-from fandea.retrieval.preconditions import evaluate_all
+from recertia.retrieval.preconditions import evaluate_all
 
 
 def test_registered_probe_returns_evidence_without_spawning_processes(

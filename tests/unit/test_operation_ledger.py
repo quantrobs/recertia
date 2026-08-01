@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fandea.graph.ops import _PENDING_SENTINEL, OperationLedger
+from recertia.graph.ops import _PENDING_SENTINEL, OperationLedger
 
 
 def test_run_once_executes_exactly_once_across_calls(tmp_path: Path) -> None:

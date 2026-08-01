@@ -1,4 +1,4 @@
-# Fandea Architecture: 5. Task plane
+# Recertia Architecture: 5. Task plane
 
 ## 5. Task plane
 

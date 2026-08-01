@@ -1,6 +1,6 @@
 # Score-10 reference lists
 
-Bibliographies extracted from the four preprints scored **10** for Fandea applicability
+Bibliographies extracted from the four preprints scored **10** for Recertia applicability
 in [`../../research/preprints-self-improving-agents.xlsx`](../../research/preprints-self-improving-agents.xlsx).
 
 | Paper | File | Refs |

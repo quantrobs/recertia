@@ -1,4 +1,4 @@
-# Fandea Specifications: 13. Memory plane contracts
+# Recertia Specifications: 13. Memory plane contracts
 
 ## 13. Memory plane contracts
 

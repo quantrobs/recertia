@@ -12,28 +12,28 @@ from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion, TaskCriterion
 from contracts.run import Task
 from contracts.skill import Hygiene, Provenance, SkillUse, SkillVersion, Step
-from fandea.graph.engine import GraphOrchestrator
-from fandea.jobs import JobBudget, JobRunner
-from fandea.jobs.workers import (
+from recertia.graph.engine import GraphOrchestrator
+from recertia.jobs import JobBudget, JobRunner
+from recertia.jobs.workers import (
     curator_active_set_and_dedup,
     draft_from_mine_proposal,
     mine_from_repo_hints,
     propose_parallelise,
     recertify_stale,
 )
-from fandea.ledger import HashChainLedger
-from fandea.memory.procedural.allocate import allocate_next_version, write_version_exclusive
-from fandea.memory.procedural.composition import (
+from recertia.ledger import HashChainLedger
+from recertia.memory.procedural.allocate import allocate_next_version, write_version_exclusive
+from recertia.memory.procedural.composition import (
     CompositionError,
     mean_composition_depth,
     quarantine_child_blocks_parents,
     resolve_uses,
 )
-from fandea.memory.procedural.seeds import seed_approved_for_tests
-from fandea.memory.procedural.store import SkillStore
-from fandea.nodes.context import NodeContext
-from fandea.nodes.plan import plan
-from fandea.review.policy import PolicyError, approve_policy_change, propose_policy_change
+from recertia.memory.procedural.seeds import seed_approved_for_tests
+from recertia.memory.procedural.store import SkillStore
+from recertia.nodes.context import NodeContext
+from recertia.nodes.plan import plan
+from recertia.review.policy import PolicyError, approve_policy_change, propose_policy_change
 
 
 def _proven(cmd: str = "true") -> TaskCriterion:
@@ -127,9 +127,9 @@ def test_portfolio_fan_out_respects_budget_and_selects(tmp_path: Path) -> None:
 
 
 def test_decomposition_refused_when_criteria_not_partitionable(tmp_path: Path) -> None:
-    from fandea.graph.ops import OperationLedger
-    from fandea.ledger import HashChainLedger
-    from fandea.workspace import WorkspaceManager
+    from recertia.graph.ops import OperationLedger
+    from recertia.ledger import HashChainLedger
+    from recertia.workspace import WorkspaceManager
 
     work = tmp_path / "w"
     work.mkdir()
@@ -161,9 +161,9 @@ def test_decomposition_refused_when_criteria_not_partitionable(tmp_path: Path) -
 def test_merge_gap_is_visible(tmp_path: Path) -> None:
     from contracts.branch import BranchState
     from contracts.run import RunState
-    from fandea.graph.ops import OperationLedger
-    from fandea.nodes.join import join
-    from fandea.workspace import WorkspaceManager
+    from recertia.graph.ops import OperationLedger
+    from recertia.nodes.join import join
+    from recertia.workspace import WorkspaceManager
 
     work = tmp_path / "w"
     work.mkdir()

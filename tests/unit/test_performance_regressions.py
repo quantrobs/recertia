@@ -17,22 +17,22 @@ from contracts.criteria import CriterionResult, TaskCriterion
 from contracts.fact import Fact, FactProvenance
 from contracts.resources import ResourceClaim
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
-from fandea.bootstrap import build_default_orchestrator
-from fandea.evals.store import EvalStore
-from fandea.ledger import HashChainLedger
-from fandea.memory.episodic import CaseRecord, EpisodicStore
-from fandea.memory.procedural.seeds import (
+from recertia.bootstrap import build_default_orchestrator
+from recertia.evals.store import EvalStore
+from recertia.ledger import HashChainLedger
+from recertia.memory.episodic import CaseRecord, EpisodicStore
+from recertia.memory.procedural.seeds import (
     add_gitignore_entry,
     add_pytest_config,
     seed_approved_for_tests,
 )
-from fandea.memory.procedural.store import SkillStore
-from fandea.memory.semantic import FactStore
-from fandea.retrieval.index import SkillIndex, embed_text
-from fandea.retrieval.pipeline import Retriever
-from fandea.solver.claims import ClaimScheduler
-from fandea.solver.tools import ToolRuntime, default_registry
-from fandea.workspace import WorkspaceManager
+from recertia.memory.procedural.store import SkillStore
+from recertia.memory.semantic import FactStore
+from recertia.retrieval.index import SkillIndex, embed_text
+from recertia.retrieval.pipeline import Retriever
+from recertia.solver.claims import ClaimScheduler
+from recertia.solver.tools import ToolRuntime, default_registry
+from recertia.workspace import WorkspaceManager
 
 
 def _fact(fact_id: str, slug: str, assertion: str, confidence: float) -> Fact:

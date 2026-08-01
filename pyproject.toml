@@ -1,7 +1,7 @@
 [project]
-name = "fandea"
+name = "recertia"
 version = "0.1.0"
-description = "Fandea: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/fandea/ implements M0–M9 (docs/implementation-plan.md)."
+description = "Recertia: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/recertia/ implements M0–M9 (docs/implementation-plan.md)."
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9,<3",
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-fandea = "fandea.cli.main:app"
+recertia = "recertia.cli.main:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -42,7 +42,7 @@ select = ["E", "F", "I", "W"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["contracts", "src/fandea"]
+files = ["contracts", "src/recertia"]
 ignore_missing_imports = true
 
 [build-system]
@@ -51,4 +51,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["contracts", "contracts.*", "fandea", "fandea.*"]
+include = ["contracts", "contracts.*", "recertia", "recertia.*"]

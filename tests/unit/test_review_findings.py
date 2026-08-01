@@ -21,21 +21,21 @@ from contracts.run import RunManifest, RunState, Task
 from contracts.skill import Hygiene, InputBinding, Provenance, SkillVersion, Step, StepOutput
 from contracts.stats import PredictiveTrust, SkillStats
 from contracts.status import SkillStatus
-from fandea.evals.fake_edges import fake_edge_checks, fake_edge_failure_count, unused_bound_outputs
-from fandea.evals.golden import _criteria_from_task
-from fandea.graph.ops import OperationLedger
-from fandea.jobs.workers import propose_parallelise
-from fandea.ledger import HashChainLedger
-from fandea.memory.episodic import EpisodicStore
-from fandea.memory.procedural.seeds import seed_approved_for_tests
-from fandea.memory.procedural.store import SkillStore
-from fandea.nodes.context import NodeContext
-from fandea.nodes.join import LAYER_THRESHOLD, join
-from fandea.nodes.record_dead_end import record_dead_end
-from fandea.nodes.validate import score_criteria
-from fandea.review.autonomy_config import AutonomyConfig
-from fandea.review.shadow import record_shadow_outcome, schedule_shadow_slots
-from fandea.workspace import WorkspaceManager
+from recertia.evals.fake_edges import fake_edge_checks, fake_edge_failure_count, unused_bound_outputs
+from recertia.evals.golden import _criteria_from_task
+from recertia.graph.ops import OperationLedger
+from recertia.jobs.workers import propose_parallelise
+from recertia.ledger import HashChainLedger
+from recertia.memory.episodic import EpisodicStore
+from recertia.memory.procedural.seeds import seed_approved_for_tests
+from recertia.memory.procedural.store import SkillStore
+from recertia.nodes.context import NodeContext
+from recertia.nodes.join import LAYER_THRESHOLD, join
+from recertia.nodes.record_dead_end import record_dead_end
+from recertia.nodes.validate import score_criteria
+from recertia.review.autonomy_config import AutonomyConfig
+from recertia.review.shadow import record_shadow_outcome, schedule_shadow_slots
+from recertia.workspace import WorkspaceManager
 
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -274,7 +274,7 @@ def test_layered_portfolio_all_failed_still_selects_audit_winner(tmp_path: Path)
 
 
 def test_candidate_store_adapter_hides_status_mutation(tmp_path: Path) -> None:
-    from fandea.memory.procedural.capability import CandidateSkillStoreAdapter
+    from recertia.memory.procedural.capability import CandidateSkillStoreAdapter
 
     adapter = CandidateSkillStoreAdapter(SkillStore(tmp_path / "skills"))
     assert not hasattr(adapter, "write_status")
@@ -348,7 +348,7 @@ def test_partial_transcript_does_not_count_fake_edge_failure() -> None:
 
 
 def test_shadow_scheduling_does_not_bump_predictive_trust(tmp_path: Path) -> None:
-    from fandea.evals.store import EvalStore
+    from recertia.evals.store import EvalStore
 
     store = SkillStore(tmp_path / "skills")
     eval_store = EvalStore(tmp_path / "evals.sqlite")

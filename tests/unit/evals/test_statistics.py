@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from contracts.eval import BinomialSample
-from fandea.evals.ablation import assign_arm
-from fandea.evals.statistics import brier_score, causal_lift, wilson_interval
+from recertia.evals.ablation import assign_arm
+from recertia.evals.statistics import brier_score, causal_lift, wilson_interval
 
 
 def test_injected_lift_excludes_zero() -> None:

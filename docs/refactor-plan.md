@@ -30,11 +30,11 @@ written into M4/M5/M9's done-whens, and [`docs/assumptions.md`](assumptions.md) 
 migrating [`references.md` §8](references.md#8-open-questions-the-literature-does-not-settle-for-us).
 
 **R2 is done** — `contracts/`, `scripts/generate_schemas.py`, `scripts/export_examples.py`,
-semantic profiles in `contracts/profiles.py`, and now the `src/fandea/` M0 walking-skeleton
+semantic profiles in `contracts/profiles.py`, and now the `src/recertia/` M0 walking-skeleton
 runtime (graph engine, all fifteen nodes, hash-chain ledger, workspace snapshotting, the
 operation ledger, the T0–T3 import-boundary test, and the CLI) all exist and are tested — see
 `docs/implementation-plan.md` M0. **R3 is done**: route completeness, schema-drift, semantic-profile checks, cross-refs,
-milestone-dependency, assumptions-hygiene, and the full `src/fandea/`/`contracts/` test suite
+milestone-dependency, assumptions-hygiene, and the full `src/recertia/`/`contracts/` test suite
 run as [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) on every push and PR. R4
 (doc split) and R5 (branch cleanup) are done. R0 (research/ binaries) is done.
 
@@ -208,10 +208,10 @@ into the same PR when touching that surface.
 | ID | Debt | Sharper fix than "document it" | Status |
 | --- | --- | --- | --- |
 | S1 | Step DAG has `depends_on` but no declared outputs / bindings; fake-edge test is unenforceable | Derive edges from typed `input_bindings` → `step.output`; drop free-floating `depends_on` as authoring input | **Done** — `contracts/skill.py` `Step`/`StepOutput`/`InputBinding`; edges from `input_bindings` only; `tests/contracts/test_step_bindings.py` |
-| S2 | `retrieve` "must not execute" but preconditions include `command_succeeds` | Registered read-only probes with budget and evidence, not arbitrary commands | **Done** — `Precondition.kind` includes `probe` (not `command_succeeds`); `src/fandea/retrieval/preconditions.py`; `tests/unit/retrieval/test_preconditions.py` |
+| S2 | `retrieve` "must not execute" but preconditions include `command_succeeds` | Registered read-only probes with budget and evidence, not arbitrary commands | **Done** — `Precondition.kind` includes `probe` (not `command_succeeds`); `src/recertia/retrieval/preconditions.py`; `tests/unit/retrieval/test_preconditions.py` |
 | S3 | `Branch` has no status, spend, transcript, snapshot; schema omits `budget` | `BranchState` + `BudgetLease` against a parent ledger; reserve join overhead | **Done, as a side effect of B3** — `contracts/branch.py`'s `BranchState` has all of status/spend/transcript/snapshot/budget; `schema/branch.schema.json` generated |
 | S4 | `skill_contribution` subtracts a class baseline from a non-randomly selected skill | Three quantities, stored once: predictive trust, class-level retrieval effect (ablation), per-skill effect (shadow/suppression) | **Done** — `PredictiveTrust`, `RetrievalAblationEffect`, `Contribution` in `contracts/stats.py`; contribution is shadow−suppression, not class baseline |
-| S5 | Benched skills cannot gather restoration evidence (not retrievable) | Bounded exploration/shadow slots for benched and newly approved versions | **Done** — `select_shadow_slots` in `src/fandea/memory/procedural/active_set.py`; `shadow_slots_per_task_class` in autonomy config; covered by `tests/e2e/test_m5_autonomy.py` |
+| S5 | Benched skills cannot gather restoration evidence (not retrievable) | Bounded exploration/shadow slots for benched and newly approved versions | **Done** — `select_shadow_slots` in `src/recertia/memory/procedural/active_set.py`; `shadow_slots_per_task_class` in autonomy config; covered by `tests/e2e/test_m5_autonomy.py` |
 | S6 | T3 "unreachable from run code" forbids importing the tool registry the runtime must use | Capability interfaces: read/use vs mutate; test forbidden writes, not blanket imports | **Done** — `ToolRuntime` invokes; `ToolRegistry.register` stays off `NodeContext`; import-boundary test guards T3 |
 | S7 | Only skill/run schemas exist; M0 needs Policy, Criterion, NodeOutput, checkpoint, FailureSignal | Milestone-scoped contract backlog; add schemas before the milestone that consumes them | **Done** — Policy / NodeOutput / CheckpointRecord / ScopePromotion schemas generated; criteria remain embedded in `run.schema.json` |
 | S8 | Research binaries and `.xls` duplicates live in `docs/` | Move to `research/`; xlsx+JSON only (was the entirety of the old plan) | **Done** — `research/*.xlsx` + `*.scored.json`; `.xls` removed |
@@ -238,7 +238,7 @@ Authority
 └── research/                   evidence dumps; never normative
 
 Runtime (scaffolded empty until M0 fills it)
-├── src/fandea/…                imports types from contracts/, does not redefine them
+├── src/recertia/…                imports types from contracts/, does not redefine them
 └── tests/{unit,property,contract,boundary,semantic}/
 ```
 
@@ -300,16 +300,16 @@ dependency and Assumptions hygiene checks in R3 below.
 
 ### R2 — Skeleton and generated contracts — done
 
-- ~~`pyproject.toml`~~ — done; covers `contracts/` and `src/fandea/`.
+- ~~`pyproject.toml`~~ — done; covers `contracts/` and `src/recertia/`.
 - ~~Pydantic models as the working hand; JSON Schema emitted or checked in CI.~~ — done:
   `contracts/*.py` are the models; `scripts/generate_schemas.py --check` and
   `scripts/export_examples.py --check` run as CI steps in `.github/workflows/ci.yml`.
 - ~~Semantic profile validators as first-class Python, not prose.~~ — done: `contracts/profiles.py`.
 - Import-boundary / capability tests per S6 (use interfaces, not "cannot import registry") —
-  **done** with the `src/fandea/` skeleton (see S6 in §1).
+  **done** with the `src/recertia/` skeleton (see S6 in §1).
 
 **Runtime types import from `contracts/`.** Do not hand-write competing `RunState`, routing, or
-skill records in `src/fandea/`. B6/B7 (milestone prose, research gates) never shaped a data model.
+skill records in `src/recertia/`. B6/B7 (milestone prose, research gates) never shaped a data model.
 
 ### R3 — Contract CI that would have caught this — partially done
 

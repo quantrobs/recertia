@@ -1,7 +1,7 @@
 """The provenance ledger entry shape (specs §21).
 
 Structural definition only. The hash-chain mechanics (canonical serialisation, ``entry_hash``
-computation, append, verify) live in ``src/fandea/ledger/hashchain.py`` — that is runtime
+computation, append, verify) live in ``src/recertia/ledger/hashchain.py`` — that is runtime
 behaviour, not a structural contract. This model exists in ``contracts/`` per ADR-0009 so the
 entry shape is generated into ``schema/ledger_entry.schema.json`` rather than drifting from the
 Python snippet in the docs.

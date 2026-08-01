@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/fandea/schema/MergeAudit",
+  "$id": "https://github.com/quantrobs/recertia/schema/MergeAudit",
   "additionalProperties": false,
   "description": "Every fan-in records expected against received inputs (specs \u00a726.4).",
   "properties": {

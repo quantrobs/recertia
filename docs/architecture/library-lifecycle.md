@@ -1,4 +1,4 @@
-# Fandea Architecture: 7. Promotion, trust, and library capacity
+# Recertia Architecture: 7. Promotion, trust, and library capacity
 
 ## 7. Promotion, trust, and library capacity
 

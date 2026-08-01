@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/fandea/schema/FailureSignal",
+  "$id": "https://github.com/quantrobs/recertia/schema/FailureSignal",
   "additionalProperties": false,
   "description": "Raised by the orchestrator, solver, validator, or join \u2014 never inferred after the fact.\n\n``classify_failure``'s only precondition is that a ``FailureSignal`` exists on the run\nstate (ADR-0008); this replaces the old, unsatisfiable-for-most-classes precondition of\n\"some required criterion failed.\"\n\n``class_hint`` is an optional structured producer signal (e.g. budget preflight via\n``budget_excess``). When set, ``classify_failure`` prefers it over detail substring matching.",
   "properties": {

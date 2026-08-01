@@ -1,4 +1,4 @@
-# Fandea Architecture: 11. Measurement integrity
+# Recertia Architecture: 11. Measurement integrity
 
 ## 11. Measurement integrity
 

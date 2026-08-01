@@ -1,0 +1,493 @@
+"""Persistent eval observations and per-task-class control baselines (M4)."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+from contracts.eval import BinomialSample, ControlBaseline, EvalObservation
+from contracts.run import RunState
+from contracts.stats import RetrievalAblationEffect
+
+
+class ObservationError(ValueError):
+    """A run cannot be represented as durable evaluation evidence."""
+
+
+class EvalStore:
+    """SQLite store keyed by snapshot so baselines survive across library versions."""
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._init()
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def _init(self) -> None:
+        with self._conn:
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS observations (
+                    run_id TEXT PRIMARY KEY,
+                    task_class TEXT NOT NULL,
+                    arm TEXT NOT NULL,
+                    snapshot_id TEXT NOT NULL,
+                    model_version TEXT,
+                    first_attempt_success INTEGER NOT NULL,
+                    predicted_success REAL,
+                    terminal TEXT,
+                    fixture_id TEXT,
+                    is_eval_fixture INTEGER NOT NULL,
+                    strategy TEXT,
+                    attempt_no INTEGER,
+                    cost_usd REAL,
+                    abstention_confirmed INTEGER,
+                    skill_id TEXT,
+                    skill_version INTEGER,
+                    suppressed_skill_id TEXT,
+                    suppressed_skill_version INTEGER,
+                    valid_non_judge_evidence INTEGER NOT NULL DEFAULT 0,
+                    evidence_hash TEXT NOT NULL,
+                    recorded_at TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS baselines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_class TEXT NOT NULL,
+                    snapshot_id TEXT NOT NULL,
+                    model_version TEXT,
+                    successes INTEGER NOT NULL,
+                    trials INTEGER NOT NULL,
+                    interval_json TEXT,
+                    created_at TEXT NOT NULL,
+                    report_id TEXT,
+                    UNIQUE(task_class, snapshot_id, report_id)
+                );
+                CREATE TABLE IF NOT EXISTS retrieval_ablation_effects (
+                    task_class TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_obs_snap ON observations(snapshot_id, task_class);
+                CREATE INDEX IF NOT EXISTS idx_obs_skill ON observations(skill_id, skill_version, task_class);
+                CREATE INDEX IF NOT EXISTS idx_obs_suppressed
+                    ON observations(suppressed_skill_id, suppressed_skill_version, task_class, arm);
+                CREATE INDEX IF NOT EXISTS idx_obs_arm ON observations(task_class, arm, is_eval_fixture);
+                CREATE INDEX IF NOT EXISTS idx_base_class ON baselines(task_class, created_at);
+                """
+            )
+            existing = {
+                row["name"] for row in self._conn.execute("PRAGMA table_info(observations)")
+            }
+            migrations = {
+                "strategy": "TEXT",
+                "attempt_no": "INTEGER",
+                "cost_usd": "REAL",
+                "abstention_confirmed": "INTEGER",
+                "skill_id": "TEXT",
+                "skill_version": "INTEGER",
+                "suppressed_skill_id": "TEXT",
+                "suppressed_skill_version": "INTEGER",
+                "valid_non_judge_evidence": "INTEGER NOT NULL DEFAULT 0",
+                "evidence_hash": "TEXT NOT NULL DEFAULT ''",
+            }
+            for column, definition in migrations.items():
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE observations ADD COLUMN {column} {definition}")
+
+    def append_run(self, state: RunState) -> EvalObservation:
+        """Append an observation derived only from a completed, locked ``RunState``.
+
+        The run ID is a primary key and is never replaced.  The canonical run payload hash is
+        retained with the derived fields so callers cannot rewrite an observation after the fact.
+        """
+
+        if state.terminal is None:
+            raise ObservationError("cannot record an observation for a non-terminal run")
+        if state.criteria_locked_at is None or state.manifest.criteria_hash is None:
+            raise ObservationError("cannot record a run whose criteria were not locked")
+        if not state.task.task_class:
+            raise ObservationError("cannot record a run without a task_class")
+        if not state.manifest.index_snapshot_id:
+            raise ObservationError("cannot record a run without index_snapshot_id")
+        evidence = state.model_dump(mode="json")
+        evidence_hash = hashlib.sha256(
+            json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        required_non_judge = {
+            criterion.id
+            for criterion in state.criteria
+            if criterion.is_required and criterion.kind != "judge"
+        }
+        results = {
+            result.criterion_id: result
+            for result in state.results
+            if not result.errored
+        }
+        valid_non_judge_evidence = bool(required_non_judge) and all(
+            criterion_id in results for criterion_id in required_non_judge
+        )
+        obs = EvalObservation(
+            run_id=state.run_id,
+            task_class=state.task.task_class,
+            arm=state.arm,
+            snapshot_id=state.manifest.index_snapshot_id,
+            model_version=state.manifest.model_version,
+            first_attempt_success=state.terminal == "solved" and state.attempt_no == 1,
+            predicted_success=state.predicted_success,
+            terminal=state.terminal,
+            fixture_id=state.task.task_id if state.task.is_eval_fixture else None,
+            is_eval_fixture=state.task.is_eval_fixture,
+            recorded_at=datetime.now(timezone.utc),
+            strategy=state.strategy,
+            attempt_no=state.attempt_no,
+            cost_usd=state.spent.cost_usd,
+            abstention_confirmed=state.terminal == "abstained" and state.failure is not None,
+            skill_id=state.chosen.skill_id if state.chosen else None,
+            skill_version=state.chosen.version if state.chosen else None,
+            suppressed_skill_id=(
+                state.suppressed_skill.skill_id if state.suppressed_skill else None
+            ),
+            suppressed_skill_version=(
+                state.suppressed_skill.version if state.suppressed_skill else None
+            ),
+            valid_non_judge_evidence=valid_non_judge_evidence,
+            evidence_hash=evidence_hash,
+        )
+        self._append_observation(obs)
+        return obs
+
+    def record_observation(self, obs: EvalObservation) -> None:
+        """Reject caller-authored observations; use :meth:`append_run` instead."""
+
+        del obs
+        raise ObservationError("observations must be append_run-derived from a locked RunState")
+
+    def _append_observation(self, obs: EvalObservation) -> None:
+        with self._lock, self._conn:
+            try:
+                self._conn.execute(
+                """
+                INSERT INTO observations (
+                    run_id, task_class, arm, snapshot_id, model_version,
+                    first_attempt_success, predicted_success, terminal, fixture_id,
+                    is_eval_fixture, strategy, attempt_no, cost_usd, abstention_confirmed,
+                    skill_id, skill_version, suppressed_skill_id, suppressed_skill_version,
+                    valid_non_judge_evidence, evidence_hash, recorded_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    obs.run_id,
+                    obs.task_class,
+                    obs.arm,
+                    obs.snapshot_id,
+                    obs.model_version,
+                    int(obs.first_attempt_success),
+                    obs.predicted_success,
+                    obs.terminal,
+                    obs.fixture_id,
+                    int(obs.is_eval_fixture),
+                    obs.strategy,
+                    obs.attempt_no,
+                    obs.cost_usd,
+                    None if obs.abstention_confirmed is None else int(obs.abstention_confirmed),
+                    obs.skill_id,
+                    obs.skill_version,
+                    obs.suppressed_skill_id,
+                    obs.suppressed_skill_version,
+                    int(obs.valid_non_judge_evidence),
+                    obs.evidence_hash,
+                    obs.recorded_at.isoformat(),
+                    obs.model_dump_json(),
+                ),
+            )
+            except sqlite3.IntegrityError as exc:
+                raise ObservationError(f"run {obs.run_id!r} already has an immutable observation") from exc
+
+    def write_baseline(self, baseline: ControlBaseline) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO baselines (
+                    task_class, snapshot_id, model_version, successes, trials,
+                    interval_json, created_at, report_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    baseline.task_class,
+                    baseline.snapshot_id,
+                    baseline.model_version,
+                    baseline.control.successes,
+                    baseline.control.trials,
+                    baseline.interval.model_dump_json() if baseline.interval else None,
+                    baseline.created_at.isoformat(),
+                    baseline.report_id,
+                ),
+            )
+
+    def baselines_for(self, task_class: str) -> list[ControlBaseline]:
+        rows = self._conn.execute(
+            """
+            SELECT * FROM baselines
+            WHERE task_class = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (task_class,),
+        ).fetchall()
+        return [self._row_to_baseline(r) for r in rows]
+
+    def latest_baseline(self, task_class: str) -> ControlBaseline | None:
+        rows = self.baselines_for(task_class)
+        return rows[-1] if rows else None
+
+    def arm_counts(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, BinomialSample]:
+        sql = """
+            SELECT arm,
+                   SUM(first_attempt_success) AS successes,
+                   COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND is_eval_fixture = 0
+        """
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            sql += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        sql += " GROUP BY arm"
+        out: dict[str, BinomialSample] = {}
+        for row in self._conn.execute(sql, params):
+            out[row["arm"]] = BinomialSample(
+                successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
+            )
+        return out
+
+    def contribution_samples(
+        self, *, skill_id: str, version: int, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[BinomialSample, BinomialSample]:
+        """Return randomized shadow and suppression samples for one skill."""
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class, skill_id, version]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        shadow = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND skill_id = ? AND skill_version = ?
+              AND arm = 'shadow' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            params,
+        )
+        suppression_params: list[object] = [task_class, skill_id, version]
+        if snapshot_id is not None:
+            suppression_params.append(snapshot_id)
+        suppression = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND suppressed_skill_id = ? AND suppressed_skill_version = ?
+              AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            suppression_params,
+        )
+        return shadow, suppression
+
+    def contribution_samples_bulk(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[tuple[str, int], tuple[BinomialSample, BinomialSample]]:
+        """Shadow + suppression samples for every evidenced skill, two scans total.
+
+        Equivalent to calling :meth:`contribution_samples` for each skill, without the
+        per-skill round trips; skills with no evidence are absent from the result.
+        """
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        shadow_rows = self._conn.execute(
+            """
+            SELECT skill_id, skill_version,
+                   SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'shadow' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+              AND skill_id IS NOT NULL AND skill_version IS NOT NULL
+            """
+            + suffix
+            + " GROUP BY skill_id, skill_version",
+            params,
+        ).fetchall()
+        suppression_rows = self._conn.execute(
+            """
+            SELECT suppressed_skill_id, suppressed_skill_version,
+                   SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+              AND suppressed_skill_id IS NOT NULL AND suppressed_skill_version IS NOT NULL
+            """
+            + suffix
+            + " GROUP BY suppressed_skill_id, suppressed_skill_version",
+            list(params),
+        ).fetchall()
+
+        empty = BinomialSample(successes=0, trials=0)
+        out: dict[tuple[str, int], list[BinomialSample]] = {}
+        for row in shadow_rows:
+            out.setdefault((row["skill_id"], int(row["skill_version"])), [empty, empty])[0] = (
+                BinomialSample(
+                    successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
+                )
+            )
+        for row in suppression_rows:
+            out.setdefault(
+                (row["suppressed_skill_id"], int(row["suppressed_skill_version"])),
+                [empty, empty],
+            )[1] = BinomialSample(
+                successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
+            )
+        return {key: (pair[0], pair[1]) for key, pair in out.items()}
+
+    def retrieval_ablation_samples(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[BinomialSample, BinomialSample]:
+        """Return class-level retrieval-enabled and retrieval-suppressed samples."""
+
+        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            params.append(snapshot_id)
+        enabled = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'treatment' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            params,
+        )
+        suppressed = self._sample(
+            """
+            SELECT SUM(first_attempt_success) AS successes, COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND arm = 'control' AND is_eval_fixture = 0
+              AND valid_non_judge_evidence = 1
+            """
+            + suffix,
+            params,
+        )
+        return enabled, suppressed
+
+    def write_retrieval_ablation(self, effect: RetrievalAblationEffect) -> None:
+        """Persist the one class-level retrieval effect, separate from skill stats."""
+
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO retrieval_ablation_effects (task_class, payload, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    effect.task_class,
+                    effect.model_dump_json(),
+                    effect.last_evaluated_at.isoformat()
+                    if effect.last_evaluated_at
+                    else datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def retrieval_ablation(self, task_class: str) -> RetrievalAblationEffect | None:
+        row = self._conn.execute(
+            "SELECT payload FROM retrieval_ablation_effects WHERE task_class = ?", (task_class,)
+        ).fetchone()
+        return RetrievalAblationEffect.model_validate_json(row["payload"]) if row else None
+
+    def metric_rows(
+        self, *, task_class: str | None = None, snapshot_id: str | None = None
+    ) -> list[dict]:
+        """Return stored, run-derived rows in the shape consumed by metric aggregation."""
+
+        return [
+            observation.model_dump(mode="json")
+            for observation in self.list_observations(task_class=task_class, snapshot_id=snapshot_id)
+        ]
+
+    def _sample(self, sql: str, params: list[object]) -> BinomialSample:
+        row = self._conn.execute(sql, params).fetchone()
+        return BinomialSample(
+            successes=int((row["successes"] if row else 0) or 0),
+            trials=int((row["trials"] if row else 0) or 0),
+        )
+
+    def list_observations(
+        self, *, task_class: str | None = None, snapshot_id: str | None = None
+    ) -> list[EvalObservation]:
+        clauses: list[str] = []
+        params: list[object] = []
+        if task_class is not None:
+            clauses.append("task_class = ?")
+            params.append(task_class)
+        if snapshot_id is not None:
+            clauses.append("snapshot_id = ?")
+            params.append(snapshot_id)
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = self._conn.execute(
+            f"SELECT payload FROM observations{where} ORDER BY recorded_at ASC", params
+        ).fetchall()
+        return [EvalObservation.model_validate_json(r["payload"]) for r in rows]
+
+    @staticmethod
+    def _row_to_baseline(row: sqlite3.Row) -> ControlBaseline:
+        from contracts.eval import ConfidenceInterval
+
+        interval = None
+        if row["interval_json"]:
+            interval = ConfidenceInterval.model_validate_json(row["interval_json"])
+        return ControlBaseline(
+            task_class=row["task_class"],
+            snapshot_id=row["snapshot_id"],
+            model_version=row["model_version"],
+            control=BinomialSample(successes=row["successes"], trials=row["trials"]),
+            interval=interval,
+            created_at=datetime.fromisoformat(row["created_at"]),
+            report_id=row["report_id"],
+        )
+
+
+def baseline_from_control(
+    *,
+    task_class: str,
+    snapshot_id: str,
+    control: BinomialSample,
+    model_version: str | None = None,
+    report_id: str | None = None,
+) -> ControlBaseline:
+    from recertia.evals.statistics import wilson_interval
+
+    return ControlBaseline(
+        task_class=task_class,
+        snapshot_id=snapshot_id,
+        model_version=model_version,
+        control=control,
+        interval=wilson_interval(control.successes, control.trials),
+        created_at=datetime.now(timezone.utc),
+        report_id=report_id,
+    )
