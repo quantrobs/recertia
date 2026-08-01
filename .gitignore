@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .venv/
+.env
 
 # Default local run state written by `recertia run` (checkpoints, op ledger, provenance ledger,
 # workspace snapshots) — never checked in, per M0's own default of a repo-local .recertia/ dir.
