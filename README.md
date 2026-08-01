@@ -58,12 +58,28 @@ python3 scripts/smoke_container.py
 Without a runtime, use `recertia run --local-exec` for development only. Permissions, digest
 pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md).
 
+### Models and go-live
+
+Configure a real provider for scratch / `agent_subtask` (stub leaves the model unset on
+purpose so unscripted runs fail loud):
+
+```bash
+export RECERTIA_MODEL_PROVIDER=anthropic
+export RECERTIA_MODEL_ID=claude-sonnet-4-20250514
+export ANTHROPIC_API_KEY=…
+recertia run --goal goal.json --model anthropic:$RECERTIA_MODEL_ID --local-exec
+```
+
+Jobs and retention: `recertia jobs run curator --dry-run`, `recertia gc --older-than-days 14`.
+Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md).
+
 ## Documents
 
 | Document | Contents |
 | --- | --- |
 | [`docs/architecture/`](docs/architecture/overview.md) | Three planes, memory taxonomy, node topology, composition, concurrency and merge discipline, library capacity, improvement jobs, measurement integrity, governance |
 | [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup, bind-mount permissions, hardening, smoke test |
+| [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, fetch allowlist, seed lint, jobs CLI, retention gc |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |

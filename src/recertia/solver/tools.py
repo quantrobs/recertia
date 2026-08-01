@@ -19,13 +19,19 @@ from recertia.solver.registry import (
 from recertia.solver.runtime import (
     ApprovalGate,
     ApprovalRequiredError,
+    StepInvokeContext,
     ToolRuntime,
+    active_model,
     active_sandbox_limits,
+    active_step_context,
 )
 
 __all__ = [
     "ApprovalGate",
+    "StepInvokeContext",
+    "active_model",
     "active_sandbox_limits",
+    "active_step_context",
     "ApprovalRequiredError",
     "ClaimScheduler",
     "ClaimTimeoutError",

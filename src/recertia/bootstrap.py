@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from recertia.config import ModelConfig, load_model_config
 from recertia.governance.sandbox import ApprovalGate
 from recertia.memory.affordance import AffordanceStore
 from recertia.memory.episodic import EpisodicStore
@@ -18,12 +19,14 @@ from recertia.memory.semantic import FactStore
 from recertia.retrieval.index import SkillIndex
 from recertia.retrieval.pipeline import Retriever
 from recertia.solver.apply import SkillApplicator
+from recertia.solver.factory import build_solver_and_verifier
 from recertia.solver.tools import ClaimScheduler, ToolRuntime, default_registry
 from recertia.solver.transcript import TranscriptStore
 from recertia.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
     from recertia.graph.engine import GraphOrchestrator
+    from recertia.solver.model import ModelClient
 
 
 @dataclass
@@ -47,11 +50,19 @@ def build_default_orchestrator(
     golden_root: Path | str | None = None,
     env_fingerprint: dict[str, str] | None = None,
     approve_default_tools: bool = True,
+    model_config: ModelConfig | None = None,
+    model: "ModelClient | None" = None,
+    verifier_model: "ModelClient | None" = None,
 ) -> OrchestratorBundle:
     """Wire SkillStore, Retriever, tools, applicator, episodic/facts/affordances.
 
     When ``golden_root`` is set, also wires a ``ReviewService`` so reusable drafts can
     be promoted. Without it, distill keeps solved runs as ``one_off`` (draft retained).
+
+    Model wiring: explicit ``model`` / ``verifier_model`` win. Otherwise
+    ``model_config`` (or env via :func:`load_model_config`) builds clients. Stub
+    provider leaves model unset unless ``RECERTIA_ALLOW_STUB_MODEL=1``, so scratch
+    fails loud instead of silently no-oping.
     """
 
     from recertia.graph.engine import GraphOrchestrator
@@ -62,6 +73,11 @@ def build_default_orchestrator(
     skills_root = Path(skills_root)
     facts_root = Path(facts_root)
     index_path = Path(index_path) if index_path is not None else runs_root / "skill_index.db"
+
+    cfg = model_config if model_config is not None else load_model_config()
+    if model is None and verifier_model is None:
+        # Stub → None (fail-loud scratch). Non-stub misconfig raises ModelConfigError.
+        model, verifier_model = build_solver_and_verifier(cfg)
 
     store = SkillStore(skills_root)
     index = SkillIndex(index_path)
@@ -78,7 +94,7 @@ def build_default_orchestrator(
     if approve_default_tools:
         for name in registry.names():
             gate.approve(name, actor="runtime-bootstrap", reason="default offline grant")
-    tools = ToolRuntime(registry, ClaimScheduler(), approval_gate=gate)
+    tools = ToolRuntime(registry, ClaimScheduler(), approval_gate=gate, model=model)
     workspaces = WorkspaceManager(runs_root / "snapshots")
     transcripts = TranscriptStore(runs_root / "transcripts")
     applicator = SkillApplicator(tools, workspaces)
@@ -96,6 +112,8 @@ def build_default_orchestrator(
         store=store,
         retriever=retriever,
         tools=tools,
+        model=model,
+        verifier_model=verifier_model,
         transcripts=transcripts,
         applicator=applicator,
         episodic=EpisodicStore(runs_root / "episodic"),

@@ -87,8 +87,26 @@ class ToolRegistry:
         return None
 
 
+def _fetch_allowlist() -> tuple[str, ...]:
+    import os
+
+    raw = os.environ.get(
+        "RECERTIA_FETCH_ALLOWLIST",
+        "pypi.org,files.pythonhosted.org,raw.githubusercontent.com,api.github.com",
+    )
+    return tuple(host.strip().lower() for host in raw.split(",") if host.strip())
+
+
+def _host_allowed(hostname: str, allowlist: tuple[str, ...]) -> bool:
+    host = hostname.lower().rstrip(".")
+    for allowed in allowlist:
+        if host == allowed or host.endswith("." + allowed):
+            return True
+    return False
+
+
 def default_registry() -> ToolRegistry:
-    """First-domain tools for repo-chore (shell, edit_file, read_file, grep)."""
+    """First-domain tools for repo-chore (shell, edit_file, read_file, grep, fetch, agent_subtask)."""
 
     registry = ToolRegistry()
 
@@ -203,5 +221,168 @@ def default_registry() -> ToolRegistry:
     registry.register(
         Tool(name="grep", side_effect="read", description="Search files"),
         grep_handler,
+    )
+
+    def fetch_handler(inputs: dict, workdir: Path) -> ToolResult:
+        """Allowlisted HTTP GET for changelogs / package metadata (no arbitrary egress)."""
+
+        import json
+        import os
+        import urllib.error
+        import urllib.parse
+        import urllib.request
+
+        from recertia.solver.runtime import active_step_context
+
+        del workdir  # fetch is network-only; workspace is unused
+        url = str(inputs.get("url") or "").strip()
+        params = active_step_context().params
+        if not url:
+            package = str(inputs.get("package") or params.get("package") or "").strip()
+            if package:
+                url = f"https://pypi.org/pypi/{urllib.parse.quote(package)}/json"
+        if not url:
+            return ToolResult(
+                tool="fetch",
+                ok=False,
+                exit_code=2,
+                stderr="fetch requires url or package",
+            )
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return ToolResult(
+                tool="fetch", ok=False, exit_code=2, stderr=f"unsupported url: {url!r}"
+            )
+        if not _host_allowed(parsed.hostname, _fetch_allowlist()):
+            return ToolResult(
+                tool="fetch",
+                ok=False,
+                exit_code=126,
+                stderr=f"host not allowlisted: {parsed.hostname}",
+            )
+        timeout_s = float(os.environ.get("RECERTIA_FETCH_TIMEOUT_S", "20"))
+        max_bytes = int(os.environ.get("RECERTIA_FETCH_MAX_BYTES", str(512 * 1024)))
+        req = urllib.request.Request(
+            url,
+            headers={"user-agent": "recertia-fetch/0.1", "accept": "application/json,text/*"},
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                raw = resp.read(max_bytes + 1)
+        except urllib.error.HTTPError as exc:
+            return ToolResult(
+                tool="fetch",
+                ok=False,
+                exit_code=exc.code,
+                stderr=f"HTTP {exc.code} for {url}",
+            )
+        except urllib.error.URLError as exc:
+            return ToolResult(tool="fetch", ok=False, exit_code=1, stderr=str(exc))
+        if len(raw) > max_bytes:
+            return ToolResult(
+                tool="fetch",
+                ok=False,
+                exit_code=1,
+                stderr=f"response exceeded RECERTIA_FETCH_MAX_BYTES={max_bytes}",
+            )
+        text = raw.decode("utf-8", errors="replace")
+        # Prefer a compact PyPI summary when the payload is package JSON.
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and "info" in data:
+                info = data.get("info") or {}
+                summary = {
+                    "name": info.get("name"),
+                    "version": info.get("version"),
+                    "summary": info.get("summary"),
+                    "home_page": info.get("home_page") or info.get("project_url"),
+                    "yanked": info.get("yanked"),
+                }
+                text = json.dumps(summary, indent=2)
+        except json.JSONDecodeError:
+            pass
+        return ToolResult(tool="fetch", ok=True, stdout=text[-8000:])
+
+    def agent_subtask_handler(inputs: dict, workdir: Path) -> ToolResult:
+        """Model-backed repair loop: propose one shell command, then execute it."""
+
+        from recertia.solver.container import run_configured_command
+        from recertia.solver.runtime import active_model, active_sandbox_limits, active_step_context
+        from recertia.solver.sandbox import SandboxError
+
+        model = active_model()
+        if model is None:
+            return ToolResult(
+                tool="agent_subtask",
+                ok=False,
+                exit_code=2,
+                stderr=(
+                    "agent_subtask requires a configured model client "
+                    "(set RECERTIA_MODEL_PROVIDER / --model)"
+                ),
+            )
+        step_ctx = active_step_context()
+        intent = str(inputs.get("intent") or step_ctx.intent or "repair the workspace")
+        changelog = str(inputs.get("changelog") or inputs.get("notes") or "")
+        sync_status = inputs.get("sync_status", inputs.get("synced", ""))
+        prompt = (
+            f"You are repairing a repository workspace at {workdir}.\n"
+            f"Task intent: {intent}\n"
+            f"Sync status: {sync_status!r}\n"
+            f"Changelog / notes:\n{changelog[:4000]}\n"
+            "Propose exactly one shell command that moves the workspace toward the intent. "
+            "Reply with only the command, no markdown."
+        )
+        try:
+            response = model.complete(prompt, system="Return a single shell command only.")
+        except Exception as exc:  # noqa: BLE001 — tool boundary
+            return ToolResult(
+                tool="agent_subtask", ok=False, exit_code=1, stderr=f"model error: {exc}"
+            )
+        command = response.text.strip().splitlines()[0].strip().strip("`")
+        if not command or command.lower() in {"noop", "none", "n/a"}:
+            return ToolResult(
+                tool="agent_subtask",
+                ok=False,
+                exit_code=1,
+                stderr="model returned an empty/no-op command",
+            )
+        limits = active_sandbox_limits()
+        try:
+            proc = run_configured_command(
+                command, workdir=workdir, limits=limits, timeout_s=120
+            )
+        except SandboxError as exc:
+            return ToolResult(
+                tool="agent_subtask", ok=False, exit_code=126, stderr=str(exc)
+            )
+        return ToolResult(
+            tool="agent_subtask",
+            ok=proc.returncode == 0,
+            exit_code=proc.returncode,
+            stdout=f"$ {command}\n{proc.stdout}"[-8000:],
+            stderr=proc.stderr[-8000:],
+            cost_usd=response.cost_usd,
+        )
+
+    registry.register(
+        Tool(
+            name="fetch",
+            side_effect="network",
+            description="Allowlisted HTTP GET (changelogs, package metadata)",
+            claims=(ResourceClaim(kind="rate_limit", id="fetch", mode="write"),),
+            flaky=True,
+            error_signatures=("HTTP 429", "host not allowlisted"),
+        ),
+        fetch_handler,
+    )
+    registry.register(
+        Tool(
+            name="agent_subtask",
+            side_effect="write",
+            description="Model-backed repair subtask (one command per iteration)",
+        ),
+        agent_subtask_handler,
     )
     return registry

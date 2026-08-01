@@ -16,10 +16,12 @@ from contracts.criteria import TaskCriterion
 from contracts.goal import Goal, compile_goal
 from contracts.run import Task
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
+from recertia.config import load_model_config
 from recertia.graph.engine import GraphOrchestrator
 from recertia.ids import InvalidIdError, validate_run_id
 from recertia.ledger import HashChainLedger, LedgerVerificationError
 from recertia.solver.container import ensure_execution_ready
+from recertia.solver.factory import ModelConfigError
 from recertia.solver.sandbox import SandboxError
 
 runs_app = typer.Typer(help="Inspect runs.")
@@ -82,6 +84,16 @@ def run_cmd(
     ablation: bool = typer.Option(
         False, "--ablation", help="Assign control arm via T3 ablation sampler (outside nodes)."
     ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        help="Model provider selection: stub | anthropic:<id> | openai:<id>.",
+    ),
+    verifier: Optional[str] = typer.Option(
+        None,
+        "--verifier",
+        help="Optional verifier model id (same provider family), e.g. anthropic:claude-…",
+    ),
 ) -> None:
     """Start a run and drive it to completion (or to the first unrecoverable stop)."""
 
@@ -90,6 +102,12 @@ def run_cmd(
         raise typer.Exit(code=2)
 
     _prepare_execution(local_exec=local_exec)
+
+    try:
+        model_config = load_model_config(model=model, verifier=verifier)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
 
     rid = run_id or uuid.uuid4().hex[:12]
     try:
@@ -150,12 +168,17 @@ def run_cmd(
     if index == Path(".recertia/skill_index.db"):
         index_path = runs_root / "skill_index.db"
 
-    bundle = build_default_orchestrator(
-        runs_root,
-        skills_root=skills_root,
-        facts_root=facts_root,
-        index_path=index_path,
-    )
+    try:
+        bundle = build_default_orchestrator(
+            runs_root,
+            skills_root=skills_root,
+            facts_root=facts_root,
+            index_path=index_path,
+            model_config=model_config,
+        )
+    except ModelConfigError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=2) from exc
     try:
         state = bundle.orchestrator.start(
             rid, task, criteria, budget=budget, workdir=wd, script=script, arm=arm

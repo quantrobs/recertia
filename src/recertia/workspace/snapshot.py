@@ -78,6 +78,38 @@ class WorkspaceManager:
             raise PathEscapeError(f"invalid snapshot_ref: {snapshot_ref!r}") from exc
         return contained_path(self._snapshots_root, snapshot_ref)
 
+    def gc(
+        self,
+        *,
+        older_than_days: float = 14.0,
+        dry_run: bool = False,
+    ) -> list[str]:
+        """Delete snapshot directories whose mtime is older than ``older_than_days``.
+
+        Returns the snapshot_ref values removed (or that would be removed when
+        ``dry_run`` is true).
+        """
+
+        import time
+
+        cutoff = time.time() - (older_than_days * 86400.0)
+        removed: list[str] = []
+        if not self._snapshots_root.exists():
+            return removed
+        for child in sorted(self._snapshots_root.iterdir()):
+            if not child.is_dir():
+                continue
+            try:
+                mtime = child.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > cutoff:
+                continue
+            removed.append(child.name)
+            if not dry_run:
+                shutil.rmtree(child, ignore_errors=True)
+        return removed
+
 
 def _copy_tree_contained(src: Path, dst: Path) -> None:
     """Copy ``src`` → ``dst`` without following outbound symlinks."""

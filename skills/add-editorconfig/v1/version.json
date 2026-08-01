@@ -22,6 +22,8 @@
       "inputs": {
         "command": "printf 'root = true\\n\\n[*]\\ncharset = utf-8\\nend_of_line = lf\\n\\n[*.py]\\nindent_style = space\\nindent_size = 4\\n' > .editorconfig"
       },
+      "outputs": [],
+      "input_bindings": [],
       "optional": false,
       "resources": [],
       "loop": null
@@ -49,7 +51,8 @@
         "negative_fixture": "no editorconfig",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "452951181722e9ef89b8d6e089cd346498117843f7c1b78f68175be49042c5bf"
       },
       "authored_by": "human",
       "preregistered": true
@@ -75,7 +78,8 @@
         "negative_fixture": "no python section",
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
-        "checked_against": "sha256:m1-seed-env"
+        "checked_against": "sha256:m1-seed-env",
+        "evidence_hash": "33cca04c108b236fea324ea81d72683269b8ce87e2e7e87968b39267d27e1745"
       },
       "authored_by": "human",
       "preregistered": true
