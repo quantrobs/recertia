@@ -1,7 +1,8 @@
 # ADR-0014: Goal packs as migration programs (not mega-Goals)
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-08-02
+- **Accepted:** 2026-08-02 (shipped GP0–GP1 on `main` via #50)
 
 ## Context
 

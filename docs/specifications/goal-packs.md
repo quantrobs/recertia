@@ -99,43 +99,49 @@ DAG `depends_on` is reserved; GP0 runtime ignores it and uses ordinal-1 only.
 
 ## GP-6 Workspace handoff
 
-| Mode | GP0 |
+| Mode | Status |
 | --- | --- |
-| `none` | External git metadata and/or operator `workdir`; else `plan_only` |
-| `operator_workdir` | `workdir` required to execute |
-| `copy_forward` / `git_tip` | Not runtime-supported in GP0 (warn) |
+| `none` | **Shipped** — external git metadata and/or operator `workdir`; else `plan_only` |
+| `operator_workdir` | **Shipped** — `workdir` required to execute |
+| `copy_forward` | Deferred; prefer `git_tip` |
+| `git_tip` | **GP2** — requires registered `repo_binding`; checkout tip into fresh workspace |
 
 ---
 
 ## GP-7 Budgets
 
 `budget_from_goal_constraints` applies Goal `budget_ceiling` onto run `Budget` at preview /
-materialize (min with existing ceiling). Pack-level remaining budget is GP1.
+materialize. Pack-level remaining budget fails closed on step run (**shipped** GP1).
 
 ---
 
-## GP-8 HTTP API (GP0)
+## GP-8 HTTP API
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/v1/programs` | Create draft |
-| `GET` | `/v1/programs` | List (tenant) |
-| `GET` | `/v1/programs/{id}` | Detail + refresh ready |
-| `POST` | `/v1/programs/{id}/accept` | draft → active (disclaimer) |
-| `POST` | `/v1/programs/{id}/abandon` | Abandon |
-| `PATCH` | `/v1/programs/{id}/steps/{step_id}` | Edit while planned/ready/failed |
-| `POST` | `…/steps/{step_id}/preview` | Materialize + compile; no lock |
-| `POST` | `…/steps/{step_id}/run` | `plan_only` / envelope **or** `bind_run_id` |
+| Method | Path | Purpose | Status |
+| --- | --- | --- | --- |
+| `POST` | `/v1/programs` | Create draft | Shipped |
+| `GET` | `/v1/programs` | List (tenant) | Shipped |
+| `GET` | `/v1/programs/{id}` | Detail + refresh ready | Shipped |
+| `POST` | `/v1/programs/{id}/accept` | draft → active (disclaimer) | Shipped |
+| `POST` | `/v1/programs/{id}/abandon` | Abandon | Shipped |
+| `PATCH` | `/v1/programs/{id}/steps/{step_id}` | Edit while planned/ready/failed | Shipped |
+| `POST` | `…/steps/{step_id}/preview` | Materialize + compile; no lock | Shipped |
+| `POST` | `…/steps/{step_id}/run` | `plan_only` / envelope **or** `bind_run_id` | Shipped |
+| `POST` | `…/steps/{step_id}/skip` | Skip with note | Shipped |
+| `POST` | `/v1/programs/from-pack` | Compose pack → durable draft | Shipped |
+| `POST` | `/v1/goals/suggest` | Drafts + `decompositions[]` | Shipped |
+| `POST` | `/v1/goals/probe` | Read-only inventory | Shipped |
+| `POST` | `/v1/programs/{id}/repo-binding` | Register allowlisted repo (GP2) | GP2 |
+| `POST` | `…/steps/{step_id}/record-tip` | Record git tip after success (GP2) | GP2 |
 
 Bind body: `{ plan_only, workdir, budget, bind_run_id, idempotency_key }`.
-
-Propose remains `POST /v1/goals/suggest` (no duplicate propose endpoint in GP0).
 
 ---
 
 ## GP-9 Console
 
-API-first in GP0. Pilot program board is a follow-on client of `/v1/programs`.
+Pilot **Programs** board and Compose (suggest / save pack as program) **shipped** (#50).
+GP2 adds tip SHA display and binding status on the board.
 
 ---
 
