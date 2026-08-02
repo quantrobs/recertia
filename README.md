@@ -1,10 +1,10 @@
 # Recertia
 
-Recertia (aka Re-certify) is a self-improving agent system. It solves tasks and distills what worked into reusable memory, getting faster and more reliable at similar tasks over time.
+"Recertia" (aka Re-certify) is a self-improving agent system. It solves tasks and distills what worked into reusable memory, getting faster and more reliable at similar tasks over time.
 
 The execution model is **a graph with loops**. A task is a bounded cyclic walk on a small set of nodes. Compounding happens *across* walks, through durable versioned memory that every later run reads before inventing anything through offline jobs that reorganize, practice, and re-certify what has been learned.
 
-**Disclosures include** "Recertia" was built on a research basis to prove what could be done when combining current academic research with existing opensource ideas. References are available in this repo.  As a disclosure, this project involved by human and AI tasks to complete the near 20K lines of code. It is incumbent upon anyone using this code for their own projects to validate and test the code thoroughly for your use case.  I would be curious to hear your actual usage and feedback. I can be reached at robs@gatech.edu. 
+**Disclosures** Recertia was built on a research basis to prove what could be done when combining existing opensource ideas and current academic research. References are available in this repo.  As a disclosure, this project involved by human and AI tasks to complete the near 20K lines of code.  It's not since operations systems class in college that I have worked on coding something this big. It is incumbent upon anyone using this code for their own projects to validate and test the code thoroughly for your use case.  I would be curious to hear your actual usage and feedback. I can be reached at robs@gatech.edu. 
 
 ## What it is
 
