@@ -58,10 +58,10 @@ v1 (aligned with operations §9):
 
 | Entity | Store |
 | --- | --- |
-| Pack + steps | JSON or SQLite under `{runs_root}/packs/<tenant_id>/` (same durability class as proposals) |
-| Run binding | `step.run_id` → existing run records |
-| Handoff artifacts (GP1) | Content-addressed snapshot / tar under blobs; referenced by `base_run_id` |
-| Git tips (GP2) | Digest + ref recorded on step; checkout into fresh workspace |
+| Pack + steps | SQLite `{root}/programs.sqlite` (tenant-scoped rows; same durability class as proposals) |
+| Run binding | `step.run_ids[]` / `current_run_id` → existing run records |
+| Freeze seals | Digests embedded in compiled freeze criteria at intake (GP1) |
+| Git tips (GP2) | Digest + ref on step `external_handoff`; checkout into fresh workspace |
 
 Pack records are **not** reviewed git artifacts (unlike `SkillVersion`). They are operator
 runtime state. Export-to-git (ADR note / PR series) is a later convenience, not the source
@@ -92,14 +92,13 @@ run. Programs need continuity **between** runs without breaking that model.
 
 **Chosen progression (revised after review):**
 
-1. **`none` + external handoff / operator workdir (GP0)** — Durable board and locked
+1. **`none` + external handoff / operator workdir (GP0 — shipped)** — Durable board and locked
    per-step contracts. Continuity is the operator’s git branch/PR (`external_handoff`) or an
    explicit `workdir`. `plan_only` supports board/preview without pretending an empty
    workspace is a migration. Default `freeze_enforcement=advisory`.
-2. **`freeze_enforcement=hard` (GP1)** — Only when `must_not_modify` is snapshot/digest-honest.
-3. **`git_tip` or allowlisted `copy_forward` (GP2)** — Prefer git tip. Whole-tree copy-forward
-   is a last resort with path allowlists and size caps. **No shared live mount. No
-   auto-advance** in this phase.
+2. **`freeze_enforcement=hard` (GP1 — shipped)** — Digest-sealed `must_not_modify` at intake.
+3. **`git_tip` + `repo_binding` (GP2 — next)** — Prefer git tip over whole-tree copy-forward.
+   Fresh run workspace per step; **no shared live mount; no auto-advance**.
 
 **Rejected:** advertising hard freezes before criterion honesty; empty-workspace step runs
 as the default migration path; DAG complexity in GP0.
@@ -125,7 +124,7 @@ migration *shape*, not a paraphrase of context.
 - Retry = new run bound to same step (prior `run_id` retained in history list) or clone step
   (implementation choice; MUST keep audit of attempts).
 - Skip is explicit, noted, and non-evidential for mutate safety.
-- Auto-advance (GP2) only after `succeeded` and policy flag; never on judge-only Goals.
+- Auto-advance is **deferred** (not part of GP2); never on judge-only Goals.
 
 ## 8. Security and tenancy
 

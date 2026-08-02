@@ -2,95 +2,93 @@
 
 Build order after principal review of ADR-0014. Normative:
 [`specifications/goal-packs.md`](specifications/goal-packs.md). Architecture:
-[`architecture/goal-packs.md`](architecture/goal-packs.md).
+[`architecture/goal-packs.md`](architecture/goal-packs.md). Decision:
+[ADR-0014](adr/0014-goal-packs-as-migration-programs.md) (**accepted**).
 
 **Public API name:** `/v1/programs` (`MigrationProgram`). Product copy may say “Goal pack”.
 Distinct from Tower `ReplayPack`.
 
+Shipped on `main` via [#50](https://github.com/quantrobs/fandea/pull/50) (`da90e7e`).
+
 ## Guiding rules (revised)
 
 1. One Goal → one lock → one run remains the execution atom.
-2. **Do not advertise hard freezes until `freeze_enforcement=hard` is honest** (snapshot /
-   digest `must_not_modify`). GP0 default is **`advisory`**.
+2. `freeze_enforcement=hard` is allowed only with digest-sealed `must_not_modify` (GP1 shipped).
+   Default remains **`advisory`** for drafts that do not need freeze injection.
 3. **GP0 execution requires** `plan_only`, **or** `workdir`, **and/or** `external_handoff`
    (branch / PR / SHA). Empty isolated workspaces are not a migration handoff.
-4. **Linear ordinals only** in GP0 (no DAG).
+4. **Linear ordinals only** through GP1 (no DAG).
 5. **`run_ids[]` + `current_run_id`**; never overwrite attempt history.
 6. Persist board before copy-forward / git tip / auto-advance.
-7. Auto-advance is **deferred** (not GP2 scope anymore).
+7. Auto-advance is **deferred** (not GP2 scope).
 8. Types live in `contracts/program.py` (ADR-0009).
 
 ## Milestone map (revised)
 
 ```text
-GP0   Durable linear program board + preview + bind-run (SHIPPING)
-GP0.5 Probe (read-only) + Compose decompositions wiring
-GP1   freeze_enforcement=hard + budget rollup + skip
-GP2   copy_forward (allowlisted paths) OR git_tip — pick one; no auto-advance
+GP0   Durable linear program board + preview + bind-run     SHIPPED (#50)
+GP0.5 Probe + Compose decompositions + from-pack            SHIPPED (#50)
+GP1   freeze_enforcement=hard + seal + skip + pack budget SHIPPED (#50)
+GP2   git_tip handoff + repo_binding                        NEXT
 ```
 
-| Milestone | Status / unlock |
+| Milestone | Status |
 | --- | --- |
-| **GP0** | Implemented: contracts, store, `/v1/programs`, materialize, stress, bind flow, tests |
-| GP0.5 | Optional probe + suggest `decompositions[]` |
-| GP1 | Real freeze + pack budget + skip |
-| GP2 | Continuity handoff (prefer git_tip over whole-tree copy) |
+| **GP0** | **Shipped** — contracts, store, `/v1/programs`, materialize, stress, bind, Pilot Programs board |
+| **GP0.5** | **Shipped** — `POST /v1/goals/probe`, suggest `decompositions[]`, `POST /v1/programs/from-pack` |
+| **GP1** | **Shipped** — digest-sealed `must_not_modify`, hard freezes, skip, pack budget check |
+| **GP2** | **Next** — `git_tip` continuity with registered `repo_binding` |
 
 ---
 
-## GP0 — shipped in this change
+## GP0 — shipped (#50)
 
 ### Scope delivered
 
 - `contracts/program.py` — `MigrationProgram`, `MigrationStep`, `ExternalHandoff`,
   `budget_from_goal_constraints`
-- `src/recertia/programs/` — store, materialize (program bar merge), stress, GP0 prereqs
-- HTTP: create/list/get/accept/abandon, step patch (immutable after bind), preview, run
-  (plan_only envelope **or** `bind_run_id`)
-- Default `freeze_enforcement=advisory` (info warning; no fake `must_not_modify`)
+- `src/recertia/programs/` — store, materialize, stress, GP0 prereqs
+- HTTP: create/list/get/accept/abandon, step patch/preview/run (`plan_only` or `bind_run_id`)
+- Default `freeze_enforcement=advisory`; bind integrity vs `criteria_preview_hash`
 - Linear predecessor gate; idempotent bind; tenant isolation
+- Console **Programs** board (list → accept → preview → submit+bind)
 - Tests: `tests/unit/test_migration_programs.py`
 
 ### Operator flow
 
 1. `POST /v1/programs` with steps → `POST …/accept`
 2. `POST …/steps/{id}/preview` → inspect compiled criteria
-3. `POST …/steps/{id}/run` (`plan_only` or envelope) → `POST /v1/runs` with `run_create`
+3. `POST …/steps/{id}/run` (envelope) → `POST /v1/runs` with `run_create`
 4. `POST …/steps/{id}/run` with `bind_run_id` (+ workdir or external_handoff)
-
-### Explicit non-goals (still)
-
-- DAG `depends_on` execution
-- Auto-advance
-- Whole-tree copy-forward
-- Claiming freeze is enforced while advisory
-- Console program board UI (API-first; Pilot board follows)
 
 ---
 
-## GP0.5 — probe + propose quality
+## GP0.5 — shipped (#50)
 
 - `POST /v1/goals/probe` allowlisted read-only inventory
-- Suggest returns `decompositions[]` using slot templates (`by_risk`, `by_seam`)
-- Keep single propose surface (`/v1/goals/suggest`); no duplicate `/v1/packs/propose`
+- Suggest returns `decompositions[]`; Compose “Save pack as program”
+- `POST /v1/programs/from-pack`
+- Single propose surface (`/v1/goals/suggest`)
 
-## GP1 — honest constraints
+## GP1 — shipped (#50)
 
-- Snapshot/digest `must_not_modify`; allow `freeze_enforcement=hard`
-- Pack budget remaining; skip with note
-- Conformance GP-T7–T10 as applicable
+- `seal_must_not_modify_criteria` at intake (`src/recertia/validation/freeze.py`)
+- `freeze_enforcement=hard` enabled when sealing is ready
+- Step skip with note; pack budget exhaustion fails closed
+- Tests: `tests/unit/test_freeze_seal.py`
 
-## GP2 — continuity
+## GP2 — continuity (next)
 
-- Prefer **git_tip** + registered binding over whole-tree copy_forward
-- If copy_forward: git-tracked / allowlist + size caps only
+- Prefer **git_tip** + registered `repo_binding` over whole-tree `copy_forward`
+- On step success, record tip SHA; next step checks out into a **fresh** run workspace
+- Reject unbound `git_tip`; checkout failure → step failed / program blocked
 - **No auto-advance** in this milestone
 
 ## Success metrics (feature health)
 
 - First-bind step success rate
 - Share of steps without `generic_pytest_only`
-- Freeze-violation catch rate once hard enforcement ships
+- Freeze-violation catch rate under hard enforcement
 - Packs completed without skip
 
 ## Out of order / do not do
@@ -99,4 +97,4 @@ GP2   copy_forward (allowlisted paths) OR git_tip — pick one; no auto-advance
 - Suggest auto-submit of all steps
 - Shared live workdir across steps
 - Pack status as promotion signal
-- Advertising hard freezes before GP1
+- Auto-advance / DAG before GP2 git_tip proves out
