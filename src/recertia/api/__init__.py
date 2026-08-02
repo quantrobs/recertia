@@ -188,6 +188,7 @@ class RunRecord(BaseModel):
     has_goal: bool = False
     cost_usd: float | None = None
     mode: str | None = None
+    criteria_hash: str | None = None
 
 
 def create_app(
@@ -575,6 +576,7 @@ def _record_from_state(
         route_log=route_log,
         has_goal=has_goal,
         cost_usd=cost,
+        criteria_hash=getattr(getattr(state, "manifest", None), "criteria_hash", None),
     )
 
 

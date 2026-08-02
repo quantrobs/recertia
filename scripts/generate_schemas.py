@@ -28,6 +28,7 @@ from contracts.goal import Goal  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
 from contracts.node import CheckpointRecord, NodeOutput  # noqa: E402
 from contracts.policy import AuthoringPrior, Policy  # noqa: E402
+from contracts.program import MigrationProgram  # noqa: E402
 from contracts.review import ReviewDecision  # noqa: E402
 from contracts.run import RunState  # noqa: E402
 from contracts.scope import ScopePromotion  # noqa: E402
@@ -58,6 +59,7 @@ MODELS: dict[str, type] = {
     "eval_observation.schema.json": EvalObservation,
     "metric_report.schema.json": MetricReport,
     "goal.schema.json": Goal,
+    "migration_program.schema.json": MigrationProgram,
 }
 
 

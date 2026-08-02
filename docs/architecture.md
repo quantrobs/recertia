@@ -19,5 +19,6 @@
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
 - [Product console architecture](architecture/product-console.md)
+- [Goal packs (migration programs)](architecture/goal-packs.md)
 
-Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md), the [console implementation plan](implementation-plan-console.md), and the [OpenAI-compat / OpenRouter plan](implementation-plan-openai-compat.md).
+Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md), the [console implementation plan](implementation-plan-console.md), the [OpenAI-compat / OpenRouter plan](implementation-plan-openai-compat.md), and the [Goal packs plan](implementation-plan-goal-packs.md).

@@ -52,8 +52,16 @@ quota and identity, not necessarily self-serve key minting.
 
 ### 3.1 Pilot (run tempo)
 
-- **Goal builder** — form fields compile to `Goal` JSON (`file_exists`, `file_contains`,
-  `command`, constraints). Templates for common `repo-chore` chores.
+- **Compose (sub-mode)** — intent → `POST /v1/goals/suggest` draft (model or heuristic) →
+  human select/edit → apply to form. Drafts are never locked (ADR-0003 / ADR-0010). Large
+  briefs may return a **Goal pack** / decomposition instead of one mega-Goal. Stress warnings
+  flag vacuous commands and missing `must_not_modify`.
+- **Run (sub-mode)** — form fields compile to `Goal` JSON (`file_exists`, `file_contains`,
+  `command`, constraints) via **Preview** (`compile_goal`) then submit. Templates for common
+  `repo-chore` chores.
+- **Programs board** — durable migration programs (`/v1/programs`): ordered steps,
+  freeze/mutate hints, per-step preview/run/bind (see [goal-packs.md](goal-packs.md)). Distinct
+  from Tower **ReplayPack** evidence.
 - **Workdir picker** — path or registered workspace; never accept arbitrary host escapes
   beyond the existing API workdir rules.
 - **Runs browser** — list/filter by tenant, task class, terminal, time; open detail.

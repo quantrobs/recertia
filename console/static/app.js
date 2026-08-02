@@ -1,7 +1,11 @@
-/* Recertia console — Pilot / Tower / Ops (C0–C5) */
+/* Recertia console — Pilot Compose / Run + Tower / Ops */
 
 const $ = (sel) => document.querySelector(sel);
-const state = { session: localStorage.getItem("recertia_session") || "" };
+const state = {
+  session: localStorage.getItem("recertia_session") || "",
+  draft: null,
+  formSource: "manual",
+};
 
 function apiKey() { return $("#apiKey").value.trim(); }
 function tenantHeader() { return $("#tenantHeader").value.trim(); }
@@ -15,7 +19,11 @@ async function api(path, opts = {}) {
   const text = await res.text();
   let body;
   try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
-  if (!res.ok) throw new Error(body?.detail || body?.error?.message || res.statusText);
+  if (!res.ok) {
+    const detail = body?.detail;
+    const msg = typeof detail === "string" ? detail : (detail && JSON.stringify(detail)) || body?.error?.message || res.statusText;
+    throw new Error(msg);
+  }
   return body;
 }
 
@@ -30,6 +38,26 @@ document.querySelectorAll(".nav button[data-view]").forEach((btn) => {
   btn.addEventListener("click", () => showView(btn.dataset.view));
 });
 
+function setPilotMode(mode) {
+  document.querySelectorAll("[data-pilot-mode]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.pilotMode === mode);
+  });
+  $("#pilot-compose").classList.toggle("hidden", mode !== "compose");
+  $("#pilot-run").classList.toggle("hidden", mode !== "run");
+}
+
+document.querySelectorAll("[data-pilot-mode]").forEach((btn) => {
+  btn.addEventListener("click", () => setPilotMode(btn.dataset.pilotMode));
+});
+
+function desiredValue(prefill) {
+  if (prefill.kind === "file_contains") {
+    return `${prefill.path || ""}${prefill.pattern ? "|" + prefill.pattern : ""}`;
+  }
+  if (prefill.kind === "command") return prefill.run || "";
+  return prefill.path || prefill.value || "";
+}
+
 function addDesiredRow(prefill = {}) {
   const row = document.createElement("div");
   row.className = "desired-row";
@@ -40,15 +68,52 @@ function addDesiredRow(prefill = {}) {
       <option value="file_contains">file_contains</option>
       <option value="command">command</option>
     </select>
-    <input placeholder="path / pattern / command" value="${prefill.path || prefill.pattern || prefill.run || ""}" data-f="value" />
+    <input placeholder="path / path|pattern / command" value="${desiredValue(prefill)}" data-f="value" />
     <button type="button" class="danger">×</button>`;
   if (prefill.kind) row.querySelector('[data-f="kind"]').value = prefill.kind;
   row.querySelector("button").onclick = () => row.remove();
   $("#desiredList").appendChild(row);
 }
 
+function addConstraintRow(prefill = {}) {
+  const row = document.createElement("div");
+  row.className = "desired-row";
+  const val = Array.isArray(prefill.value) ? prefill.value.join(",") : (prefill.value ?? "");
+  row.innerHTML = `
+    <input placeholder="id" value="${prefill.id || ""}" data-f="id" />
+    <select data-f="kind">
+      <option value="must_not_modify">must_not_modify</option>
+      <option value="must_pass_command">must_pass_command</option>
+      <option value="no_external_effects">no_external_effects</option>
+    </select>
+    <input placeholder="paths (comma) / command / true" value="${val}" data-f="value" />
+    <button type="button" class="danger">×</button>`;
+  if (prefill.kind) row.querySelector('[data-f="kind"]').value = prefill.kind;
+  row.querySelector("button").onclick = () => row.remove();
+  $("#constraintList").appendChild(row);
+}
+
 $("#addDesired").onclick = () => addDesiredRow({ id: `d${$("#desiredList").children.length + 1}`, kind: "file_exists" });
+$("#addConstraint").onclick = () => addConstraintRow({ id: `c${$("#constraintList").children.length + 1}`, kind: "must_not_modify" });
 addDesiredRow({ id: "d1", kind: "file_exists", path: ".gitignore" });
+
+function buildConstraints() {
+  return [...$("#constraintList").children].map((row, i) => {
+    const id = row.querySelector('[data-f="id"]').value || `c${i + 1}`;
+    const kind = row.querySelector('[data-f="kind"]').value;
+    const raw = row.querySelector('[data-f="value"]').value.trim();
+    if (kind === "must_not_modify") {
+      return { id, kind, value: raw.split(",").map((s) => s.trim()).filter(Boolean), weight: 1.0 };
+    }
+    if (kind === "no_external_effects") {
+      return { id, kind, value: raw || "true", weight: 1.0 };
+    }
+    return { id, kind, value: raw, weight: 1.0 };
+  }).filter((c) => {
+    if (c.kind === "must_not_modify") return Array.isArray(c.value) && c.value.length;
+    return !!c.value;
+  });
+}
 
 function buildGoal() {
   const desired = [...$("#desiredList").children].map((row, i) => {
@@ -57,22 +122,201 @@ function buildGoal() {
     const value = row.querySelector('[data-f="value"]').value;
     const base = { id, kind, weight: 1.0 };
     if (kind === "file_exists") return { ...base, path: value };
-    if (kind === "file_contains") return { ...base, path: value.split("|")[0], pattern: value.split("|")[1] || value };
+    if (kind === "file_contains") {
+      return { ...base, path: value.split("|")[0], pattern: value.split("|")[1] || value };
+    }
     return { ...base, run: value };
   });
   return {
     goal_id: `console-${Date.now()}`,
     desired,
-    constraints: [],
+    constraints: buildConstraints(),
     context: $("#goalContext").value || null,
     task_class: $("#taskClass").value || "repo-chore",
   };
 }
 
+function renderDraft(draft) {
+  state.draft = draft;
+  $("#draftPanel").classList.remove("hidden");
+  $("#draftSource").textContent = draft.source || "draft";
+  $("#draftDisclaimer").textContent = draft.disclaimer || "";
+  const w = $("#draftWarnings");
+  w.innerHTML = "";
+  for (const warn of draft.warnings || []) {
+    const el = document.createElement("div");
+    el.className = `warn ${warn.severity || "warn"}`;
+    el.textContent = `[${warn.severity}] ${warn.message}`;
+    w.appendChild(el);
+  }
+  const box = $("#draftDesired");
+  box.innerHTML = "";
+  (draft.desired || []).forEach((d, i) => {
+    const el = document.createElement("label");
+    el.className = "draft-item";
+    const summary = d.kind === "file_contains"
+      ? `${d.path}|${d.pattern}`
+      : (d.path || d.run || "");
+    el.innerHTML = `
+      <input type="checkbox" data-draft-d="${i}" ${d.selected !== false ? "checked" : ""} />
+      <div>
+        <strong>${d.id}</strong> · ${d.kind}
+        <div class="meta">${summary}</div>
+        <div class="muted">${d.why || ""}${d.risk ? " — risk: " + d.risk : ""}</div>
+      </div>`;
+    box.appendChild(el);
+  });
+  const cbox = $("#draftConstraints");
+  cbox.innerHTML = "";
+  if (!(draft.constraints || []).length) {
+    cbox.innerHTML = `<p class="muted">None</p>`;
+  }
+  (draft.constraints || []).forEach((c, i) => {
+    const el = document.createElement("label");
+    el.className = "draft-item";
+    el.innerHTML = `
+      <input type="checkbox" data-draft-c="${i}" ${c.selected !== false ? "checked" : ""} />
+      <div>
+        <strong>${c.id}</strong> · ${c.kind}
+        <div class="meta">${Array.isArray(c.value) ? c.value.join(", ") : c.value}</div>
+        <div class="muted">${c.why || ""}</div>
+      </div>`;
+    cbox.appendChild(el);
+  });
+  const pack = draft.pack || [];
+  $("#draftPackWrap").classList.toggle("hidden", !pack.length);
+  $("#applyPack0").classList.toggle("hidden", !pack.length);
+  $("#savePackAsProgram").classList.toggle("hidden", !(pack.length || (draft.decompositions || []).length));
+  const pbox = $("#draftPack");
+  pbox.innerHTML = "";
+  pack.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "pack-card";
+    card.innerHTML = `<strong>${i + 1}. ${p.title}</strong>
+      <div class="muted">${p.context || ""}</div>
+      <div class="meta">${(p.desired || []).map((d) => d.id).join(", ") || "(no desired)"}</div>
+      <button type="button" class="secondary" data-pack-apply="${i}">Apply this pack goal</button>`;
+    pbox.appendChild(card);
+  });
+  pbox.querySelectorAll("[data-pack-apply]").forEach((btn) => {
+    btn.onclick = () => applyPackItem(Number(btn.dataset.packApply));
+  });
+}
+
+function applyDesiredList(desired) {
+  $("#desiredList").innerHTML = "";
+  for (const d of desired) addDesiredRow(d);
+  if (!desired.length) addDesiredRow({ id: "d1", kind: "file_exists", path: ".gitignore" });
+}
+
+function applyConstraintList(constraints) {
+  $("#constraintList").innerHTML = "";
+  for (const c of constraints || []) addConstraintRow(c);
+}
+
+function applyPackItem(index) {
+  const pack = state.draft?.pack?.[index];
+  if (!pack) return;
+  if (pack.context) $("#goalContext").value = pack.context;
+  applyDesiredList(pack.desired || []);
+  applyConstraintList(pack.constraints || []);
+  state.formSource = `pack:${pack.title}`;
+  $("#formSourceHint").textContent = `(from pack: ${pack.title})`;
+  setPilotMode("run");
+}
+
+$("#suggestCriteria").onclick = async () => {
+  try {
+    const body = {
+      context: $("#goalContext").value.trim(),
+      task_class: $("#taskClass").value || "repo-chore",
+      use_model: $("#useModel").checked,
+    };
+    if (!body.context) {
+      alert("Enter context first");
+      return;
+    }
+    $("#draftDisclaimer").textContent = "Suggesting…";
+    $("#draftPanel").classList.remove("hidden");
+    const draft = await api("/v1/goals/suggest", { method: "POST", body: JSON.stringify(body) });
+    renderDraft(draft);
+  } catch (e) {
+    alert(e);
+  }
+};
+
+$("#dismissDraft").onclick = () => {
+  state.draft = null;
+  $("#draftPanel").classList.add("hidden");
+};
+
+$("#applyDraft").onclick = () => {
+  if (!state.draft) return;
+  const desired = [];
+  document.querySelectorAll("[data-draft-d]").forEach((cb) => {
+    if (!cb.checked) return;
+    desired.push(state.draft.desired[Number(cb.dataset.draftD)]);
+  });
+  const constraints = [];
+  document.querySelectorAll("[data-draft-c]").forEach((cb) => {
+    if (!cb.checked) return;
+    constraints.push(state.draft.constraints[Number(cb.dataset.draftC)]);
+  });
+  if (!desired.length) {
+    alert("Select at least one desired state (or apply a pack goal)");
+    return;
+  }
+  const blocked = (state.draft.warnings || []).some((w) => w.severity === "block");
+  if (blocked && !confirm("Draft has blocking warnings. Apply anyway?")) return;
+  applyDesiredList(desired);
+  applyConstraintList(constraints);
+  state.formSource = `draft:${state.draft.source}`;
+  $("#formSourceHint").textContent = `(accepted ${state.draft.source} draft)`;
+  setPilotMode("run");
+};
+
+$("#applyPack0").onclick = () => applyPackItem(0);
+
+$("#savePackAsProgram").onclick = async () => {
+  try {
+    const draft = state.draft;
+    if (!draft) return;
+    const decomp = (draft.decompositions && draft.decompositions[0]) || null;
+    const steps = decomp
+      ? decomp.steps
+      : (draft.pack || []).map((p, i) => ({
+          title: p.title,
+          context: p.context,
+          desired: p.desired,
+          constraints: p.constraints,
+          role: i === 0 ? "characterization" : i === (draft.pack.length - 1) ? "behaviour_lock" : "structural",
+        }));
+    if (!steps.length) {
+      alert("No pack/decomposition to save");
+      return;
+    }
+    const created = await api("/v1/programs/from-pack", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `From Compose: ${(draft.context || "").slice(0, 48)}`,
+        intent: draft.context || "",
+        task_class: draft.task_class || "repo-chore",
+        decomposition: (decomp && decomp.decomposition) || "by_risk",
+        steps,
+      }),
+    });
+    alert(`Saved program ${created.program.program_id} (draft). Open Programs to accept.`);
+    showView("programs");
+    await openProgram(created.program.program_id);
+  } catch (e) {
+    alert(e);
+  }
+};
+
 $("#previewGoal").onclick = async () => {
   try {
     const out = await api("/v1/goals/preview", { method: "POST", body: JSON.stringify({ goal: buildGoal() }) });
-    $("#previewOut").textContent = JSON.stringify(out, null, 2);
+    $("#previewOut").textContent = JSON.stringify({ form_source: state.formSource, ...out }, null, 2);
   } catch (e) { $("#previewOut").textContent = String(e); }
 };
 
@@ -87,11 +331,12 @@ $("#submitRun").onclick = async () => {
         "content-type": "application/json",
         ...(apiKey() ? { "X-API-Key": apiKey() } : {}),
         ...(state.session ? { "X-Recertia-Session": state.session } : {}),
+        ...(tenantHeader() ? { "X-Recertia-Tenant": tenantHeader() } : {}),
       },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    $("#previewOut").textContent = JSON.stringify({ status: res.status, ...data }, null, 2);
+    $("#previewOut").textContent = JSON.stringify({ status: res.status, form_source: state.formSource, ...data }, null, 2);
     if (mode === "async" && data.run_id) streamEvents(data.run_id);
   } catch (e) { $("#previewOut").textContent = String(e); }
 };
@@ -115,16 +360,10 @@ $("#templateSelect").onchange = async () => {
   const g = data.goal;
   $("#goalContext").value = g.context || "";
   $("#taskClass").value = g.task_class || "repo-chore";
-  $("#desiredList").innerHTML = "";
-  for (const d of g.desired || []) {
-    addDesiredRow({
-      id: d.id,
-      kind: d.kind,
-      path: d.path,
-      pattern: d.pattern,
-      run: d.run,
-    });
-  }
+  applyDesiredList(g.desired || []);
+  applyConstraintList(g.constraints || []);
+  state.formSource = `template:${id}`;
+  $("#formSourceHint").textContent = `(template ${id})`;
 };
 
 async function refreshRuns() {
@@ -156,7 +395,6 @@ function streamEvents(runId) {
   el.textContent = `SSE ${runId}…\n`;
   const headers = {};
   if (apiKey()) headers["X-API-Key"] = apiKey();
-  // EventSource cannot set headers; use fetch stream for keyed auth
   fetch(`/v1/runs/${runId}/events`, { headers }).then(async (res) => {
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -291,4 +529,188 @@ $("#doSwitch").onclick = async () => {
   $("#authOut").textContent = JSON.stringify(d, null, 2);
 };
 
+setPilotMode("compose");
 loadTemplates();
+
+/* ----- Migration programs (GP0 board) ----- */
+state.programId = null;
+state.program = null;
+
+async function refreshPrograms() {
+  const data = await api("/v1/programs");
+  const tb = $("#programsTable tbody");
+  tb.innerHTML = "";
+  for (const p of data.programs || []) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.program_id}</td><td>${p.title}</td><td>${p.status}</td><td><button class="secondary">Open</button></td>`;
+    tr.querySelector("button").onclick = () => openProgram(p.program_id);
+    tb.appendChild(tr);
+  }
+}
+
+async function openProgram(id) {
+  const data = await api(`/v1/programs/${id}`);
+  state.programId = id;
+  state.program = data.program;
+  $("#programBoard").classList.remove("hidden");
+  $("#programTitle").textContent = data.program.title;
+  $("#programMeta").textContent = `${data.program.program_id} · ${data.program.status} · freeze=${data.program.freeze_enforcement} · handoff=${data.program.handoff}`;
+  renderProgramSteps(data.program, data.warnings || []);
+  $("#programOut").textContent = JSON.stringify(data.warnings || [], null, 2);
+}
+
+function renderProgramSteps(prog, warnings) {
+  const box = $("#programSteps");
+  box.innerHTML = "";
+  (prog.steps || []).forEach((step) => {
+    const el = document.createElement("div");
+    el.className = "program-step";
+    el.innerHTML = `
+      <div class="program-step-head">
+        <strong>${step.ordinal}. ${step.title}</strong>
+        <span class="muted">${step.role} · ${step.status}</span>
+      </div>
+      <div class="muted">freeze: ${(step.freeze_paths || []).join(", ") || "—"} · mutate: ${(step.mutate_paths || []).join(", ") || "—"}</div>
+      <div class="actions">
+        <button type="button" class="secondary" data-act="preview">Preview</button>
+        <button type="button" class="secondary" data-act="envelope">Run envelope</button>
+        <button type="button" class="primary" data-act="submit-bind">Submit + bind</button>
+        <input data-workdir placeholder="workdir (relative)" value="" />
+      </div>`;
+    el.querySelector('[data-act="preview"]').onclick = () => previewProgramStep(step.step_id);
+    el.querySelector('[data-act="envelope"]').onclick = () => envelopeProgramStep(step.step_id, el.querySelector("[data-workdir]").value);
+    el.querySelector('[data-act="submit-bind"]').onclick = () => submitBindProgramStep(step.step_id, el.querySelector("[data-workdir]").value);
+    box.appendChild(el);
+  });
+  if (warnings && warnings.length) {
+    const w = document.createElement("p");
+    w.className = "muted";
+    w.textContent = warnings.map((x) => x.code).join(", ");
+    box.appendChild(w);
+  }
+}
+
+async function previewProgramStep(stepId) {
+  try {
+    const out = await api(`/v1/programs/${state.programId}/steps/${stepId}/preview`, { method: "POST", body: "{}" });
+    $("#programOut").textContent = JSON.stringify(out, null, 2);
+    await openProgram(state.programId);
+  } catch (e) {
+    $("#programOut").textContent = String(e);
+  }
+}
+
+async function envelopeProgramStep(stepId, workdir) {
+  try {
+    const out = await api(`/v1/programs/${state.programId}/steps/${stepId}/run`, {
+      method: "POST",
+      body: JSON.stringify({ plan_only: true, workdir: workdir || null }),
+    });
+    $("#programOut").textContent = JSON.stringify(out, null, 2);
+  } catch (e) {
+    $("#programOut").textContent = String(e);
+  }
+}
+
+async function submitBindProgramStep(stepId, workdir) {
+  try {
+    const env = await api(`/v1/programs/${state.programId}/steps/${stepId}/run`, {
+      method: "POST",
+      body: JSON.stringify({ plan_only: false, workdir: workdir || "ws" }),
+    });
+    if (!env.run_create) {
+      $("#programOut").textContent = JSON.stringify(env, null, 2);
+      return;
+    }
+    const created = await api("/v1/runs", {
+      method: "POST",
+      body: JSON.stringify({
+        ...env.run_create,
+        mode: $("#runMode")?.value || "async",
+      }),
+    });
+    const runId = created.run_id;
+    const bound = await api(`/v1/programs/${state.programId}/steps/${stepId}/run`, {
+      method: "POST",
+      body: JSON.stringify({
+        bind_run_id: runId,
+        workdir: workdir || env.run_create.workdir || "ws",
+        idempotency_key: `bind-${runId}`,
+      }),
+    });
+    $("#programOut").textContent = JSON.stringify({ created, bound }, null, 2);
+    await openProgram(state.programId);
+  } catch (e) {
+    $("#programOut").textContent = String(e);
+  }
+}
+
+$("#refreshPrograms").onclick = () => refreshPrograms().catch((e) => alert(e));
+$("#createProgramDraft").onclick = async () => {
+  try {
+    const body = {
+      title: "Console draft migration",
+      intent: "Two-step draft from console board",
+      freeze_enforcement: "advisory",
+      handoff: "none",
+      steps: [
+        {
+          step_id: "char",
+          ordinal: 0,
+          title: "Characterization",
+          role: "characterization",
+          goal: {
+            desired: [{ id: "baseline", kind: "command", run: "python -m pytest -q", weight: 1.0 }],
+            context: "Baseline suite",
+            task_class: "repo-chore",
+          },
+          freeze_paths: ["src/recertia/api"],
+          mutate_paths: [],
+          external_handoff: { note: "operator git branch" },
+        },
+        {
+          step_id: "move",
+          ordinal: 1,
+          title: "Structural move",
+          role: "structural",
+          goal: {
+            desired: [{ id: "src-exists", kind: "file_exists", path: "src", weight: 1.0 }],
+            context: "Layout change",
+            task_class: "repo-chore",
+          },
+          freeze_paths: ["console/"],
+          mutate_paths: ["src/"],
+          external_handoff: { note: "operator git branch" },
+        },
+      ],
+    };
+    const created = await api("/v1/programs", { method: "POST", body: JSON.stringify(body) });
+    await refreshPrograms();
+    await openProgram(created.program.program_id);
+  } catch (e) {
+    alert(e);
+  }
+};
+$("#acceptProgram").onclick = async () => {
+  try {
+    await api(`/v1/programs/${state.programId}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ ack_disclaimer: true }),
+    });
+    await openProgram(state.programId);
+  } catch (e) {
+    alert(e);
+  }
+};
+$("#abandonProgram").onclick = async () => {
+  try {
+    await api(`/v1/programs/${state.programId}/abandon`, { method: "POST", body: "{}" });
+    await openProgram(state.programId);
+  } catch (e) {
+    alert(e);
+  }
+};
+
+document.querySelector('.nav button[data-view="programs"]').addEventListener("click", () => {
+  refreshPrograms().catch(() => {});
+});
