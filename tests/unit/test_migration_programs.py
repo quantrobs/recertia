@@ -449,3 +449,208 @@ def test_skip_step(tmp_path: Path) -> None:
     )
     assert skipped.status_code == 200, skipped.text
     assert skipped.json()["program"]["steps"][0]["status"] == "skipped"
+
+
+def _init_git_repo(path: Path, *, filename: str = "README.md", content: str = "v1\n") -> str:
+    import subprocess
+
+    path.mkdir(parents=True, exist_ok=True)
+    (path / filename).write_text(content, encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "test"], cwd=path, check=True)
+    subprocess.run(["git", "add", "."], cwd=path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
+    # Ensure default branch is main for tip resolution
+    subprocess.run(
+        ["git", "branch", "-M", "main"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
+    out = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return out.stdout.strip()
+
+
+def test_git_tip_unbound_blocked_by_stress_and_accept(tmp_path: Path) -> None:
+    from contracts.program import RepoBinding
+    from recertia.programs.git_tip import GitTipError, assert_git_tip_program
+
+    step = MigrationStep.model_validate(_step("s1", 0))
+    prog = MigrationProgram(
+        program_id="p1",
+        tenant_id="t1",
+        title="t",
+        handoff="git_tip",
+        steps=[step],
+    )
+    warnings = stress_step(prog, step)
+    assert any(w.code == "missing_repo_binding" and w.severity == "block" for w in warnings)
+    with pytest.raises(MaterializeError, match="repo_binding"):
+        assert_gp0_execution_prereqs(prog, step, workdir=None, plan_only=False)
+    with pytest.raises(GitTipError, match="repo_binding"):
+        assert_git_tip_program(prog)
+
+    bound = prog.model_copy(
+        update={"repo_binding": RepoBinding(root="app", default_branch="main")}
+    )
+    assert_git_tip_program(bound)
+
+    client, app = _client(tmp_path)
+    headers = _issue(app)
+    created = client.post(
+        "/v1/programs",
+        headers=headers,
+        json={
+            "title": "unbound tip",
+            "handoff": "git_tip",
+            "steps": [_step("s1", 0)],
+        },
+    )
+    assert created.status_code == 200
+    assert any(
+        w["code"] == "missing_repo_binding" for w in created.json()["warnings"]
+    )
+    pid = created.json()["program"]["program_id"]
+    denied = client.post(
+        f"/v1/programs/{pid}/accept",
+        headers=headers,
+        json={"ack_disclaimer": True},
+    )
+    assert denied.status_code == 400
+    assert "repo_binding" in denied.json()["detail"]
+
+
+def test_git_tip_seed_workdir_and_checkout_failure(tmp_path: Path) -> None:
+    client, app = _client(tmp_path)
+    headers = _issue(app, tenant_id="t1")
+    api_root = tmp_path / "api-root"
+    binding_rel = "app"
+    repo = api_root / "repo_bindings" / "t1" / binding_rel
+    tip_sha = _init_git_repo(repo)
+
+    created = client.post(
+        "/v1/programs",
+        headers=headers,
+        json={
+            "title": "tip pack",
+            "handoff": "none",
+            "steps": [
+                _step("char", 0, role="characterization"),
+                _step("move", 1, role="structural", path="src"),
+            ],
+        },
+    )
+    assert created.status_code == 200, created.text
+    pid = created.json()["program"]["program_id"]
+
+    bound = client.post(
+        f"/v1/programs/{pid}/repo-binding",
+        headers=headers,
+        json={"root": binding_rel, "default_branch": "main"},
+    )
+    assert bound.status_code == 200, bound.text
+    assert bound.json()["program"]["handoff"] == "git_tip"
+    assert bound.json()["program"]["repo_binding"]["root"] == binding_rel
+
+    accepted = client.post(
+        f"/v1/programs/{pid}/accept",
+        headers=headers,
+        json={"ack_disclaimer": True},
+    )
+    assert accepted.status_code == 200, accepted.text
+
+    # Record tip on first step from binding root
+    recorded = client.post(
+        f"/v1/programs/{pid}/steps/char/record-tip",
+        headers=headers,
+        json={"use_binding_root": True},
+    )
+    assert recorded.status_code == 200, recorded.text
+    assert recorded.json()["head_sha"] == tip_sha
+    assert recorded.json()["program"]["steps"][0]["external_handoff"]["head_sha"] == tip_sha
+
+    # Seed second step into a fresh run workdir
+    seeded = client.post(
+        f"/v1/programs/{pid}/steps/move/seed-workdir",
+        headers=headers,
+        json={"run_id": "run-seed-1"},
+    )
+    assert seeded.status_code == 200, seeded.text
+    assert seeded.json()["tip_sha"] == tip_sha
+    assert seeded.json()["checked_out"] == tip_sha
+    dest = Path(seeded.json()["workdir"])
+    assert dest.is_dir()
+    assert (dest / "README.md").read_text(encoding="utf-8") == "v1\n"
+    assert (dest / ".git").exists()
+
+    # Bad tip → step failed / program blocked
+    bad = client.post(
+        f"/v1/programs/{pid}/steps/move/seed-workdir",
+        headers=headers,
+        json={"run_id": "run-seed-bad", "tip_sha": "deadbeef" * 5},
+    )
+    assert bad.status_code == 400
+    prog = client.get(f"/v1/programs/{pid}", headers=headers).json()["program"]
+    assert prog["status"] == "blocked"
+    move = next(s for s in prog["steps"] if s["step_id"] == "move")
+    assert move["status"] == "failed"
+
+
+def test_git_tip_rejects_unregistered_seed(tmp_path: Path) -> None:
+    client, app = _client(tmp_path)
+    headers = _issue(app)
+    created = client.post(
+        "/v1/programs",
+        headers=headers,
+        json={
+            "title": "no bind",
+            "handoff": "operator_workdir",
+            "steps": [_step("s1", 0)],
+        },
+    )
+    pid = created.json()["program"]["program_id"]
+    client.post(f"/v1/programs/{pid}/accept", headers=headers, json={"ack_disclaimer": True})
+    # Force handoff via store without binding (simulates unbound git_tip)
+    prog = app.state.console_ctx.programs.get(pid, tenant_id="t1")
+    assert prog is not None
+    app.state.console_ctx.programs.put(
+        prog.model_copy(update={"handoff": "git_tip", "repo_binding": None})
+    )
+    denied = client.post(
+        f"/v1/programs/{pid}/steps/s1/seed-workdir",
+        headers=headers,
+        json={"run_id": "r1"},
+    )
+    assert denied.status_code == 400
+    assert "unregistered" in denied.json()["detail"] or "repo_binding" in denied.json()["detail"]
+    blocked = client.get(f"/v1/programs/{pid}", headers=headers).json()["program"]
+    assert blocked["status"] == "blocked"
+
+
+def test_git_tip_binding_path_escape_rejected(tmp_path: Path) -> None:
+    client, app = _client(tmp_path)
+    headers = _issue(app, tenant_id="t1")
+    created = client.post(
+        "/v1/programs",
+        headers=headers,
+        json={"title": "escape", "steps": [_step("s1", 0)]},
+    )
+    pid = created.json()["program"]["program_id"]
+    denied = client.post(
+        f"/v1/programs/{pid}/repo-binding",
+        headers=headers,
+        json={"root": "../outside"},
+    )
+    assert denied.status_code == 400
