@@ -46,6 +46,8 @@ pinning, and CI notes: [`docs/architecture/container-sandbox.md`](docs/architect
 
 ### Models and go-live
 
+**As a reminder, always protect your keys and limit your potential losses** There are tools available to scan for secret information, use them!
+
 Configure a real provider for scratch / `agent_subtask` (stub leaves the model unset on
 purpose so unscripted runs fail loud):
 
