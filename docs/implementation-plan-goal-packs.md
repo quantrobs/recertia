@@ -99,4 +99,4 @@ GP2   git_tip handoff + repo_binding                        SHIPPED
 - Suggest auto-submit of all steps
 - Shared live workdir across steps
 - Pack status as promotion signal
-- Auto-advance / DAG before GP2 git_tip proves out
+- Auto-advance / DAG (still deferred after GP2 git_tip)
