@@ -11,6 +11,7 @@ from contracts.run import RunState
 from recertia.nodes._util import criteria_hash, now
 from recertia.nodes.context import NodeContext, NodeOutcome
 from recertia.validation.critic import propose_criteria, refine_goal_criteria
+from recertia.validation.freeze import seal_must_not_modify_criteria
 
 
 def intake(state: RunState, ctx: NodeContext) -> NodeOutcome:
@@ -27,6 +28,9 @@ def intake(state: RunState, ctx: NodeContext) -> NodeOutcome:
 
     if state.task.goal is not None:
         criteria = compile_goal(state.task.goal, source="caller")
+        criteria = seal_must_not_modify_criteria(
+            criteria, goal=state.task.goal, workdir=ctx.workdir
+        )
         # Ensure sensitivity proofs exist for required criteria.
         criteria = refine_goal_criteria(criteria, workdir=ctx.workdir)
         note = f"compiled goal → {len(criteria)} criterion(ies)"

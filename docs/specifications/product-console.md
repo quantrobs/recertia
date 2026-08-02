@@ -34,6 +34,13 @@ The console MUST compile UI state to a valid `Goal` ([goal-objects.md](goal-obje
 The console MUST expose a **preview** of compiled Goal JSON and of `compile_goal` criteria
 before submit.
 
+### 2.4 Compose suggest (optional assist)
+
+`POST /v1/goals/suggest` MAY return draft `desired` / `constraints` / optional `pack` from
+model or heuristics. Responses MUST include a disclaimer that drafts are not locked.
+The console MUST require explicit human apply before preview/submit. Suggest MUST NOT write
+run manifests or `TaskCriterion` locks.
+
 ### 2.2 Templates
 
 v1 SHOULD ship templates that produce Goals equivalent to seed chores (gitignore entry,
@@ -44,6 +51,13 @@ proofs at intake.
 
 Submit MUST follow existing API workdir isolation rules (tenant workspace root; no absolute
 escape). The console MUST refuse paths that the API would reject.
+
+### 2.4 Goal packs (migration programs)
+
+For large refactors the Pilot SHOULD expose a **Goal pack** board: ordered Goals with
+dependencies and freeze paths, each submitted as a normal run after human confirm. Suggest
+drafts MUST NOT lock criteria. Normative: [goal-packs.md](goal-packs.md). Build order:
+[implementation-plan-goal-packs.md](../implementation-plan-goal-packs.md).
 
 ## 3. HTTP API (console)
 

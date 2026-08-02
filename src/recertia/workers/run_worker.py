@@ -51,9 +51,9 @@ class AsyncRunWorker:
         self.on_complete = on_complete
         self.on_failed = on_failed
         self._pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="recertia-run")
-        self._cancel = set()
+        self._cancel: set[str] = set()
         self._lock = threading.Lock()
-        self._futures: dict[str, Future] = {}
+        self._futures: dict[str, Future[Any]] = {}
 
     def shutdown(self) -> None:
         self._pool.shutdown(wait=False, cancel_futures=True)

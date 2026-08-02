@@ -10,6 +10,7 @@
 - [OpenAI-compatible gateways (OpenRouter)](specifications/openai-compat-gateways.md)
 - [Memory, composition, and criteria integrity](specifications/memory-composition-and-criteria.md)
 - [Goal objects (Variant B)](specifications/goal-objects.md)
+- [Goal packs (migration programs)](specifications/goal-packs.md)
 - [Failure taxonomy, isolation, and fan-out](specifications/failure-isolation-and-fanout.md)
 - [Evaluation, improvement jobs, ledger, and governance](specifications/evaluation-improvement-and-governance.md)
 - [Library capacity, authoring, and concurrency](specifications/library-authoring-and-concurrency.md)
