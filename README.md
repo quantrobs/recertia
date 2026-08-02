@@ -1,28 +1,14 @@
 # Recertia
 
-Recertia is a self-improving agent system: it solves tasks, distills what worked into reusable
-memory, and gets faster and more reliable at similar tasks over time.
+Recertia is a self-improving agent system. It solves tasks and distills what worked into reusable memory, getting faster and more reliable at similar tasks over time.
 
-The execution model is a **graph with loops**. A task is one bounded cyclic walk over a small
-set of nodes. Compounding happens *across* walks, through durable versioned memory that every
-later run reads before inventing anything new — and through offline jobs that reorganise,
-practise, and re-certify what has been learned.
+The execution model is **a graph with loops**. A task is a bounded cyclic walk on a small set of nodes. Compounding happens *across* walks, through durable versioned memory that every later run reads before inventing anything through offline jobs that reorganize, practice, and re-certify what has been learned.
 
 ## What it is
 
-Recertia is built for recurring work — repository chores, research briefs, and similar
-task classes — where past solutions should make the next attempt cheaper and more reliable.
-Each run locks machine-checkable success criteria, retrieves relevant skills and cases before
-solving, validates the result, and only then proposes durable memory. Nothing is learned by
-silently mutating state: skills, facts, and cases are versioned, reviewable, and revertible.
-Failures are stored as knowledge too, so the system can avoid dead ends it has already seen.
+Recertia is designed for recurring tasks like repository maintenance, research briefs, and similar jobs where using past solutions should make future work easier and more reliable. For each task, it sets clear, machine-checkable success criteria, finds relevant skills and examples, solves the problem, checks the result, and then saves what it learned. The system does not change its state quietly; instead, skills, facts, and cases are versioned, easy to review, and can be rolled back. It also saves failures as knowledge, helping the system avoid repeating the same mistakes.
 
-Improvement is representational, not parametric: there is no weight training. Competence grows
-through a plural memory plane (procedural skills, semantic facts, episodic cases, utterances,
-and policy) and an offline improvement plane that refines, evolves, practises, and recertifies
-candidates behind a quality gate. A causal control arm with retrieval suppressed keeps “it got
-better” as a measured claim rather than a hopeful one. The active skill library is bounded and
-retires low-contribution entries so performance does not drift below a no-memory baseline.
+Recertia improves by updating how it represents knowledge, not by adjusting weights like in traditional training. Its abilities grow through different types of memory, such as skills, facts, cases, examples, and policies. An offline process regularly reviews and updates these, making sure only high-quality candidates are kept. To measure real progress, a control group runs without using past knowledge, so improvements can be clearly proven. The system also limits its active skill library and removes less useful entries to keep performance strong.
 
 **Primary input (Variant B):** a structured [`Goal`](contracts/goal.py) of desired outcomes and
 constraints, compiled to locked `TaskCriterion[]` at intake. Natural language is optional
