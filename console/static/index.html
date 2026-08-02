@@ -16,6 +16,7 @@
       <p class="brand-sub">Pilot · Tower · Ops</p>
       <nav>
         <button data-view="pilot" class="active">Pilot</button>
+        <button data-view="programs">Programs</button>
         <button data-view="runs">Runs</button>
         <button data-view="skills">Skills</button>
         <button data-view="tower">Tower</button>
@@ -31,28 +32,93 @@
     </aside>
     <main>
       <section id="view-pilot" class="view active">
-        <h1>Pilot — Goal form</h1>
-        <p class="lede">Build a machine-checkable Goal, preview criteria, then run sync or async.</p>
-        <div class="row">
-          <label>Template
-            <select id="templateSelect"><option value="">— custom —</option></select>
-          </label>
-          <label>Mode
-            <select id="runMode"><option value="sync">sync</option><option value="async">async</option></select>
-          </label>
+        <h1>Pilot</h1>
+        <p class="lede">Compose a checkable Goal (draft → review → lock preview), then run.</p>
+        <div class="mode-toggle" role="tablist" aria-label="Pilot mode">
+          <button type="button" data-pilot-mode="compose" class="active">Compose</button>
+          <button type="button" data-pilot-mode="run">Run</button>
         </div>
-        <label>Context <input id="goalContext" type="text" placeholder="Short description" /></label>
-        <label>Task class <input id="taskClass" type="text" value="repo-chore" /></label>
-        <div class="desired">
-          <h2>Desired states</h2>
-          <div id="desiredList"></div>
-          <button type="button" id="addDesired" class="secondary">Add desired</button>
+
+        <div id="pilot-compose" class="pilot-pane">
+          <p class="banner">AI/heuristic drafts are suggestions only. You confirm before preview or submit — criteria are never auto-locked.</p>
+          <label>Context
+            <textarea id="goalContext" rows="3" placeholder="What should be true when the run succeeds?"></textarea>
+          </label>
+          <div class="row">
+            <label>Task class <input id="taskClass" type="text" value="repo-chore" /></label>
+            <label class="check-inline"><input id="useModel" type="checkbox" checked /> Prefer model draft</label>
+          </div>
+          <div class="actions">
+            <button type="button" id="suggestCriteria" class="primary">Suggest criteria</button>
+            <button type="button" id="dismissDraft" class="secondary">Dismiss draft</button>
+          </div>
+          <div id="draftPanel" class="draft-panel hidden">
+            <div class="draft-meta">
+              <span id="draftSource" class="pill"></span>
+              <span id="draftDisclaimer" class="muted"></span>
+            </div>
+            <div id="draftWarnings" class="warnings"></div>
+            <h2>Suggested desired states</h2>
+            <div id="draftDesired"></div>
+            <h2>Suggested constraints</h2>
+            <div id="draftConstraints"></div>
+            <div id="draftPackWrap" class="hidden">
+              <h2>Goal pack <span class="muted">(prefer for large work)</span></h2>
+              <div id="draftPack"></div>
+            </div>
+            <div class="actions">
+              <button type="button" id="applyDraft" class="primary">Apply selected to form</button>
+              <button type="button" id="applyPack0" class="secondary hidden">Apply pack goal 1</button>
+              <button type="button" id="savePackAsProgram" class="secondary hidden">Save pack as program</button>
+            </div>
+          </div>
         </div>
+
+        <div id="pilot-run" class="pilot-pane hidden">
+          <div class="row">
+            <label>Template
+              <select id="templateSelect"><option value="">— custom —</option></select>
+            </label>
+            <label>Mode
+              <select id="runMode"><option value="sync">sync</option><option value="async">async</option></select>
+            </label>
+          </div>
+          <div class="desired">
+            <h2>Desired states <span id="formSourceHint" class="muted"></span></h2>
+            <div id="desiredList"></div>
+            <button type="button" id="addDesired" class="secondary">Add desired</button>
+          </div>
+          <div id="constraintListWrap" class="desired">
+            <h2>Constraints</h2>
+            <div id="constraintList"></div>
+            <button type="button" id="addConstraint" class="secondary">Add constraint</button>
+          </div>
+          <div class="actions">
+            <button type="button" id="previewGoal">Preview criteria (lock compile)</button>
+            <button type="button" id="submitRun" class="primary">Submit run</button>
+          </div>
+          <pre id="previewOut" class="panel"></pre>
+        </div>
+      </section>
+
+      <section id="view-programs" class="view">
+        <h1>Migration programs</h1>
+        <p class="lede">Ordered Goals with human gates. Preview → submit run → bind. Freezes are advisory until GP1.</p>
         <div class="actions">
-          <button type="button" id="previewGoal">Preview criteria</button>
-          <button type="button" id="submitRun" class="primary">Submit run</button>
+          <button type="button" id="refreshPrograms" class="secondary">Refresh list</button>
+          <button type="button" id="createProgramDraft" class="primary">New draft (2-step)</button>
         </div>
-        <pre id="previewOut" class="panel"></pre>
+        <table id="programsTable"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+        <div id="programBoard" class="panel hidden">
+          <h2 id="programTitle">Program</h2>
+          <p id="programMeta" class="muted"></p>
+          <div class="actions">
+            <button type="button" id="acceptProgram" class="primary">Accept disclaimer</button>
+            <button type="button" id="abandonProgram" class="danger">Abandon</button>
+          </div>
+          <div id="programSteps"></div>
+          <pre id="programOut" class="panel"></pre>
+        </div>
       </section>
 
       <section id="view-runs" class="view">

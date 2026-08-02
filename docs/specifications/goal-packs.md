@@ -1,0 +1,167 @@
+# Recertia Specifications: Goal packs (migration programs)
+
+Normative requirements for **Goal packs** / **migration programs**: ordered Goals for
+large refactors. Complements [goal-objects.md](goal-objects.md). Decision:
+[ADR-0014](../adr/0014-goal-packs-as-migration-programs.md).
+
+**HTTP resource:** `/v1/programs` (`MigrationProgram` in `contracts/program.py`).  
+**Product copy:** “Goal pack”. **Not** Tower `ReplayPack`.
+
+**Non-goals:** mutating criteria after lock; intra-run fan-out as a substitute; Suggest
+auto-lock; auto-advance between steps (deferred).
+
+---
+
+## GP-1 Definitions
+
+| Term | Meaning |
+| --- | --- |
+| **Migration program** | Tenant-scoped linear program of Goal steps (`MigrationProgram`). |
+| **Pack step** | One `MigrationStep` with a Goal, freeze/mutate hints, optional `external_handoff`. |
+| **Handoff** | How continuity is provided: `none` + external git metadata, `operator_workdir`, later `copy_forward` / `git_tip`. |
+| **Program bar** | Embedded `DesiredState` / `Constraint` lists merged into later steps at materialize. |
+| **Freeze enforcement** | `advisory` (GP0 default) or `hard` (injects `must_not_modify` only when honest). |
+
+---
+
+## GP-2 Invariants (MUST)
+
+1. Atomic lock unit is the **run** (ADR-0003 / ADR-0010).
+2. AI propose / human apply; accept and bind are explicit.
+3. Tenant isolation (PC-1).
+4. Golden gate unchanged.
+5. Step `succeeded` iff bound run terminal ∈ `acceptance_gate.terminal_in`.
+6. **Honesty:** `freeze_enforcement=advisory` MUST NOT inject `must_not_modify`. UI/API MUST
+   surface `freeze_advisory` when freeze_paths are set under advisory mode.
+7. **GP0 execution:** creating/binding a run for a step with `handoff=none` REQUIRES
+   `plan_only=true`, **or** a `workdir`, **and/or** populated `external_handoff`
+   (branch / pr_url / sha). Empty fresh workspaces alone are insufficient.
+
+---
+
+## GP-3 Data model
+
+See `contracts/program.py`. Summary:
+
+### `MigrationProgram`
+
+`program_id`, `tenant_id`, `title`, `intent`, `task_class`, `decomposition`, `status`,
+`steps[]`, `program_bar_desired[]`, `program_bar_constraints[]`, `handoff`,
+`freeze_enforcement` (default `advisory`), `budget`, `source`, `disclaimer_acked_at`.
+
+### `MigrationStep`
+
+`step_id`, `ordinal` (unique, linear), `title`, `role`
+(`characterization`|`structural`|`behaviour_lock`|`custom`), `goal`, `freeze_paths`,
+`mutate_paths`, `acceptance_gate`, `status`, **`run_ids[]`**, **`current_run_id`**,
+`criteria_preview_hash`, `external_handoff`, `goal_revision`.
+
+Characterization is a **step role**, not a separate field list.
+
+### Merge rules (program bar)
+
+Append-by-id. Identical bodies for the same id are OK. Different bodies for the same id
+MUST fail materialize (`MaterializeError`).
+
+---
+
+## GP-4 Lifecycle (linear)
+
+```text
+draft --accept--> active
+  step planned -> ready when ordinal-1 succeeded|skipped (or ordinal==0)
+  preview -> POST /v1/runs -> bind_run_id
+  succeeded unlocks next; failed -> program blocked
+  all required succeeded|skipped -> completed
+```
+
+Goal PATCH forbidden when step status ∈ `{queued, running, succeeded}`.  
+Bind is **idempotent** for the same `run_id` / `idempotency_key`.
+
+DAG `depends_on` is reserved; GP0 runtime ignores it and uses ordinal-1 only.
+
+---
+
+## GP-5 Stress codes
+
+| Code | Severity | Notes |
+| --- | --- | --- |
+| `freeze_advisory` | info | freeze_paths present under advisory enforcement |
+| `freeze_mutate_overlap` | block | same path in freeze and mutate |
+| `vacuous_command` | block | |
+| `generic_pytest_only` | warn | |
+| `weak_characterization` | warn | structural without prior characterization role |
+| `program_bar_dropped` | warn | later step, empty program bar |
+| `mega_goal` | warn | prefer program over one huge step |
+| `no_hard_criteria` | block | |
+
+---
+
+## GP-6 Workspace handoff
+
+| Mode | GP0 |
+| --- | --- |
+| `none` | External git metadata and/or operator `workdir`; else `plan_only` |
+| `operator_workdir` | `workdir` required to execute |
+| `copy_forward` / `git_tip` | Not runtime-supported in GP0 (warn) |
+
+---
+
+## GP-7 Budgets
+
+`budget_from_goal_constraints` applies Goal `budget_ceiling` onto run `Budget` at preview /
+materialize (min with existing ceiling). Pack-level remaining budget is GP1.
+
+---
+
+## GP-8 HTTP API (GP0)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/programs` | Create draft |
+| `GET` | `/v1/programs` | List (tenant) |
+| `GET` | `/v1/programs/{id}` | Detail + refresh ready |
+| `POST` | `/v1/programs/{id}/accept` | draft → active (disclaimer) |
+| `POST` | `/v1/programs/{id}/abandon` | Abandon |
+| `PATCH` | `/v1/programs/{id}/steps/{step_id}` | Edit while planned/ready/failed |
+| `POST` | `…/steps/{step_id}/preview` | Materialize + compile; no lock |
+| `POST` | `…/steps/{step_id}/run` | `plan_only` / envelope **or** `bind_run_id` |
+
+Bind body: `{ plan_only, workdir, budget, bind_run_id, idempotency_key }`.
+
+Propose remains `POST /v1/goals/suggest` (no duplicate propose endpoint in GP0).
+
+---
+
+## GP-9 Console
+
+API-first in GP0. Pilot program board is a follow-on client of `/v1/programs`.
+
+---
+
+## GP-10 Anti-patterns
+
+- Advertising freeze as enforced under `advisory`
+- Binding step N before N-1 succeeded
+- Auto-advance
+- Pack completion as skill promotion
+- Whole-suite pytest as sole structural proof
+
+---
+
+## GP-11 Conformance (GP0)
+
+| ID | Requirement |
+| --- | --- |
+| GP-T1 | Accept creates zero runs |
+| GP-T2 | Preview does not create runs / lock |
+| GP-T3 | Bind records `run_ids` / `current_run_id`; linear gate |
+| GP-T4 | Dependent step cannot bind while predecessor failed/pending |
+| GP-T5 | Tenant isolation |
+| GP-T6 | `freeze_mutate_overlap` blocks materialize |
+| GP-T9 | `budget_ceiling` applied at materialize/preview |
+| GP-T10 | Program bar appears in materialized later steps |
+
+GP-T7/T8 (copy-forward / pack budget) are later milestones.
+
+Covered by `tests/unit/test_migration_programs.py`.

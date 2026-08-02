@@ -64,3 +64,11 @@ critic-from-request.
 
 A pure-`request` Task is accepted during the compatibility window. Silent critic lock from
 prose without an explicit confirmation policy is deprecated for new clients.
+
+### 15.5.9 Large work → Goal packs
+
+When a single Goal cannot honestly express a multi-phase migration (characterization,
+structural move, behaviour lock), callers SHOULD use a **Goal pack**: an ordered program of
+Goals, each still compiled and locked per run. Packs MUST NOT mutate another run’s criteria
+or bypass this section. See [goal-packs.md](goal-packs.md) and
+[ADR-0014](../adr/0014-goal-packs-as-migration-programs.md).

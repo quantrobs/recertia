@@ -212,7 +212,9 @@ and must not be marked `supported` without real traffic (B7).
 Operator UX beyond CLI is specified separately: console milestones **C0–C5** in
 [`../implementation-plan-console.md`](../implementation-plan-console.md) (Goal form, runs/skills
 browsers, proposal queue, async+SSE, OIDC). C0–C4 may ship for single-operator mode without
-waiting on multi-tenant GA.
+waiting on multi-tenant GA. Multi-step migrations use **Goal packs** (GP0–GP2) in
+[`../implementation-plan-goal-packs.md`](../implementation-plan-goal-packs.md) — programs of
+locked Goals, not mega-Goals ([ADR-0014](../adr/0014-goal-packs-as-migration-programs.md)).
 
 ## 10. References
 
