@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from contracts.goal import Goal, compile_goal
-from contracts.program import ExternalHandoff, MigrationProgram, MigrationStep
+from contracts.program import ExternalHandoff, MigrationProgram, MigrationStep, RepoBinding
 from recertia.api.console_auth import (
     ConsoleUser,
     SessionStore,
@@ -131,6 +131,25 @@ class ProgramFromPack(BaseModel):
 
 class ProgramAccept(BaseModel):
     ack_disclaimer: bool = True
+
+
+class RepoBindingBody(BaseModel):
+    root: str = Field(min_length=1)
+    binding_id: str = "default"
+    default_branch: str = "main"
+    remote_url: str | None = None
+
+
+class RecordTipBody(BaseModel):
+    """Record HEAD from a path under tenant workspaces or the binding root."""
+
+    workdir: str | None = None
+    use_binding_root: bool = False
+
+
+class SeedWorkdirBody(BaseModel):
+    run_id: str
+    tip_sha: str | None = None
 
 
 class GoalProbe(BaseModel):
@@ -1243,6 +1262,16 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             raise HTTPException(status_code=409, detail="only draft programs can be accepted")
         if not prog.steps:
             raise HTTPException(status_code=400, detail="program has no steps")
+        if prog.handoff == "git_tip" and prog.repo_binding is None:
+            raise HTTPException(
+                status_code=400,
+                detail="handoff=git_tip requires a registered repo_binding before accept",
+            )
+        if prog.handoff == "copy_forward":
+            raise HTTPException(
+                status_code=400,
+                detail="handoff=copy_forward is not supported; use git_tip",
+            )
         for step in prog.steps:
             # Goal validation already ensures hard criteria
             if not step.goal.desired:
@@ -1546,6 +1575,126 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         prog = _refresh_step_statuses(prog)
         saved = ctx.programs.put(prog)
         return {"program": saved.model_dump(mode="json"), "step_id": step_id, "skipped": True}
+
+    @app.post("/v1/programs/{program_id}/repo-binding")
+    def set_repo_binding(
+        program_id: str,
+        body: RepoBindingBody,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        from recertia.programs.git_tip import GitTipError, resolve_binding_root
+
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        prog = _get_program(program_id, tenant_id)
+        binding = RepoBinding(
+            binding_id=body.binding_id,
+            root=body.root,
+            default_branch=body.default_branch,
+            remote_url=body.remote_url,
+        )
+        try:
+            root = resolve_binding_root(ctx.root, tenant_id, binding)
+        except GitTipError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        prog = prog.model_copy(update={"repo_binding": binding, "handoff": "git_tip"})
+        saved = ctx.programs.put(prog)
+        return {
+            "program": saved.model_dump(mode="json"),
+            "resolved_root": str(root),
+        }
+
+    @app.post("/v1/programs/{program_id}/steps/{step_id}/record-tip")
+    def record_step_tip(
+        program_id: str,
+        step_id: str,
+        body: RecordTipBody,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        from recertia.programs.git_tip import (
+            GitTipError,
+            record_tip,
+            resolve_binding_root,
+        )
+
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        prog = _get_program(program_id, tenant_id)
+        step = _find_step(prog, step_id)
+        if step.status not in {"succeeded", "running", "queued", "ready", "planned"}:
+            raise HTTPException(status_code=409, detail="step cannot record tip in this status")
+        try:
+            if body.use_binding_root:
+                if prog.repo_binding is None:
+                    raise GitTipError("no repo_binding registered")
+                repo = resolve_binding_root(ctx.root, tenant_id, prog.repo_binding)
+            else:
+                rel = (body.workdir or "").strip().lstrip("/")
+                if not rel or ".." in Path(rel).parts:
+                    raise GitTipError("workdir required (relative under tenant workspaces)")
+                repo = (ctx.root / "workspaces" / tenant_id / rel).resolve()
+                try:
+                    repo.relative_to((ctx.root / "workspaces" / tenant_id).resolve())
+                except ValueError as exc:
+                    raise GitTipError("workdir escapes tenant workspaces") from exc
+            sha = record_tip(repo)
+        except GitTipError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        eh = step.external_handoff or ExternalHandoff()
+        eh = eh.model_copy(update={"head_sha": sha})
+        updated = step.model_copy(update={"external_handoff": eh})
+        prog = _replace_step(prog, updated)
+        saved = ctx.programs.put(prog)
+        return {"program": saved.model_dump(mode="json"), "head_sha": sha}
+
+    @app.post("/v1/programs/{program_id}/steps/{step_id}/seed-workdir")
+    def seed_step_workdir(
+        program_id: str,
+        step_id: str,
+        body: SeedWorkdirBody,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        """Checkout predecessor tip into a fresh canonical run workdir (no shared mount)."""
+
+        from recertia.programs.git_tip import (
+            GitTipError,
+            checkout_tip,
+            resolve_binding_root,
+            resolve_tip_sha,
+        )
+
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        prog = _get_program(program_id, tenant_id)
+        step = _find_step(prog, step_id)
+        try:
+            if prog.handoff != "git_tip":
+                raise GitTipError("program handoff is not git_tip")
+            if prog.repo_binding is None:
+                raise GitTipError("unregistered repo cannot use git_tip")
+            tip = resolve_tip_sha(
+                prog, step, api_root=ctx.root, explicit=body.tip_sha
+            )
+            binding_root = resolve_binding_root(ctx.root, tenant_id, prog.repo_binding)
+            dest = ctx.canonical_run_workdir(ctx.root, tenant_id, body.run_id)
+            checked = checkout_tip(binding_root=binding_root, tip_sha=tip, dest=dest)
+        except GitTipError as exc:
+            # Mark step failed / program blocked on checkout failure
+            failed = step.model_copy(update={"status": "failed"})
+            prog = _replace_step(prog, failed).model_copy(update={"status": "blocked"})
+            ctx.programs.put(prog)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "run_id": body.run_id,
+            "tip_sha": tip,
+            "checked_out": checked,
+            "workdir": str(dest),
+            "program_id": program_id,
+            "step_id": step_id,
+        }
 
     # Expose async create helper used by patched POST /v1/runs
     app.state.console_ctx = ctx

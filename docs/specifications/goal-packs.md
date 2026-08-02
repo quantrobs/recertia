@@ -18,7 +18,7 @@ auto-lock; auto-advance between steps (deferred).
 | --- | --- |
 | **Migration program** | Tenant-scoped linear program of Goal steps (`MigrationProgram`). |
 | **Pack step** | One `MigrationStep` with a Goal, freeze/mutate hints, optional `external_handoff`. |
-| **Handoff** | How continuity is provided: `none` + external git metadata, `operator_workdir`, later `copy_forward` / `git_tip`. |
+| **Handoff** | Continuity mode: `none` + external git metadata, `operator_workdir`, or `git_tip` (+ `repo_binding`). `copy_forward` deferred. |
 | **Program bar** | Embedded `DesiredState` / `Constraint` lists merged into later steps at materialize. |
 | **Freeze enforcement** | `advisory` (GP0 default) or `hard` (injects `must_not_modify` only when honest). |
 
@@ -47,7 +47,8 @@ See `contracts/program.py`. Summary:
 
 `program_id`, `tenant_id`, `title`, `intent`, `task_class`, `decomposition`, `status`,
 `steps[]`, `program_bar_desired[]`, `program_bar_constraints[]`, `handoff`,
-`freeze_enforcement` (default `advisory`), `budget`, `source`, `disclaimer_acked_at`.
+`freeze_enforcement` (default `advisory`), `repo_binding`, `budget`, `source`,
+`disclaimer_acked_at`.
 
 ### `MigrationStep`
 
@@ -94,6 +95,8 @@ DAG `depends_on` is reserved; GP0 runtime ignores it and uses ordinal-1 only.
 | `program_bar_dropped` | warn | later step, empty program bar |
 | `mega_goal` | warn | prefer program over one huge step |
 | `no_hard_criteria` | block | |
+| `missing_repo_binding` | block | `handoff=git_tip` without registered `repo_binding` |
+| `missing_handoff` | warn | `copy_forward` deferred; use `git_tip` |
 
 ---
 
@@ -104,7 +107,7 @@ DAG `depends_on` is reserved; GP0 runtime ignores it and uses ordinal-1 only.
 | `none` | **Shipped** — external git metadata and/or operator `workdir`; else `plan_only` |
 | `operator_workdir` | **Shipped** — `workdir` required to execute |
 | `copy_forward` | Deferred; prefer `git_tip` |
-| `git_tip` | **GP2** — requires registered `repo_binding`; checkout tip into fresh workspace |
+| `git_tip` | **Shipped (GP2)** — requires registered `repo_binding`; checkout tip into fresh workspace |
 
 ---
 
@@ -131,8 +134,9 @@ materialize. Pack-level remaining budget fails closed on step run (**shipped** G
 | `POST` | `/v1/programs/from-pack` | Compose pack → durable draft | Shipped |
 | `POST` | `/v1/goals/suggest` | Drafts + `decompositions[]` | Shipped |
 | `POST` | `/v1/goals/probe` | Read-only inventory | Shipped |
-| `POST` | `/v1/programs/{id}/repo-binding` | Register allowlisted repo (GP2) | GP2 |
-| `POST` | `…/steps/{step_id}/record-tip` | Record git tip after success (GP2) | GP2 |
+| `POST` | `/v1/programs/{id}/repo-binding` | Register allowlisted repo | Shipped (GP2) |
+| `POST` | `…/steps/{step_id}/record-tip` | Record git tip after success | Shipped (GP2) |
+| `POST` | `…/steps/{step_id}/seed-workdir` | Checkout tip into fresh run workdir | Shipped (GP2) |
 
 Bind body: `{ plan_only, workdir, budget, bind_run_id, idempotency_key }`.
 
@@ -141,7 +145,7 @@ Bind body: `{ plan_only, workdir, budget, bind_run_id, idempotency_key }`.
 ## GP-9 Console
 
 Pilot **Programs** board and Compose (suggest / save pack as program) **shipped** (#50).
-GP2 adds tip SHA display and binding status on the board.
+GP2 tip SHA / binding status on the board may follow as a client polish.
 
 ---
 

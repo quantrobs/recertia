@@ -588,6 +588,45 @@
       },
       "title": "ProgramBudget",
       "type": "object"
+    },
+    "RepoBinding": {
+      "additionalProperties": false,
+      "description": "Allowlisted git repository for ``handoff=git_tip`` (GP2).\n\n``root`` is relative to the tenant's ``repo_bindings/`` directory under the API root.\nAbsolute host paths outside that tree are rejected at registration time.",
+      "properties": {
+        "binding_id": {
+          "default": "default",
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "root": {
+          "description": "Relative path under tenant repo_bindings/",
+          "minLength": 1,
+          "title": "Root",
+          "type": "string"
+        },
+        "default_branch": {
+          "default": "main",
+          "title": "Default Branch",
+          "type": "string"
+        },
+        "remote_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remote Url"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "title": "RepoBinding",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -682,17 +721,13 @@
     "repo_binding": {
       "anyOf": [
         {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "type": "object"
+          "$ref": "#/$defs/RepoBinding"
         },
         {
           "type": "null"
         }
       ],
-      "default": null,
-      "title": "Repo Binding"
+      "default": null
     },
     "budget": {
       "anyOf": [
