@@ -29,7 +29,7 @@ Shipped on `main` via [#50](https://github.com/quantrobs/fandea/pull/50) (`da90e
 GP0   Durable linear program board + preview + bind-run     SHIPPED (#50)
 GP0.5 Probe + Compose decompositions + from-pack            SHIPPED (#50)
 GP1   freeze_enforcement=hard + seal + skip + pack budget SHIPPED (#50)
-GP2   git_tip handoff + repo_binding                        NEXT
+GP2   git_tip handoff + repo_binding                        SHIPPED
 ```
 
 | Milestone | Status |
@@ -37,7 +37,7 @@ GP2   git_tip handoff + repo_binding                        NEXT
 | **GP0** | **Shipped** — contracts, store, `/v1/programs`, materialize, stress, bind, Pilot Programs board |
 | **GP0.5** | **Shipped** — `POST /v1/goals/probe`, suggest `decompositions[]`, `POST /v1/programs/from-pack` |
 | **GP1** | **Shipped** — digest-sealed `must_not_modify`, hard freezes, skip, pack budget check |
-| **GP2** | **Next** — `git_tip` continuity with registered `repo_binding` |
+| **GP2** | **Shipped** — `git_tip` + registered `repo_binding`; tip record; fresh-workdir checkout |
 
 ---
 
@@ -77,12 +77,14 @@ GP2   git_tip handoff + repo_binding                        NEXT
 - Step skip with note; pack budget exhaustion fails closed
 - Tests: `tests/unit/test_freeze_seal.py`
 
-## GP2 — continuity (next)
+## GP2 — continuity (shipped)
 
 - Prefer **git_tip** + registered `repo_binding` over whole-tree `copy_forward`
-- On step success, record tip SHA; next step checks out into a **fresh** run workspace
-- Reject unbound `git_tip`; checkout failure → step failed / program blocked
-- **No auto-advance** in this milestone
+- `POST …/repo-binding` under tenant `repo_bindings/`; reject unbound `git_tip`
+- `POST …/steps/{id}/record-tip` records `external_handoff.head_sha`
+- `POST …/steps/{id}/seed-workdir` checks out tip into a **fresh** canonical run workspace
+- Checkout failure → step `failed` / program `blocked`; no shared live mount; no auto-advance
+- Tests: `tests/unit/test_migration_programs.py` (git_tip cases)
 
 ## Success metrics (feature health)
 
@@ -97,4 +99,4 @@ GP2   git_tip handoff + repo_binding                        NEXT
 - Suggest auto-submit of all steps
 - Shared live workdir across steps
 - Pack status as promotion signal
-- Auto-advance / DAG before GP2 git_tip proves out
+- Auto-advance / DAG (still deferred after GP2 git_tip)
