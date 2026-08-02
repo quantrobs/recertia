@@ -98,15 +98,20 @@ def stress_step(
                 )
             )
 
-    if (
-        program.handoff in {"copy_forward", "git_tip"}
-        and program.handoff != "none"
-    ):
+    if program.handoff == "copy_forward":
         warnings.append(
             StressWarning(
                 code="missing_handoff",
-                message=f"handoff={program.handoff} is not available in GP0 runtime",
+                message="handoff=copy_forward is deferred; use git_tip",
                 severity="warn",
+            )
+        )
+    if program.handoff == "git_tip" and program.repo_binding is None:
+        warnings.append(
+            StressWarning(
+                code="missing_repo_binding",
+                message="handoff=git_tip requires a registered repo_binding",
+                severity="block",
             )
         )
 

@@ -156,3 +156,10 @@ def assert_gp0_execution_prereqs(
             )
     if program.handoff == "operator_workdir" and not workdir:
         raise MaterializeError("handoff=operator_workdir requires workdir")
+    if program.handoff == "git_tip":
+        if program.repo_binding is None:
+            raise MaterializeError("handoff=git_tip requires a registered repo_binding")
+    if program.handoff == "copy_forward":
+        raise MaterializeError(
+            "handoff=copy_forward is not supported; use git_tip or operator_workdir"
+        )

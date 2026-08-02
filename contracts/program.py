@@ -43,6 +43,21 @@ class ExternalHandoff(BaseModel):
     note: str | None = None
 
 
+class RepoBinding(BaseModel):
+    """Allowlisted git repository for ``handoff=git_tip`` (GP2).
+
+    ``root`` is relative to the tenant's ``repo_bindings/`` directory under the API root.
+    Absolute host paths outside that tree are rejected at registration time.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    binding_id: str = "default"
+    root: str = Field(min_length=1, description="Relative path under tenant repo_bindings/")
+    default_branch: str = "main"
+    remote_url: str | None = None
+
+
 class AcceptanceGate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -102,7 +117,7 @@ class MigrationProgram(BaseModel):
     program_bar_constraints: list[Constraint] = Field(default_factory=list)
     handoff: HandoffMode = "none"
     freeze_enforcement: FreezeEnforcement = "advisory"
-    repo_binding: dict[str, str] | None = None
+    repo_binding: RepoBinding | None = None
     budget: ProgramBudget | None = None
     created_by: str = ""
     created_at: str = ""

@@ -97,7 +97,7 @@ run. Programs need continuity **between** runs without breaking that model.
    explicit `workdir`. `plan_only` supports board/preview without pretending an empty
    workspace is a migration. Default `freeze_enforcement=advisory`.
 2. **`freeze_enforcement=hard` (GP1 — shipped)** — Digest-sealed `must_not_modify` at intake.
-3. **`git_tip` + `repo_binding` (GP2 — next)** — Prefer git tip over whole-tree copy-forward.
+3. **`git_tip` + `repo_binding` (GP2 — shipped)** — Prefer git tip over whole-tree copy-forward.
    Fresh run workspace per step; **no shared live mount; no auto-advance**.
 
 **Rejected:** advertising hard freezes before criterion honesty; empty-workspace step runs
