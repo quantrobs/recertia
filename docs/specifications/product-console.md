@@ -49,8 +49,17 @@ proofs at intake.
 
 ### 2.3 Workdir
 
-Submit MUST follow existing API workdir isolation rules (tenant workspace root; no absolute
-escape). The console MUST refuse paths that the API would reject.
+Default submit uses the sandbox run workspace
+(`{api_root}/workspaces/<tenant_id>/<run_id>/`). Absolute host paths MUST NOT be accepted
+as raw `workdir` on `POST /v1/runs`.
+
+To bind a real repository, operators register an allowlisted **registered workspace** and
+select it in Pilot. Normative contracts (Windows drive-letter roots, registry HTTP,
+`workdir.json` kinds, RW-* tests):
+[registered-workspaces.md](registered-workspaces.md).
+
+The console MUST refuse paths/shapes that the API would reject (absolute subpaths;
+sandbox-incompatible values).
 
 ### 2.4 Goal packs (migration programs)
 

@@ -109,11 +109,16 @@ def ensure_workdir_writable_by_container(workdir: Path) -> None:
     by the invoking user, which blocks writes inside the sandbox. Default mode adds
     owner/group write (``0770``). World-write (``0777``) is opt-in via
     ``RECERTIA_WORKDIR_WORLD_WRITE=1`` for hosts without a shared GID / rootless map.
+
+    On Windows, POSIX mode bits are not enforced on NTFS; this is a no-op after the
+    directory-existence check (Linux bind-mount hosts are the intended audience).
     """
 
     workdir = workdir.resolve()
     if not workdir.is_dir():
         raise SandboxError(f"workdir does not exist: {workdir}")
+    if sys.platform == "win32":
+        return
     mode = workdir.stat().st_mode
     new_mode = mode | 0o0770
     flag = os.environ.get("RECERTIA_WORKDIR_WORLD_WRITE", "").strip().lower()

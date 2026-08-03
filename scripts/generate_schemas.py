@@ -35,6 +35,7 @@ from contracts.scope import ScopePromotion  # noqa: E402
 from contracts.skill import SkillVersion  # noqa: E402
 from contracts.stats import RetrievalAblationEffect, SkillStats  # noqa: E402
 from contracts.status import SkillStatus  # noqa: E402
+from contracts.workspace import RegisteredWorkspace  # noqa: E402
 
 MODELS: dict[str, type] = {
     "skill_version.schema.json": SkillVersion,
@@ -60,6 +61,7 @@ MODELS: dict[str, type] = {
     "metric_report.schema.json": MetricReport,
     "goal.schema.json": Goal,
     "migration_program.schema.json": MigrationProgram,
+    "registered_workspace.schema.json": RegisteredWorkspace,
 }
 
 

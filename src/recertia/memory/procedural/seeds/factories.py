@@ -28,16 +28,31 @@ def add_gitignore_entry() -> SkillVersion:
                 id="append",
                 tool="shell",
                 intent="Append {{pattern}} to .gitignore if missing.",
+                # Portable Python (cmd.exe + sh): bash `$pattern` breaks under Windows local-exec.
                 inputs={
                     "command": (
-                        "pattern='*.pyc'; "
-                        "grep -qxF \"$pattern\" .gitignore || echo \"$pattern\" >> .gitignore"
+                        "python -c \"from pathlib import Path; "
+                        "p=Path('.gitignore'); line='*.pyc'; "
+                        "text=p.read_text(encoding='utf-8') if p.exists() else ''; "
+                        "lines=text.splitlines(); "
+                        "p.write_text("
+                        "text + ('' if (not text or text.endswith(chr(10))) else chr(10)) "
+                        "+ line + chr(10), encoding='utf-8') "
+                        "if line not in lines else None\""
                     )
                 },
             ),
         ],
         certification_criteria=[
-            _cmd_criterion("has-entry", "grep -qxF '*.pyc' .gitignore", "gitignore without *.pyc"),
+            _cmd_criterion(
+                "has-entry",
+                (
+                    "python -c \"from pathlib import Path; import sys; "
+                    "sys.exit(0 if '*.pyc' in Path('.gitignore').read_text("
+                    "encoding='utf-8').splitlines() else 1)\""
+                ),
+                "gitignore without *.pyc",
+            ),
         ],
         provenance=_prov("add-gitignore-entry"),
         hygiene=_HYGIENE,

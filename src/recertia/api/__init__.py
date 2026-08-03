@@ -32,11 +32,13 @@ from recertia.api.quotas import QuotaExceeded, QuotaStore
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
 from recertia.ids import InvalidIdError, validate_run_id
+from recertia.paths import HostRootError, looks_absolute, resolve_under_host_root
 from recertia.solver.container import configured_backend, ensure_api_execution_ready
 from recertia.solver.sandbox import SandboxError
 from recertia.store.blobs import FilesystemBlobStore, normalize_blob_digest
 from recertia.telemetry import get_telemetry, render_dashboard
 from recertia.workers.run_worker import AsyncRunRequest
+from recertia.workspaces.registry import WorkspaceRegistry
 
 DEFAULT_ROOT = Path(".recertia")
 _MAX_BLOB_BYTES = int(os.environ.get("RECERTIA_MAX_BLOB_BYTES", str(16 * 1024 * 1024)))
@@ -98,22 +100,20 @@ def _canonical_run_workdir(root: Path, tenant_id: str, run_id: str) -> Path:
     return candidate
 
 
-def _resolve_create_workdir(root: Path, tenant_id: str, run_id: str, workdir: str | None) -> Path:
-    """Map optional caller ``workdir`` under the canonical run workspace only.
-
-    Absolute paths and ``..`` escapes are rejected. Relative values are resolved under
-    ``root/workspaces/<tenant_id>/<run_id>``.
-    """
+def _resolve_sandbox_workdir(
+    root: Path, tenant_id: str, run_id: str, workdir: str | None
+) -> Path:
+    """Map optional caller ``workdir`` under the canonical run workspace only."""
 
     base = _canonical_run_workdir(root, tenant_id, run_id)
     if workdir is None or workdir == "":
         return base
-    ref = Path(workdir)
-    if ref.is_absolute():
+    if looks_absolute(workdir):
         raise HTTPException(
             status_code=400,
             detail="workdir must be relative to the run workspace (absolute paths rejected)",
         )
+    ref = Path(workdir)
     candidate = (base / ref).resolve()
     try:
         candidate.relative_to(base)
@@ -122,27 +122,109 @@ def _resolve_create_workdir(root: Path, tenant_id: str, run_id: str, workdir: st
     return candidate
 
 
+def _resolve_create_workdir(
+    root: Path,
+    tenant_id: str,
+    run_id: str,
+    workdir: str | None,
+    *,
+    workspace_id: str | None = None,
+    registry: WorkspaceRegistry | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    """Resolve create-run workdir; return ``(path, workdir.json payload)``."""
+
+    if workspace_id:
+        if registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        ws = registry.get(workspace_id, tenant_id=tenant_id, enabled_only=False)
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        if not ws.enabled:
+            raise HTTPException(status_code=403, detail="workspace disabled")
+        try:
+            effective = resolve_under_host_root(ws.host_root, workdir)
+        except HostRootError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not effective.is_dir():
+            raise HTTPException(status_code=400, detail="registered workdir missing")
+        meta = {
+            "kind": "registered",
+            "workspace_id": ws.workspace_id,
+            "subpath": workdir or "",
+            "workdir": str(effective.resolve()),
+            "host_root": ws.host_root,
+        }
+        return effective, meta
+
+    if workdir is not None and looks_absolute(workdir):
+        raise HTTPException(
+            status_code=400,
+            detail="workdir must be relative to the run workspace (absolute paths rejected)",
+        )
+    effective = _resolve_sandbox_workdir(root, tenant_id, run_id, workdir)
+    meta = {"kind": "sandbox", "workdir": str(effective.resolve())}
+    return effective, meta
+
+
 def _workdir_meta_path(root: Path, tenant_id: str, run_id: str) -> Path:
     return root / "runs" / tenant_id / run_id / "workdir.json"
 
 
-def _persist_workdir(root: Path, tenant_id: str, run_id: str, workdir: Path) -> None:
-    meta = _workdir_meta_path(root, tenant_id, run_id)
-    meta.parent.mkdir(parents=True, exist_ok=True)
-    meta.write_text(
-        json.dumps({"workdir": str(workdir.resolve())}) + "\n",
-        encoding="utf-8",
-    )
+def _persist_workdir(
+    root: Path,
+    tenant_id: str,
+    run_id: str,
+    workdir: Path,
+    *,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    payload = dict(meta) if meta is not None else {"kind": "sandbox", "workdir": str(workdir.resolve())}
+    payload.setdefault("workdir", str(workdir.resolve()))
+    dest = _workdir_meta_path(root, tenant_id, run_id)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
-def _load_persisted_workdir(root: Path, tenant_id: str, run_id: str) -> Path | None:
-    meta = _workdir_meta_path(root, tenant_id, run_id)
-    if not meta.exists():
+def _load_persisted_workdir(
+    root: Path,
+    tenant_id: str,
+    run_id: str,
+    *,
+    registry: WorkspaceRegistry | None = None,
+) -> Path | None:
+    meta_path = _workdir_meta_path(root, tenant_id, run_id)
+    if not meta_path.exists():
         return None
     try:
-        payload = json.loads(meta.read_text(encoding="utf-8"))
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+        kind = str(payload.get("kind") or "sandbox")
+    except (json.JSONDecodeError, OSError, TypeError):
+        return None
+
+    if kind == "registered":
+        if registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        workspace_id = str(payload.get("workspace_id") or "")
+        stored_host = str(payload.get("host_root") or "")
+        subpath = payload.get("subpath")
+        ws = registry.get(workspace_id, tenant_id=tenant_id, enabled_only=False)
+        if ws is None:
+            raise HTTPException(status_code=409, detail="workspace not found")
+        if not ws.enabled:
+            raise HTTPException(status_code=409, detail="workspace disabled")
+        if stored_host and ws.host_root != stored_host:
+            raise HTTPException(status_code=409, detail="workspace host_root changed")
+        try:
+            effective = resolve_under_host_root(ws.host_root, str(subpath) if subpath is not None else "")
+        except HostRootError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not effective.is_dir():
+            raise HTTPException(status_code=409, detail="registered workdir missing")
+        return effective
+
+    try:
         stored = Path(str(payload["workdir"])).resolve()
-    except (json.JSONDecodeError, KeyError, OSError, TypeError):
+    except (KeyError, OSError, TypeError):
         return None
     base = _canonical_run_workdir(root, tenant_id, run_id)
     try:
@@ -160,6 +242,7 @@ class RunCreate(BaseModel):
     script: list[str] | None = None
     budget: dict[str, Any] | None = None
     workdir: str | None = None
+    workspace_id: str | None = None
     run_id: str | None = None
     arm: Arm = "treatment"
     mode: str = "sync"  # sync | async (console C2)
@@ -189,6 +272,8 @@ class RunRecord(BaseModel):
     cost_usd: float | None = None
     mode: str | None = None
     criteria_hash: str | None = None
+    workspace_id: str | None = None
+    workdir: str | None = None
 
 
 def create_app(
@@ -203,6 +288,7 @@ def create_app(
     facts_root = Path(facts_root) if facts_root is not None else Path("facts")
     key_store = ApiKeyStore(root / "api_keys.sqlite")
     quota_store = QuotaStore(root / "quotas.sqlite")
+    workspace_registry = WorkspaceRegistry(root / "workspaces_registry.sqlite")
     blobs_by_tenant: dict[str, FilesystemBlobStore] = {}
     # Keyed by (tenant_id, run_id) so tenants cannot collide on run_id.
     runs: dict[tuple[str, str], RunRecord] = {}
@@ -226,6 +312,7 @@ def create_app(
         principal_may_exec=_principal_may_exec,
         require_scope=require_scope,
         validate_run_id=_validate_run_id,
+        workspace_registry=workspace_registry,
     )
     register_console_routes(app, console_ctx)
 
@@ -262,9 +349,17 @@ def create_app(
         if run_key in runs:
             raise HTTPException(status_code=409, detail="run_id already exists")
 
-        workdir = _resolve_create_workdir(root, principal.tenant_id, run_id, body.workdir)
-        workdir.mkdir(parents=True, exist_ok=True)
-        _persist_workdir(root, principal.tenant_id, run_id, workdir)
+        workdir, wd_meta = _resolve_create_workdir(
+            root,
+            principal.tenant_id,
+            run_id,
+            body.workdir,
+            workspace_id=body.workspace_id,
+            registry=workspace_registry,
+        )
+        if wd_meta.get("kind") != "registered":
+            workdir.mkdir(parents=True, exist_ok=True)
+        _persist_workdir(root, principal.tenant_id, run_id, workdir, meta=wd_meta)
 
         request = body.request
         if body.goal is not None and body.goal.context and not request:
@@ -296,6 +391,8 @@ def create_app(
                 terminal=None,
                 has_goal=body.goal is not None,
                 mode="async",
+                workspace_id=body.workspace_id,
+                workdir=str(workdir),
             )
             runs[run_key] = placeholder
             console_ctx.worker.submit(
@@ -327,6 +424,8 @@ def create_app(
                     "mode": "async",
                     "tenant_id": principal.tenant_id,
                     "task_class": task_class,
+                    "workspace_id": body.workspace_id,
+                    "workdir": str(workdir),
                 },
             )
 
@@ -403,7 +502,14 @@ def create_app(
             created_at=datetime.now(timezone.utc),
             has_goal=body.goal is not None,
         )
-        rec = rec.model_copy(update={"cost_usd": cost_usd, "mode": "sync"})
+        rec = rec.model_copy(
+            update={
+                "cost_usd": cost_usd,
+                "mode": "sync",
+                "workspace_id": body.workspace_id,
+                "workdir": str(workdir),
+            }
+        )
         runs[run_key] = rec
         get_telemetry().emit(
             "run.finished",
@@ -437,7 +543,9 @@ def create_app(
         run_id = _validate_run_id(run_id)
         run_key = (principal.tenant_id, run_id)
         # Resume MUST reuse the persisted create workdir — never invent a new path.
-        workdir = _load_persisted_workdir(root, principal.tenant_id, run_id)
+        workdir = _load_persisted_workdir(
+            root, principal.tenant_id, run_id, registry=workspace_registry
+        )
         if workdir is None:
             workdir = _canonical_run_workdir(root, principal.tenant_id, run_id)
         if not workdir.exists():
@@ -529,6 +637,7 @@ def create_app(
     app.state.facts_root = facts_root
     app.state.api_keys = key_store
     app.state.quota_store = quota_store
+    app.state.workspace_registry = workspace_registry
     app.state.blobs_by_tenant = blobs_by_tenant
     app.state.runs = runs
     app.state.console_ctx = console_ctx
