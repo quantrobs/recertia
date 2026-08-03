@@ -4,7 +4,7 @@
 
 The execution model is **a graph with loops**. A task is a bounded cyclic walk on a small set of nodes. Compounding happens *across* walks, through durable versioned memory that every later run reads before inventing anything through offline jobs that reorganize, practice, and re-certify what has been learned.
 
-**Disclosures** Recertia was built on a research basis to prove what could be done when combining existing opensource ideas and current academic research. References are available in this repo.  As a disclosure, this project involved by human and AI tasks to complete the near 20K lines of code.  It's not since operations systems class in college that I have worked on coding something this big. It is incumbent upon anyone using this code for their own projects to validate and test the code thoroughly for your use case.  I would be curious to hear your actual usage and feedback. I can be reached at robs@gatech.edu. 
+**Disclosures** Recertia was built on a research basis to prove what could be done when combining existing opensource ideas and current academic research. References are available in this repo.  As a disclosure, this project involved by human and AI tasks to complete the near 20K lines of code.  It's not since operations systems class in college that I have worked on coding something this big. It is incumbent upon anyone using this code for their own projects to validate and test the code thoroughly for your use case.   
 
 ## What it is
 
