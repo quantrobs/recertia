@@ -136,16 +136,42 @@ python -m uvicorn recertia.api.app:app --host 127.0.0.1 --port 8080
 
 | Surface | Use |
 | --- | --- |
-| Pilot | Goal form, templates, sync/async submit, live event stream |
+| Pilot | Goal form, templates, sync/async submit, live event stream; workspace select |
 | Runs / Skills | Browse transcripts, promote (golden-gated) |
 | Tower | Proposals, jobs (`dry_run` default), practice / pressure panels |
 | Metrics | `MetricReport` + canary (unavailable reasons preserved) |
-| Auth | Dev login / OIDC session; tenant switcher (Phase-4 gated) |
+| Auth | Dev login / OIDC session; tenant switcher; **register workspaces** (admin) |
 
 Issue an API key with `runs` (+ `metrics` / `exec` as needed) for the sidebar. Browser
 sessions (`RECERTIA_CONSOLE_AUTH=dev` or `oidc`) carry human roles; do not embed long-lived
 keys in frontend source. Specs: [`../specifications/product-console.md`](../specifications/product-console.md).
 Plan: [`../implementation-plan-console.md`](../implementation-plan-console.md).
+
+### Registered workspaces (real repo bind)
+
+Pilot cannot take raw absolute `workdir` paths. Register an allowlisted host root first
+(API process must resolve Windows drive-letter paths — run uvicorn on Windows for
+`D:\…` roots):
+
+```powershell
+# Admin key (or console role admin + API key with runs)
+recertia keys issue --tenant default --scopes runs,admin,metrics --actor dev
+
+recertia workspaces register `
+  --id recertia `
+  --name "quantrobs/recertia" `
+  --host-root D:\src\recertia `
+  --tenant default `
+  --runs-root .recertia
+
+# CLI sugar
+recertia run --goal evals/golden/repo-chore/add-editorconfig/goal.json `
+  --workspace-id recertia --local-exec --runs-root .recertia
+```
+
+In the console: **Auth / Tenant → Register workspace**, then Pilot → Run → Workspace
+select → Submit. Spec:
+[`../specifications/registered-workspaces.md`](../specifications/registered-workspaces.md).
 
 ## Soak and durability (operator GA)
 

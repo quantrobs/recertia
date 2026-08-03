@@ -62,8 +62,9 @@ quota and identity, not necessarily self-serve key minting.
 - **Programs board** — durable migration programs (`/v1/programs`): ordered steps,
   freeze/mutate hints, per-step preview/run/bind (see [goal-packs.md](goal-packs.md)). Distinct
   from Tower **ReplayPack** evidence.
-- **Workdir picker** — path or registered workspace; never accept arbitrary host escapes
-  beyond the existing API workdir rules.
+- **Workdir picker** — sandbox (default) or **registered workspace** (allowlisted Windows
+  host root + optional subpath). Never accept raw absolute `workdir` on create-run; see
+  [registered-workspaces.md](../specifications/registered-workspaces.md).
 - **Runs browser** — list/filter by tenant, task class, terminal, time; open detail.
 - **Run detail** — route log, spend, manifest pins, failure class, links to transcript and
   trajectory.

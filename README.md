@@ -102,7 +102,9 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
 | [`docs/architecture/production-readiness.md`](docs/architecture/production-readiness.md) | Phase-4 multi-tenant readiness gate checklist |
 | [`docs/architecture/product-console.md`](docs/architecture/product-console.md) | Product console (Pilot / Tower) architecture |
 | [`docs/specifications/product-console.md`](docs/specifications/product-console.md) | Console HTTP, SSE events, UX, and conformance tests |
+| [`docs/specifications/registered-workspaces.md`](docs/specifications/registered-workspaces.md) | Registered host workspaces (Windows); Pilot workdir bind |
 | [`docs/implementation-plan-console.md`](docs/implementation-plan-console.md) | Console milestones C0–C5 |
+| [`docs/implementation-plan-registered-workspaces.md`](docs/implementation-plan-registered-workspaces.md) | Registered workspaces milestones RW0–RW2 |
 | [`docs/adr/0012-product-console-surfaces.md`](docs/adr/0012-product-console-surfaces.md) | ADR: console as control plane over headless Recertia |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |

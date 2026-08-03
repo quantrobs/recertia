@@ -65,6 +65,16 @@ def run_cmd(
     runs_root: Path = typer.Option(Path(".recertia"), "--runs-root", help="Where run state is persisted."),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="Defaults to a fresh UUID."),
     workdir: Optional[Path] = typer.Option(None, "--workdir"),
+    workspace_id: Optional[str] = typer.Option(
+        None,
+        "--workspace-id",
+        help="Use a registered host workspace under --runs-root (RW2). Optional --workdir as subpath.",
+    ),
+    tenant: str = typer.Option(
+        "default",
+        "--tenant",
+        help="Tenant for --workspace-id lookup.",
+    ),
     skills_root: Path = typer.Option(
         Path("skills"), "--skills-root", help="Procedural skill library root."
     ),
@@ -147,8 +157,30 @@ def run_cmd(
         criteria = compile_goal(task_goal)
     budget = Budget(**data["budget"]) if "budget" in data else Budget()
     script = data.get("script")
-    wd = workdir or (Path(data["workdir"]) if "workdir" in data else runs_root / "workspaces" / rid)
-    wd.mkdir(parents=True, exist_ok=True)
+    if workspace_id:
+        from recertia.paths import HostRootError, resolve_under_host_root
+        from recertia.workspaces.registry import WorkspaceRegistry
+
+        registry = WorkspaceRegistry(runs_root / "workspaces_registry.sqlite")
+        try:
+            ws = registry.get(workspace_id, tenant_id=tenant, enabled_only=False)
+            if ws is None:
+                typer.echo(f"workspace not found: {workspace_id}", err=True)
+                raise typer.Exit(code=2)
+            if not ws.enabled:
+                typer.echo(f"workspace disabled: {workspace_id}", err=True)
+                raise typer.Exit(code=2)
+            sub = str(workdir) if workdir is not None else ""
+            try:
+                wd = resolve_under_host_root(ws.host_root, sub)
+            except HostRootError as exc:
+                typer.echo(str(exc), err=True)
+                raise typer.Exit(code=2) from exc
+        finally:
+            registry.close()
+    else:
+        wd = workdir or (Path(data["workdir"]) if "workdir" in data else runs_root / "workspaces" / rid)
+        wd.mkdir(parents=True, exist_ok=True)
 
     arm = data.get("arm", "treatment")
     if ablation:

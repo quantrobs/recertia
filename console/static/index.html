@@ -83,6 +83,17 @@
               <select id="runMode"><option value="sync">sync</option><option value="async">async</option></select>
             </label>
           </div>
+          <div class="row">
+            <label>Workspace
+              <select id="workspaceSelect">
+                <option value="">sandbox — new empty workdir</option>
+              </select>
+            </label>
+            <label>Subpath
+              <input id="workspaceSubpath" type="text" placeholder="(repo root)" autocomplete="off" />
+            </label>
+          </div>
+          <p class="muted">Registered workspaces edit the real host tree. Sandbox is disposable under <code>.recertia/workspaces/…</code>.</p>
           <div class="desired">
             <h2>Desired states <span id="formSourceHint" class="muted"></span></h2>
             <div id="desiredList"></div>
@@ -156,7 +167,23 @@
 
       <section id="view-auth" class="view">
         <h1>Auth / tenant (C3–C5)</h1>
-        <p class="lede">Dev login issues a console session. Switch tenant when membership has more than one.</p>
+        <p class="lede">Dev login issues a console session. Switch tenant when membership has more than one. Register host workspaces (admin) for Pilot binds.</p>
+        <div class="desired">
+          <h2>Registered workspaces</h2>
+          <div class="row">
+            <label>ID <input id="wsId" type="text" placeholder="recertia" /></label>
+            <label>Display name <input id="wsName" type="text" placeholder="quantrobs/recertia" /></label>
+          </div>
+          <label>Host root (Windows)
+            <input id="wsHostRoot" type="text" placeholder="D:\src\recertia" autocomplete="off" />
+          </label>
+          <label>Notes <input id="wsNotes" type="text" placeholder="optional" /></label>
+          <div class="actions">
+            <button type="button" id="registerWorkspace" class="primary">Register workspace</button>
+            <button type="button" id="refreshWorkspaces" class="secondary">Refresh list</button>
+          </div>
+          <pre id="workspacesOut" class="panel"></pre>
+        </div>
         <div class="actions">
           <button type="button" id="devLogin" class="primary">Dev login</button>
           <button type="button" id="loadMe" class="secondary">GET /v1/me</button>
