@@ -172,9 +172,24 @@ class StepSkipBody(BaseModel):
 class StepRunBody(BaseModel):
     plan_only: bool = False
     workdir: str | None = None
+    workspace_id: str | None = None
     budget: dict[str, Any] | None = None
     bind_run_id: str | None = None
     idempotency_key: str | None = None
+
+
+class WorkspaceCreate(BaseModel):
+    workspace_id: str
+    display_name: str
+    host_root: str
+    notes: str | None = None
+
+
+class WorkspacePatch(BaseModel):
+    display_name: str | None = None
+    notes: str | None = None
+    enabled: bool | None = None
+    clear_notes: bool = False
 
 
 class ConsoleContext:
@@ -197,6 +212,7 @@ class ConsoleContext:
         principal_may_exec: Any,
         require_scope: Any,
         validate_run_id: Any,
+        workspace_registry: Any = None,
     ) -> None:
         self.root = root
         self.skills_root = skills_root
@@ -214,6 +230,7 @@ class ConsoleContext:
         self.principal_may_exec = principal_may_exec
         self.require_scope = require_scope
         self.validate_run_id = validate_run_id
+        self.workspace_registry = workspace_registry
         self.sessions = SessionStore()
         self.proposals = ProposalStore(root / "proposals.sqlite")
         self.programs = ProgramStore(root / "programs.sqlite")
@@ -295,6 +312,16 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             return user.active_tenant
         return principal.tenant_id
 
+    def _require_workspace_admin(request: Request, principal: Any) -> str:
+        """Admin API key or console role admin may mutate the registry."""
+
+        user = _optional_console_user(request)
+        if user is not None and user.may("admin"):
+            return user.user_id
+        if "admin" in principal.scopes:
+            return principal.key_id
+        raise HTTPException(status_code=403, detail="admin required to register workspace")
+
     # ----- C3 auth -----
     @app.get("/v1/me")
     def me(request: Request) -> dict[str, Any]:
@@ -350,6 +377,105 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         token = ctx.sessions.issue(switched)
         response.set_cookie("recertia_session", token, httponly=True, samesite="lax")
         return {"active_tenant": switched.active_tenant, "session": token, "tenants": list(switched.tenants)}
+
+    # ----- Registered workspaces (RW0) -----
+    @app.get("/v1/workspaces")
+    def list_workspaces(
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        if ctx.workspace_registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        items = ctx.workspace_registry.list(tenant_id=tenant_id)
+        return {"workspaces": [w.model_dump(mode="json") for w in items]}
+
+    @app.get("/v1/workspaces/{workspace_id}")
+    def get_workspace(
+        workspace_id: str,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        if ctx.workspace_registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        ws = ctx.workspace_registry.get(workspace_id, tenant_id=tenant_id)
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        return ws.model_dump(mode="json")
+
+    @app.post("/v1/workspaces", status_code=201)
+    def create_workspace(
+        body: WorkspaceCreate,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        if ctx.workspace_registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        actor = _require_workspace_admin(request, principal)
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        from recertia.paths import HostRootError
+
+        try:
+            ws = ctx.workspace_registry.register(
+                tenant_id=tenant_id,
+                workspace_id=body.workspace_id,
+                display_name=body.display_name,
+                host_root=body.host_root,
+                created_by=actor,
+                notes=body.notes,
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (HostRootError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return ws.model_dump(mode="json")
+
+    @app.patch("/v1/workspaces/{workspace_id}")
+    def patch_workspace(
+        workspace_id: str,
+        body: WorkspacePatch,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        if ctx.workspace_registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        _require_workspace_admin(request, principal)
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        try:
+            ws = ctx.workspace_registry.patch(
+                workspace_id,
+                tenant_id=tenant_id,
+                display_name=body.display_name,
+                notes=body.notes,
+                enabled=body.enabled,
+                clear_notes=body.clear_notes,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        return ws.model_dump(mode="json")
+
+    @app.delete("/v1/workspaces/{workspace_id}")
+    def delete_workspace(
+        workspace_id: str,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        if ctx.workspace_registry is None:
+            raise HTTPException(status_code=500, detail="workspace registry unavailable")
+        _require_workspace_admin(request, principal)
+        tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        ws = ctx.workspace_registry.set_enabled(workspace_id, tenant_id=tenant_id, enabled=False)
+        if ws is None:
+            raise HTTPException(status_code=404, detail="workspace not found")
+        return ws.model_dump(mode="json")
 
     @app.get("/v1/auth/oidc/login")
     def oidc_login(request: Request) -> dict[str, str]:
@@ -1394,7 +1520,11 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         try:
             goal = materialize_step_goal(prog, step)
             assert_gp0_execution_prereqs(
-                prog, step, workdir=body.workdir, plan_only=body.plan_only
+                prog,
+                step,
+                workdir=body.workdir,
+                workspace_id=body.workspace_id,
+                plan_only=body.plan_only,
             )
         except MaterializeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1428,6 +1558,7 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                     "task_class": goal.task_class or prog.task_class,
                     "budget": budget.model_dump(mode="json"),
                     "workdir": body.workdir,
+                    "workspace_id": body.workspace_id,
                 },
                 "criteria_preview_hash": ph,
                 "warnings": [w.to_dict() for w in warnings],

@@ -33,6 +33,7 @@ from recertia.telemetry import Telemetry, render_dashboard
 from recertia.validation.assertions import UnsafeAssertionError, evaluate_assertion
 from recertia.validation.sensitivity import author_sensitivity_proof
 from recertia.workspace import WorkspaceManager
+from tests.support.symlinks import require_symlink_support
 
 
 def _ctx(tmp_path: Path, *, node: str, episodic: EpisodicStore | None = None) -> NodeContext:
@@ -114,6 +115,7 @@ def test_bare_path_method_attribute_is_not_truthy(tmp_path: Path) -> None:
 
 
 def test_grep_skips_symlinks_outside_workspace(tmp_path: Path) -> None:
+    require_symlink_support(tmp_path)
     work = tmp_path / "work"
     work.mkdir()
     secret = tmp_path / "secret.txt"

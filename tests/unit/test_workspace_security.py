@@ -10,6 +10,7 @@ import pytest
 from recertia.ids import InvalidIdError, validate_run_id
 from recertia.paths import PathEscapeError, contained_path
 from recertia.workspace import WorkspaceManager
+from tests.support.symlinks import require_symlink_support
 
 
 def test_validate_run_id_rejects_path_escape() -> None:
@@ -28,6 +29,7 @@ def test_contained_path_rejects_escape(tmp_path: Path) -> None:
 
 
 def test_snapshot_skips_outbound_symlink_exfil(tmp_path: Path) -> None:
+    require_symlink_support(tmp_path)
     secrets = tmp_path / "secrets"
     secrets.mkdir()
     secret_file = secrets / "api_keys.sqlite"
@@ -60,6 +62,7 @@ def test_snapshot_skips_outbound_symlink_exfil(tmp_path: Path) -> None:
 
 
 def test_snapshot_preserves_internal_relative_symlink(tmp_path: Path) -> None:
+    require_symlink_support(tmp_path)
     workdir = tmp_path / "workdir"
     workdir.mkdir()
     (workdir / "target.txt").write_text("inside", encoding="utf-8")

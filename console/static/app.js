@@ -10,6 +10,61 @@ const state = {
 function apiKey() { return $("#apiKey").value.trim(); }
 function tenantHeader() { return $("#tenantHeader").value.trim(); }
 
+function looksAbsolutePath(s) {
+  const v = (s || "").trim();
+  if (!v) return false;
+  if (v.startsWith("/") || v.startsWith("\\")) return true;
+  if (/^[A-Za-z]:[\\/]/.test(v)) return true;
+  if (v.startsWith("//") || v.startsWith("\\\\")) return true;
+  return false;
+}
+
+function selectedWorkspaceId() {
+  return ($("#workspaceSelect") && $("#workspaceSelect").value.trim()) || "";
+}
+
+function workspaceSubpath() {
+  return ($("#workspaceSubpath") && $("#workspaceSubpath").value.trim()) || "";
+}
+
+function buildRunSubmitBody(goal, mode) {
+  const body = {
+    goal,
+    task_class: goal.task_class || "repo-chore",
+    mode,
+    budget: { max_attempts: 2 },
+  };
+  const ws = selectedWorkspaceId();
+  if (ws) {
+    body.workspace_id = ws;
+    body.workdir = workspaceSubpath();
+  }
+  return body;
+}
+
+async function loadWorkspaces() {
+  const sel = $("#workspaceSelect");
+  if (!sel) return;
+  const current = sel.value;
+  try {
+    const data = await api("/v1/workspaces");
+    const enabled = (data.workspaces || []).filter((w) => w.enabled !== false);
+    sel.innerHTML = `<option value="">sandbox — new empty workdir</option>`;
+    for (const w of enabled) {
+      const opt = document.createElement("option");
+      opt.value = w.workspace_id;
+      opt.textContent = `${w.display_name} (${w.workspace_id}) — ${w.host_root}`;
+      sel.appendChild(opt);
+    }
+    if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
+    if ($("#workspacesOut")) {
+      $("#workspacesOut").textContent = JSON.stringify(data.workspaces || [], null, 2);
+    }
+  } catch (e) {
+    if ($("#workspacesOut")) $("#workspacesOut").textContent = String(e);
+  }
+}
+
 async function api(path, opts = {}) {
   const headers = Object.assign({ "content-type": "application/json" }, opts.headers || {});
   if (apiKey()) headers["X-API-Key"] = apiKey();
@@ -32,6 +87,9 @@ function showView(name) {
   document.querySelectorAll(".nav button[data-view]").forEach((el) => el.classList.remove("active"));
   $(`#view-${name}`).classList.add("active");
   document.querySelector(`.nav button[data-view="${name}"]`).classList.add("active");
+  if (name === "pilot" || name === "auth" || name === "programs") {
+    loadWorkspaces().catch(() => {});
+  }
 }
 
 document.querySelectorAll(".nav button[data-view]").forEach((btn) => {
@@ -47,7 +105,10 @@ function setPilotMode(mode) {
 }
 
 document.querySelectorAll("[data-pilot-mode]").forEach((btn) => {
-  btn.addEventListener("click", () => setPilotMode(btn.dataset.pilotMode));
+  btn.addEventListener("click", () => {
+    setPilotMode(btn.dataset.pilotMode);
+    if (btn.dataset.pilotMode === "run") loadWorkspaces().catch(() => {});
+  });
 });
 
 function desiredValue(prefill) {
@@ -322,9 +383,16 @@ $("#previewGoal").onclick = async () => {
 
 $("#submitRun").onclick = async () => {
   try {
+    const sub = workspaceSubpath();
+    if (looksAbsolutePath(sub)) {
+      throw new Error("Subpath must be relative to the registered workspace (absolute paths rejected)");
+    }
+    if (!selectedWorkspaceId() && looksAbsolutePath(sub)) {
+      throw new Error("Sandbox workdir must be relative");
+    }
     const goal = buildGoal();
     const mode = $("#runMode").value;
-    const body = { goal, task_class: goal.task_class, mode, budget: { max_attempts: 2 } };
+    const body = buildRunSubmitBody(goal, mode);
     const res = await fetch("/v1/runs", {
       method: "POST",
       headers: {
@@ -529,8 +597,32 @@ $("#doSwitch").onclick = async () => {
   $("#authOut").textContent = JSON.stringify(d, null, 2);
 };
 
+$("#refreshWorkspaces").onclick = () => loadWorkspaces().catch((e) => {
+  $("#workspacesOut").textContent = String(e);
+});
+$("#registerWorkspace").onclick = async () => {
+  try {
+    const host = $("#wsHostRoot").value.trim();
+    if (!host) throw new Error("host_root required");
+    const d = await api("/v1/workspaces", {
+      method: "POST",
+      body: JSON.stringify({
+        workspace_id: $("#wsId").value.trim(),
+        display_name: $("#wsName").value.trim() || $("#wsId").value.trim(),
+        host_root: host,
+        notes: $("#wsNotes").value.trim() || null,
+      }),
+    });
+    $("#workspacesOut").textContent = JSON.stringify(d, null, 2);
+    await loadWorkspaces();
+  } catch (e) {
+    $("#workspacesOut").textContent = String(e);
+  }
+};
+
 setPilotMode("compose");
 loadTemplates();
+loadWorkspaces().catch(() => {});
 
 /* ----- Migration programs (GP0 board) ----- */
 state.programId = null;
@@ -575,11 +667,31 @@ function renderProgramSteps(prog, warnings) {
         <button type="button" class="secondary" data-act="preview">Preview</button>
         <button type="button" class="secondary" data-act="envelope">Run envelope</button>
         <button type="button" class="primary" data-act="submit-bind">Submit + bind</button>
-        <input data-workdir placeholder="workdir (relative)" value="" />
+        <select data-workspace><option value="">sandbox / relative</option></select>
+        <input data-workdir placeholder="subpath or relative workdir" value="" />
       </div>`;
+    const wsSel = el.querySelector("[data-workspace]");
+    const pilotSel = $("#workspaceSelect");
+    if (pilotSel) {
+      for (const opt of [...pilotSel.options]) {
+        if (!opt.value) continue;
+        const clone = opt.cloneNode(true);
+        wsSel.appendChild(clone);
+      }
+    }
+    const readBind = () => ({
+      workdir: el.querySelector("[data-workdir]").value,
+      workspace_id: wsSel.value || null,
+    });
     el.querySelector('[data-act="preview"]').onclick = () => previewProgramStep(step.step_id);
-    el.querySelector('[data-act="envelope"]').onclick = () => envelopeProgramStep(step.step_id, el.querySelector("[data-workdir]").value);
-    el.querySelector('[data-act="submit-bind"]').onclick = () => submitBindProgramStep(step.step_id, el.querySelector("[data-workdir]").value);
+    el.querySelector('[data-act="envelope"]').onclick = () => {
+      const b = readBind();
+      envelopeProgramStep(step.step_id, b.workdir, b.workspace_id);
+    };
+    el.querySelector('[data-act="submit-bind"]').onclick = () => {
+      const b = readBind();
+      submitBindProgramStep(step.step_id, b.workdir, b.workspace_id);
+    };
     box.appendChild(el);
   });
   if (warnings && warnings.length) {
@@ -600,11 +712,15 @@ async function previewProgramStep(stepId) {
   }
 }
 
-async function envelopeProgramStep(stepId, workdir) {
+async function envelopeProgramStep(stepId, workdir, workspaceId) {
   try {
     const out = await api(`/v1/programs/${state.programId}/steps/${stepId}/run`, {
       method: "POST",
-      body: JSON.stringify({ plan_only: true, workdir: workdir || null }),
+      body: JSON.stringify({
+        plan_only: true,
+        workdir: workdir || null,
+        workspace_id: workspaceId || null,
+      }),
     });
     $("#programOut").textContent = JSON.stringify(out, null, 2);
   } catch (e) {
@@ -612,11 +728,19 @@ async function envelopeProgramStep(stepId, workdir) {
   }
 }
 
-async function submitBindProgramStep(stepId, workdir) {
+async function submitBindProgramStep(stepId, workdir, workspaceId) {
   try {
+    if (looksAbsolutePath(workdir || "")) {
+      throw new Error("Subpath/workdir must be relative (absolute paths rejected)");
+    }
+    const envBody = {
+      plan_only: false,
+      workdir: workspaceId ? (workdir || "") : (workdir || "ws"),
+      workspace_id: workspaceId || null,
+    };
     const env = await api(`/v1/programs/${state.programId}/steps/${stepId}/run`, {
       method: "POST",
-      body: JSON.stringify({ plan_only: false, workdir: workdir || "ws" }),
+      body: JSON.stringify(envBody),
     });
     if (!env.run_create) {
       $("#programOut").textContent = JSON.stringify(env, null, 2);
@@ -634,7 +758,8 @@ async function submitBindProgramStep(stepId, workdir) {
       method: "POST",
       body: JSON.stringify({
         bind_run_id: runId,
-        workdir: workdir || env.run_create.workdir || "ws",
+        workdir: envBody.workdir,
+        workspace_id: workspaceId || null,
         idempotency_key: `bind-${runId}`,
       }),
     });

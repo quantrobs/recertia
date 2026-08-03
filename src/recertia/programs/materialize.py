@@ -138,24 +138,26 @@ def assert_gp0_execution_prereqs(
     *,
     workdir: str | None,
     plan_only: bool,
+    workspace_id: str | None = None,
 ) -> None:
     """GP0 honesty: empty isolated workspaces are not a migration handoff."""
 
     if plan_only:
         return
+    has_workdir = bool(workdir) or bool(workspace_id)
     if program.handoff == "none":
         # External git handoff or explicit operator workdir required to execute.
         eh = step.external_handoff
         has_ext = eh is not None and any(
             [eh.branch, eh.pr_url, eh.base_sha, eh.head_sha]
         )
-        if not workdir and not has_ext:
+        if not has_workdir and not has_ext:
             raise MaterializeError(
                 "GP0 execution requires operator workdir and/or external_handoff "
                 "(branch/pr_url/sha); use plan_only=true for board/preview without a run"
             )
-    if program.handoff == "operator_workdir" and not workdir:
-        raise MaterializeError("handoff=operator_workdir requires workdir")
+    if program.handoff == "operator_workdir" and not has_workdir:
+        raise MaterializeError("handoff=operator_workdir requires workdir or workspace_id")
     if program.handoff == "git_tip":
         if program.repo_binding is None:
             raise MaterializeError("handoff=git_tip requires a registered repo_binding")

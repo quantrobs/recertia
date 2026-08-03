@@ -24,6 +24,7 @@ from recertia.solver.container import (
     probe_container_runtime,
 )
 from recertia.solver.sandbox import SandboxError
+from tests.support.platform import skip_posix_mode_bits
 
 
 def _require_working_container(monkeypatch: pytest.MonkeyPatch) -> str:
@@ -51,6 +52,7 @@ def test_default_container_image_accepts_digest_pin(monkeypatch: pytest.MonkeyPa
     assert default_container_image().startswith("python:3.12-slim@sha256:")
 
 
+@skip_posix_mode_bits
 def test_container_workdir_chmod_defaults_without_world_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -63,6 +65,7 @@ def test_container_workdir_chmod_defaults_without_world_write(
     assert mode & 0o002 == 0  # other-write off by default
 
 
+@skip_posix_mode_bits
 def test_container_workdir_chmod_world_write_opt_in(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
