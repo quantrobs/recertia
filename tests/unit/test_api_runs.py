@@ -136,7 +136,11 @@ def test_relative_workdir_persists_for_resume(tmp_path: Path) -> None:
 
     meta = tmp_path / "api-root" / "runs" / "t1" / "persist-wd" / "workdir.json"
     assert meta.exists()
-    assert "nested/job" in meta.read_text() or str(expected.resolve()) in meta.read_text()
+    import json
+
+    payload = json.loads(meta.read_text(encoding="utf-8"))
+    assert Path(payload["workdir"]).resolve() == expected.resolve()
+    assert payload.get("kind", "sandbox") == "sandbox"
 
     # Clear in-memory cache to force resume to load persisted workdir.
     app.state.runs.clear()

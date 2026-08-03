@@ -36,7 +36,7 @@
       "tool": "shell",
       "intent": "Append {{pattern}} to .gitignore if missing.",
       "inputs": {
-        "command": "pattern='*.pyc'; grep -qxF \"$pattern\" .gitignore || echo \"$pattern\" >> .gitignore"
+        "command": "python -c \"from pathlib import Path; p=Path('.gitignore'); line='*.pyc'; text=p.read_text(encoding='utf-8') if p.exists() else ''; lines=text.splitlines(); p.write_text(text + ('' if (not text or text.endswith(chr(10))) else chr(10)) + line + chr(10), encoding='utf-8') if line not in lines else None\""
       },
       "outputs": [],
       "input_bindings": [],
@@ -49,7 +49,7 @@
     {
       "id": "has-entry",
       "kind": "command",
-      "run": "grep -qxF '*.pyc' .gitignore",
+      "run": "python -c \"from pathlib import Path; import sys; sys.exit(0 if '*.pyc' in Path('.gitignore').read_text(encoding='utf-8').splitlines() else 1)\"",
       "expect_exit": 0,
       "expr": null,
       "target": null,
@@ -68,7 +68,7 @@
         "rejected": true,
         "checked_at": "2026-07-31T00:00:00Z",
         "checked_against": "sha256:m1-seed-env",
-        "evidence_hash": "b5299accfd4ed38cf83992df906226de0413db5bf21820a4dd247cda9a22e648"
+        "evidence_hash": "b32e33ebf8b27d583d9c74bc43c76dfb7f7c9bf51e422be6b9d34b1e926e3da0"
       },
       "authored_by": "human",
       "preregistered": true

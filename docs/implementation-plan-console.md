@@ -60,6 +60,11 @@ Each milestone lists **engineering gates** (merge requirements) and **explicit n
 Conformance: `tests/unit/test_product_console.py` (PC-1…PC-6). C5 UI must not be marketed as
 multi-tenant-safe until production-readiness criteria pass.
 
+**Registered workspaces (Pilot real-repo bind):** planned as RW0–RW2 in
+[`implementation-plan-registered-workspaces.md`](implementation-plan-registered-workspaces.md)
+(spec: [`specifications/registered-workspaces.md`](specifications/registered-workspaces.md)).
+Does not reopen absolute `workdir` on create-run.
+
 ---
 
 ## C0 — Read-only console (Pilot + Ops)

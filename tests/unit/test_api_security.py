@@ -13,6 +13,7 @@ from recertia.api import create_app
 from recertia.api.auth import ApiKeyStore
 from recertia.solver.container import ensure_api_execution_ready
 from recertia.solver.sandbox import SandboxError
+from tests.support.platform import skip_posix_mode_bits
 
 
 def test_api_refuses_local_backend_without_break_glass(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,6 +72,7 @@ def test_blob_upload_rejects_oversized_payload(
     assert resp.status_code == 413
 
 
+@skip_posix_mode_bits
 def test_workdir_not_world_writable_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -26,6 +26,7 @@ from recertia.cli.skills import (
     skills_promote,
     skills_search,
 )
+from recertia.cli.workspaces import register_workspaces_commands
 
 app = typer.Typer(help="Recertia: a self-improving agent system.")
 register_run_commands(app)
@@ -35,6 +36,7 @@ register_lift_commands(app)
 register_metrics_commands(app)
 register_jobs_commands(app)
 register_gc_commands(app)
+register_workspaces_commands(app)
 
 __all__ = [
     "app",
