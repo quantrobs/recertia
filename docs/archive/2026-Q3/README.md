@@ -1,7 +1,7 @@
 # Archived docs — 2026 Q3
 
 Completed build and review narratives removed from the active `docs/` tree to reduce clutter.
-Stubs at the original paths keep links stable.
+Thin stubs at the original paths keep relative links stable.
 
 | File | Original role |
 | --- | --- |
@@ -13,6 +13,11 @@ Stubs at the original paths keep links stable.
 Active documentation: ADRs, specifications, architecture topics, `assumptions.md`,
 `references.md`, and `architecture/one-year-roadmap.md`.
 
-Full historical text for feature plans and the principal review is preserved here so
-link targets and CI remain stable. Score-10 research extracts live under
-`research/score10-references/`.
+Score-10 research extracts live under [`../../research/score10-references/`](../../research/score10-references/).
+
+## History recovery
+
+Some archive bodies here are condensed CI/navigation copies. The full pre-archive text of long plans
+and the principal review is recoverable from git history (commits before `f6e2afb` and related
+archive commits on `main`). Prefer `git show <pre-archive-sha>:docs/implementation-plan.md` (etc.)
+when you need the original long form.
