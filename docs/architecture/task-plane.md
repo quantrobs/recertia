@@ -6,7 +6,7 @@
 
 Fifteen nodes. Per [ADR-0008](../adr/0008-optional-join-and-failure-signals.md), `join` exists only
 on the fan-out path — the default, single-attempt path (everything through M5, per
-`implementation-plan.md`) routes `validate` straight to `distill` or `classify_failure`, matching
+`archive/2026-Q3/implementation-plan.md`) routes `validate` straight to `distill` or `classify_failure`, matching
 the simplified loop in [`README.md`](../../README.md). The overloaded `quarantine` node is split
 into `record_dead_end` (a run failed) and `reject_draft` (a draft was rejected); marking a
 *stored skill version* harmful is a `SkillStatus` write made by the Recertifier or Curator

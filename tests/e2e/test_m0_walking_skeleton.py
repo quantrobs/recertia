@@ -1,4 +1,4 @@
-"""M0 done-when criteria (docs/implementation-plan.md M0), proven end-to-end.
+"""M0 done-when criteria (docs/archive/2026-Q3/implementation-plan.md M0), proven end-to-end.
 
 Each test below maps directly to one clause of M0's "Done when" list.
 """

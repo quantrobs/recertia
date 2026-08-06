@@ -2,7 +2,7 @@
 
 Every node MUST have at least one legal outgoing route for a state that actually reaches it,
 and every FailureClass MUST have at least one producing source. This is what
-`docs/implementation-plan.md`'s "Route completeness" R3 check literally is.
+`docs/archive/2026-Q3/implementation-plan.md`'s "Route completeness" R3 check literally is.
 """
 
 from datetime import datetime, timezone

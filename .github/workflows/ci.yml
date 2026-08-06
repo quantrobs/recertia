@@ -2,7 +2,7 @@ name: ci
 
 # Validates contracts/ (ADR-0009: the Pydantic models that are the normative structural
 # source of truth, and everything generated from it) and src/recertia/ (M0–M9 per
-# docs/implementation-plan.md).
+# docs/archive/2026-Q3/implementation-plan.md).
 
 on:
   push:

@@ -2,7 +2,7 @@
 
 Normative requirements for the operator/reviewer console. Architecture rationale:
 [`../architecture/product-console.md`](../architecture/product-console.md). Build order:
-[`../implementation-plan-console.md`](../implementation-plan-console.md). Decisions:
+[`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md). Decisions:
 [ADR-0012](../adr/0012-product-console-surfaces.md).
 
 This document extends — and does not replace —
@@ -66,7 +66,7 @@ sandbox-incompatible values).
 For large refactors the Pilot SHOULD expose a **Goal pack** board: ordered Goals with
 dependencies and freeze paths, each submitted as a normal run after human confirm. Suggest
 drafts MUST NOT lock criteria. Normative: [goal-packs.md](goal-packs.md). Build order:
-[implementation-plan-goal-packs.md](../implementation-plan-goal-packs.md).
+[implementation-plan-goal-packs.md](../archive/2026-Q3/implementation-plan-goal-packs.md).
 
 ## 3. HTTP API (console)
 

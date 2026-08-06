@@ -46,7 +46,7 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 
 Console-oriented routes (list runs, async + SSE, proposals, jobs, promote enqueue, OIDC)
 are specified normatively in [`product-console.md`](product-console.md) and sequenced as
-milestones **C0–C5** in [`../implementation-plan-console.md`](../implementation-plan-console.md).
+milestones **C0–C5** in [`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md).
 The table below remains the short index; **product-console.md wins on conflicts** for those
 milestones.
 

@@ -1,7 +1,7 @@
 # ADR-0009: Contracts as code — Pydantic models are the normative structural source
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](../refactor-plan.md) B5
+- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B5
 
 ## Context
 
@@ -66,7 +66,7 @@ constraint outside JSON Schema's vocabulary without resorting to unreadable `if/
 writing them as Python functions instead of straining JSON Schema to its limits is honest about
 where the expressiveness boundary actually is.
 
-This is also the concrete first slice of `implementation-plan.md`'s R2 workstream
+This is also the concrete first slice of `archive/2026-Q3/implementation-plan.md`'s R2 workstream
 ("Pydantic models as the working hand; JSON Schema emitted or checked in CI"), pulled forward
 because the B1–B5 blockers could not be verified as *actually* resolved by prose alone — the
 only way to be sure the three-way split in ADR-0007, the criteria timeline in the amended
@@ -80,10 +80,10 @@ types and let a type checker and a test suite find the seams.
   the graph engine, the solver, or any node implementation. `src/recertia/` continues to wait for
   M0, and when it arrives, `src/recertia/memory/procedural` (etc.) import from `contracts/` rather
   than redefining these types.
-- `implementation-plan.md`'s repository layout gains a top-level `contracts/` directory ahead of
+- `archive/2026-Q3/implementation-plan.md`'s repository layout gains a top-level `contracts/` directory ahead of
   `src/`; its R2 milestone task ("Pydantic models as the working hand") is now "wire
   `src/recertia/` to `contracts/`" rather than "write the models."
 - Every future new mutable surface or entity is added by writing a Pydantic model first; a
   hand-written JSON Schema change with no corresponding model change is a review-blocking smell.
-- `docs/refactor-plan.md`'s R3 "Structural schema validity" and "Lifecycle profiles" CI checks
+- `docs/archive/2026-Q3/refactor-plan.md`'s R3 "Structural schema validity" and "Lifecycle profiles" CI checks
   are now literally the test files this ADR describes, not future work.

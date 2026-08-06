@@ -1,7 +1,7 @@
 # Assumptions register
 
 This document tracks **empirical claims** the design depends on, separately from the
-**engineering acceptance gates** in [`implementation-plan.md`](implementation-plan.md). The
+**engineering acceptance gates** in [`archive/2026-Q3/implementation-plan.md`](archive/2026-Q3/implementation-plan.md). The
 distinction is the fix for refactor-plan B7:
 
 - An **engineering gate** asks "does the harness work?" — it can be satisfied by a system that
@@ -11,7 +11,7 @@ distinction is the fix for refactor-plan B7:
   because a correct implementation must be allowed to discover an inconvenient truth.
 
 Every empirical claim below has a stable id (`a1`, `a2`, …) that milestones in
-`implementation-plan.md` cite instead of silently assuming, plus a `status` field this
+`archive/2026-Q3/implementation-plan.md` cite instead of silently assuming, plus a `status` field this
 document keeps current as evidence accumulates. This register **migrates and supersedes**
 [`references.md` §8](references.md#8-open-questions-the-literature-does-not-settle-for-us),
 which remains in place only as a pointer here.
@@ -32,11 +32,11 @@ tasks with tool-defined, machine-checkable success criteria will show positive `
 from retrieval-augmented solving, measured against a sampled control arm with retrieval
 suppressed (ADR-0003, [`references.md` §1.1](references.md#11-self-authored-skills-showed-no-benefit-curation-was-the-bottleneck)).
 
-- **Depends on:** M4's ablation-arm harness (`implementation-plan.md` M4) computing
+- **Depends on:** M4's ablation-arm harness (`archive/2026-Q3/implementation-plan.md` M4) computing
   `causal_lift` with a Wilson interval per task class.
 - **Engineering gate (not this claim):** the harness correctly reports `causal_lift` and its
   interval, including reporting **"not established"** when the interval spans zero, verified
-  against a synthetic scenario with a known, injected null effect (`implementation-plan.md` M4
+  against a synthetic scenario with a known, injected null effect (`archive/2026-Q3/implementation-plan.md` M4
   done-when).
 - **Research outcome (this claim):** whether real `repo-chore` traffic actually shows a
   positive `causal_lift` with an interval excluding zero.
@@ -52,12 +52,12 @@ suppressed (ADR-0003, [`references.md` §1.1](references.md#11-self-authored-ski
 for unsupervised application (ADR-0006 default, drawn from Ratchet) is reachable within a
 reasonable time window at our expected task volume.
 
-- **Depends on:** M5's active-set and shadow-trial mechanisms (`implementation-plan.md` M5) and
+- **Depends on:** M5's active-set and shadow-trial mechanisms (`archive/2026-Q3/implementation-plan.md` M5) and
   the Practice job feeding low-traffic skills synthetic curriculum tasks.
 - **Engineering gate (not this claim):** the system enforces the floor correctly — skills below
   it are score-demoted rather than dropped, are excluded from unsupervised application, and
   Practice's synthetic trials are logged and counted toward the floor the same way real trials
-  are (`implementation-plan.md` M5 done-when).
+  are (`archive/2026-Q3/implementation-plan.md` M5 done-when).
 - **Research outcome (this claim):** whether real + practised trial volume actually clears the
   floor for most active skills within a reasonable time window, or whether the majority of the
   library sits permanently below it.
@@ -122,5 +122,5 @@ system weaken the controls that measure or constrain it.
 3. Set `status: untested` until a harness produces a number; update the status field, do not
    delete history — a claim moving from `supported` back to `refuted` after a regression is
    itself signal.
-4. If a milestone done-when in `implementation-plan.md` would require this claim to be true to
+4. If a milestone done-when in `archive/2026-Q3/implementation-plan.md` would require this claim to be true to
    pass, that done-when is a bug (refactor-plan B7) — fix the done-when, not this register.

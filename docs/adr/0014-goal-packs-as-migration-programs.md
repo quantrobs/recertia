@@ -52,7 +52,7 @@ stacked changes.
 
 - Specs: [`../specifications/goal-packs.md`](../specifications/goal-packs.md).
 - Architecture: [`../architecture/goal-packs.md`](../architecture/goal-packs.md).
-- Build order: [`../implementation-plan-goal-packs.md`](../implementation-plan-goal-packs.md).
+- Build order: [`../implementation-plan-goal-packs.md`](../archive/2026-Q3/implementation-plan-goal-packs.md).
 - GP0 implementation: `contracts/program.py`, `src/recertia/programs/`, `/v1/programs` routes.
 - Skills / promotion / golden gate unchanged: programs produce ordinary runs.
 

@@ -3,7 +3,7 @@
 Normative requirements for using OpenRouter and other Chat Completions gateways through
 Recertia’s OpenAI client. Architecture:
 [`../architecture/openai-compat-gateways.md`](../architecture/openai-compat-gateways.md).
-Plan: [`../implementation-plan-openai-compat.md`](../implementation-plan-openai-compat.md).
+Plan: [`../implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md).
 Decision: [ADR-0013](../adr/0013-openai-compat-gateways.md).
 
 These rules extend — and do not replace — model/cost behaviour described in

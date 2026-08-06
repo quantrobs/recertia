@@ -3,7 +3,7 @@
 Storage is an append-only JSONL file: one ``LedgerEntry`` per line, in ``seq`` order. This is
 the M0-minimal persistence — durable across process restarts, trivially diffable, and exactly
 as much mechanism as ``recertia ledger verify`` needs. A SQLite/Postgres-backed store (per the
-tech stack in ``docs/implementation-plan.md``) can replace this later without changing
+tech stack in ``docs/archive/2026-Q3/implementation-plan.md``) can replace this later without changing
 ``LedgerEntry`` itself, since the contract lives in ``contracts/ledger.py``, not here.
 """
 

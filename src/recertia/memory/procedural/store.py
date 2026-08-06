@@ -1,6 +1,6 @@
 """Skill library store: immutable SkillVersion writes, mutable SkillStatus/SkillStats (ADR-0007).
 
-Layout on disk (matches ``docs/implementation-plan.md`` repository layout)::
+Layout on disk (matches ``docs/archive/2026-Q3/implementation-plan.md`` repository layout)::
 
     skills/<skill_id>/v<N>/version.json   # immutable once written
     skills/<skill_id>/v<N>/status.json    # projected SkillStatus
