@@ -27,7 +27,6 @@ SPLIT_DOCS: dict[str, tuple[str, ...]] = {
         "architecture/container-sandbox.md",
         "architecture/go-live.md",
         "architecture/openai-compat-gateways.md",
-        "architecture/principal-review-2026-08.md",
         "architecture/one-year-roadmap.md",
         "architecture/incident-tabletop.md",
         "architecture/production-readiness.md",
@@ -73,7 +72,10 @@ def check(docs_root: Path = DOCS) -> list[str]:
     errors: list[str] = []
     docs_root = docs_root.resolve()
     base = docs_root.parent  # usually the repo root; tmp_path in tests
-    md_files = sorted(docs_root.rglob("*.md"))
+    md_files = sorted(
+        p for p in docs_root.rglob("*.md")
+        if "archive" not in p.parts
+    )
     anchor_index: dict[Path, set[str]] = {p: _anchors_in(p) for p in md_files}
 
     for path in md_files:
