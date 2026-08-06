@@ -272,3 +272,42 @@ cannot (refactor-plan B7). Kept here only as a pointer:
 - SkillsBench's null result → [`assumptions.md#a1`](assumptions.md#a1-machine-checkable-domains-show-a-positive-causal-lift-from-skill-retrieval).
 - Ratchet's evidence floor at our throughput → [`assumptions.md#a2`](assumptions.md#a2-ratchets-evidence-floor-is-reachable-at-our-traffic-volume).
 - No external precedent for the ADR-0005 self-modification boundary → [`assumptions.md#a3`](assumptions.md#a3-a-tiered-self-modification-boundary-is-sufficient-without-an-externally-reported-precedent).
+
+## 9. Attached one-pagers reviewed and declined (2026-08)
+
+Three short IEEE-styled one-pagers were reviewed for bibliography inclusion. None met the
+threshold used elsewhere in this file — a design-shaping claim with measurements or a
+practitioner argument that survived independent scrutiny — so they are **not** cited in §§1–5.
+Scores below are 0–10 for topical *relevance* to Recertia and for *importance* as evidence
+(quality, provenance, and whether anything here should change). Cite only if both are high.
+
+| One-pager | Relevance | Importance | Verdict |
+| --- | --- | --- | --- |
+| **Continuous Skill Acquisition** (anonymous poster: discover → filter → evaluate → MCP package → publish from the public OSS ecosystem) | 6 | 2 | Decline |
+| **Graph Engineering: The Karpathy Loop, Improved 1000x… The Anthropic Playbook** (attrib. “David J.A. Hoffman”, “consultant in residence at Anthropic/recertia”) | 4 | 0 | Decline |
+| **My 4 Steps — From Loop Engineering to Graph Engineering** (attrib. Andrew Ng; body states compiled by ChatGPT, July 2024, not authored by Ng) | 5 | 1 | Decline |
+
+**Continuous Skill Acquisition.** The pipeline rhyme with the Miner → validate → promote path
+is real, and the insistence on static analysis / tests before install is compatible with our
+gates. It is not design-shaping: there is no fetchable primary with measurements; MCP is a
+connectivity interface, not our skill contract; and open-ecosystem crawl-and-install is the
+wrong acquisition surface for us. SkillsBench (§1.1) is why the Miner prefers
+`mined_from_human_artifact` in the owner’s repo over uncurated public skills. Adjacent real
+work already covers the theme better (Dynamic Agent Skills survey §1.5; Voyager / MUSE in
+§2). No change.
+
+**“Anthropic Playbook” / Hoffman.** Do not cite. Provenance fails: no verifiable Anthropic
+affiliation for the named author, fabricated `recertia.{ai,com,org}` contact addresses and an
+“Anthropic/recertia” residency claim that is not a Recertia affiliation, and a “1000×”
+headline with no benchmark. Independent checks of the mid-2026 “graph engineering” PDF wave
+found the same pattern — short compilations marketed under Anthropic/Karpathy branding while
+disclaiming that affiliation on the cover. Recertia’s graph-execution grounding remains the
+Kopadze practitioner note in §1.7 (fake edges, verifier isolation, hidden edges, silent
+merges), not this artifact. No change.
+
+**“Andrew Ng / 4 Steps” ChatGPT compilation.** Reflection, tool use, planning, and
+multi-agent collaboration are patterns we already use, but the attached PDF is an
+unendorsed AI compilation and should not stand in for Ng. The primary academic anchors for
+those patterns are already in §§3–4 (Reflexion, ReAct, Self-Refine). Ng’s own public
+writing on agentic workflows is practitioner background at best; this PDF is neither that
+nor a measurement. No change.
