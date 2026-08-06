@@ -96,7 +96,7 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
-| [`research/preprints-self-improving-agents.xlsx`](research/preprints-self-improving-agents.xlsx) ([JSON](research/preprints-self-improving-agents.scored.json)) | Scored survey of ~117 preprints against Recertia's non-negotiables |
+| [`research/`](research/) (Git LFS) | Scored preprint survey + score-10 extracts; see [`research/README.md`](research/README.md) |
 | [`research/score10-references/`](research/score10-references/) | Bibliographies extracted from the four score-10 papers |
 | [`docs/archive/2026-Q3/`](docs/archive/2026-Q3/) | **Historical** completed plans (M0–M9, console, OpenRouter, workspaces, refactor) and principal review |
 
