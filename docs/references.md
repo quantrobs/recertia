@@ -259,7 +259,7 @@ reading, not yet design-shaping, and are listed so they do not get lost behind t
 | **Self-Authored Verification Is Unreliable in Heuristic Self-Improving Agents** | [2607.24300](https://arxiv.org/abs/2607.24300) | Verifier–deployment gap when the agent authors its own tests — further support for ADR-0003 |
 
 Reference lists extracted from the four score-10 papers are in
-[`score10-references/`](score10-references/) and
+[`../research/score10-references/`](../research/score10-references/) and
 [`../research/preprints-score10-reference-lists.xlsx`](../research/preprints-score10-reference-lists.xlsx).
 
 ## 8. Open questions the literature does not settle for us

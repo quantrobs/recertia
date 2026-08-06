@@ -73,7 +73,7 @@ export RECERTIA_OPENAI_BASE_URL=https://openrouter.ai/api/v1/chat/completions
 
 Jobs and retention: `recertia jobs run curator --dry-run`, `recertia gc --older-than-days 14`.
 Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
-[`docs/implementation-plan-openai-compat.md`](docs/implementation-plan-openai-compat.md).
+[`docs/archive/2026-Q3/implementation-plan-openai-compat.md`](docs/archive/2026-Q3/implementation-plan-openai-compat.md) (archived).
 
 ## Documents
 
@@ -84,26 +84,21 @@ Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
 | [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, fetch allowlist, seed lint, jobs CLI, retention gc |
 | [`docs/architecture/openai-compat-gateways.md`](docs/architecture/openai-compat-gateways.md) | OpenRouter / OpenAI-compat gateway architecture |
 | [`docs/specifications/openai-compat-gateways.md`](docs/specifications/openai-compat-gateways.md) | Gateway URL, headers, EXTRA_BODY, cost, OG-* tests |
-| [`docs/implementation-plan-openai-compat.md`](docs/implementation-plan-openai-compat.md) | OpenRouter milestones OR0–OR3 |
 | [`docs/adr/0013-openai-compat-gateways.md`](docs/adr/0013-openai-compat-gateways.md) | ADR: OpenRouter as openai + base URL |
-| [`docs/architecture/principal-review-2026-08.md`](docs/architecture/principal-review-2026-08.md) | External architecture review: strengths, production gaps (P0–P2), threat-model deltas, non-goals |
 | [`docs/architecture/one-year-roadmap.md`](docs/architecture/one-year-roadmap.md) | 2026–2027 roadmap: operator GA → measured compounding → library economics → second domain + tenant gate |
 | [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |
 | [`docs/architecture/production-readiness.md`](docs/architecture/production-readiness.md) | Phase-4 multi-tenant readiness gate checklist |
 | [`docs/architecture/product-console.md`](docs/architecture/product-console.md) | Product console (Pilot / Tower) architecture |
 | [`docs/specifications/product-console.md`](docs/specifications/product-console.md) | Console HTTP, SSE events, UX, and conformance tests |
 | [`docs/specifications/registered-workspaces.md`](docs/specifications/registered-workspaces.md) | Registered host workspaces (Windows); Pilot workdir bind |
-| [`docs/implementation-plan-console.md`](docs/implementation-plan-console.md) | Console milestones C0–C5 |
-| [`docs/implementation-plan-registered-workspaces.md`](docs/implementation-plan-registered-workspaces.md) | Registered workspaces milestones RW0–RW2 |
 | [`docs/adr/0012-product-console-surfaces.md`](docs/adr/0012-product-console-surfaces.md) | ADR: console as control plane over headless Recertia |
 | [`docs/specifications/`](docs/specifications/core-entities.md) | Data model, graph state, node contracts, retrieval/validation/distillation specs, failure taxonomy, capacity and retirement, concurrency and merge contracts, HTTP/CLI surface, metrics |
 | [`docs/specifications/goal-objects.md`](docs/specifications/goal-objects.md) | Goal as primary input (Variant B) |
-| [`docs/implementation-plan.md`](docs/implementation-plan.md) | Milestones M0–M9, repo layout, test strategy, risks |
-| [`docs/refactor-plan.md`](docs/refactor-plan.md) | Pre-M0 structural debt: contradictory contracts, milestone dependencies, schema ownership |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 | [`research/preprints-self-improving-agents.xlsx`](research/preprints-self-improving-agents.xlsx) ([JSON](research/preprints-self-improving-agents.scored.json)) | Scored survey of ~117 preprints against Recertia's non-negotiables |
-| [`docs/score10-references/`](docs/score10-references/) | Bibliographies extracted from the four score-10 papers |
+| [`research/score10-references/`](research/score10-references/) | Bibliographies extracted from the four score-10 papers |
+| [`docs/archive/2026-Q3/`](docs/archive/2026-Q3/) | **Historical** completed plans (M0–M9, console, OpenRouter, workspaces, refactor) and principal review |
 
 Decision records:
 
@@ -119,8 +114,10 @@ Decision records:
 | [0008](docs/adr/0008-optional-join-and-failure-signals.md) | `join` is conditional on fan-out; failures are explicit signals, not inferred |
 | [0009](docs/adr/0009-contracts-as-code.md) | Pydantic models in `contracts/` are the structural source of truth |
 | [0010](docs/adr/0010-goal-as-primary-input.md) | Goal as primary task input; request is optional context |
+| [0011](docs/adr/0011-trajectory-and-counterfactual-replay.md) | Trajectory store and counterfactual replay packs |
 | [0012](docs/adr/0012-product-console-surfaces.md) | Console as control plane over headless Recertia |
 | [0013](docs/adr/0013-openai-compat-gateways.md) | OpenRouter as openai provider + full Chat Completions URL |
+| [0014](docs/adr/0014-goal-packs-as-migration-programs.md) | Goal packs as migration / multi-step programs |
 
 Machine-readable contracts are generated from [`contracts/`](contracts) (Pydantic models,
 ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and
