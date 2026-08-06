@@ -12,3 +12,7 @@ Stubs at the original paths keep links stable.
 
 Active documentation: ADRs, specifications, architecture topics, `assumptions.md`,
 `references.md`, and `architecture/one-year-roadmap.md`.
+
+Full historical text for feature plans and the principal review is preserved here so
+link targets and CI remain stable. Score-10 research extracts live under
+`research/score10-references/`.
