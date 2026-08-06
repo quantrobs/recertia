@@ -14,11 +14,16 @@
 - [Measurement integrity](architecture/measurement-integrity.md)
 - [Risk and governance](architecture/risk-and-governance.md)
 - [Measurement and domain scope](architecture/measurement-and-scope.md)
-- [Principal architecture review (Aug 2026)](architecture/principal-review-2026-08.md)
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
 - [Product console architecture](architecture/product-console.md)
 - [Goal packs (migration programs)](architecture/goal-packs.md)
 
-Normative requirements are in the [specifications index](specifications.md). Build order is in the [implementation plan](implementation-plan.md), the [console implementation plan](implementation-plan-console.md), the [OpenAI-compat / OpenRouter plan](implementation-plan-openai-compat.md), and the [Goal packs plan](implementation-plan-goal-packs.md).
+Normative requirements are in the [specifications index](specifications.md).
+Forward work is in the [one-year roadmap](architecture/one-year-roadmap.md).
+Completed M0–M9 sequencing is archived at
+[archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md)
+(stub: [implementation-plan.md](implementation-plan.md)).
+The August 2026 principal review is archived at
+[archive/2026-Q3/principal-review-2026-08.md](archive/2026-Q3/principal-review-2026-08.md).
