@@ -275,49 +275,41 @@ cannot (refactor-plan B7). Kept here only as a pointer:
 
 ## 9. Attached one-pagers reviewed and declined (2026-08)
 
-Three IEEE-styled posters/compilations were reviewed for bibliography inclusion. Two were
-subsequently **fetched and read in full** (Google Drive 11-page PDF; LinkedIn one-pager
-image + OCR). The third has **no public primary** under its distinctive phrases, so it was
-assessed only from the chat attachment. None met the threshold used elsewhere in this file —
-a design-shaping claim with measurements or a practitioner argument that survived independent
-scrutiny — so they are **not** cited in §§1–5. Scores below are 0–10 for topical *relevance*
-to Recertia and for *importance* as evidence. Cite only if both are high. Verification:
-**[F, practitioner]** for the two fetched compilations (read directly; not academic
-primaries); **[unfetched]** for Continuous Skill Acquisition.
+Three IEEE-styled posters/compilations were reviewed for bibliography inclusion. None met the
+threshold used elsewhere in this file — a design-shaping claim with measurements or a
+practitioner argument that survived independent scrutiny — so they are **not** cited in
+§§1–5. Scores are 0–10 for topical *relevance* and for *importance* as evidence. Cite only if
+both are high.
 
-| Artifact | Fetched? | Relevance | Importance | Verdict |
+| Artifact | How read | Relevance | Importance | Verdict |
 | --- | --- | --- | --- | --- |
-| **Continuous Skill Acquisition** (poster: discover → filter → evaluate → MCP package → publish from public OSS) | No public copy found | 6 | 2 | Decline |
-| **Graph Engineering: The Karpathy Loop, Improved 1000x… The Anthropic Playbook** (11 pp.; cover: independently compiled July 2026, not affiliated with Karpathy/Anthropic) **[F, practitioner]** | Yes — [Drive PDF](https://drive.google.com/file/d/1-GOg0kxcp8tx1BMUECMj2yJq6JYGmfhb/view) | 5 | 2 | Decline |
-| **My 4 Steps — From Loop Engineering to Graph Engineering** (one-pager; cover: independently compiled July 2026, not affiliated with Andrew Ng) **[F, practitioner]** | Yes — LinkedIn feed image + OCR | 5 | 1 | Decline |
+| **Continuous Skill Acquisition** (poster: Scan→Filter→Curate→Extract→Evaluate→Generate→Store→Publish from public OSS) | Chat attachment (twice); **no public PDF/Drive/arXiv** under distinctive phrases | 6 | 2 | Decline |
+| **Graph Engineering: The Karpathy Loop, Improved 1000x… The Anthropic Playbook** | Chat attachment + full [Drive PDF](https://drive.google.com/file/d/1-GOg0kxcp8tx1BMUECMj2yJq6JYGmfhb/view) (11 pp.) + OCR **[F, practitioner]** | 5 | 2 | Decline |
+| **My 4 Steps — From Loop Engineering to Graph Engineering** | Chat attachment + LinkedIn one-pager OCR **[F, practitioner]** | 5 | 1 | Decline |
 
-**Continuous Skill Acquisition [unfetched].** Distinctive phrases from the attachment
-(“Agent tools are the open library for autonomous history”, Discovery/Evaluation/Deployment
-layers with MCP skill packaging) return no public PDF, arXiv, or Drive hit. The pipeline rhyme
-with Miner → validate → promote is real, and pre-install testing is compatible with our gates,
-but without a fetchable primary there is nothing to cite. Even on the attachment’s own terms:
-MCP is connectivity, not our skill contract; open-ecosystem crawl-and-install is the wrong
-acquisition surface given SkillsBench (§1.1). Adjacent real work already covers the theme
-(Dynamic Agent Skills §1.5; Voyager / MUSE §2). No change. Re-upload a PDF if a primary
-exists.
+**Continuous Skill Acquisition.** Re-read from the re-attached poster. Architecture is three
+layers / eight steps: Discovery (Scan GitHub trending & tech reports → Filter duplicates /
+malware → Curate by risk/utility), Extraction (Workflow Extraction → Skill Evaluation via
+lint/tests → Skill Generation as YAML/JSON), Deployment (Store in org library → Publish to
+agents). Abstract claims agents must discover workflows across public repos; index terms
+include “remote sensing” (domain-mismatched tell). Still **not citable**: no fetchable
+primary, no measurements, and open-ecosystem crawl-and-install contradicts SkillsBench (§1.1)
+— Miner prefers `mined_from_human_artifact` in the owner’s repo. Pipeline rhyme with Miner →
+validate → promote / Curator is already covered by Dynamic Agent Skills (§1.5) and Voyager /
+MUSE (§2). No change. A durable PDF upload would not change the importance score without
+measurements.
 
-**Graph Engineering / “Anthropic Playbook” [F, practitioner].** Read cover-to-appendix.
-Cover and acknowledgment both state it is an **independent synthesis**, not affiliated with
-or endorsed by Karpathy or Anthropic. Content maps public sources: Karpathy `autoresearch`
-(≈630 LOC, ~700 experiments / ~20 retained, `program.md` + `val_bpb` ratchet), AgentHub
-(commit DAG as collaboration graph), Anthropic “Building Effective Agents”, Dynamic
-Workflows (fresh-context parallel sub-agents), and the Knowledge Graph Construction Cookbook
-(typed entities, provenance, multi-hop query). Useful engineering claims that survive the
-provenance correction — measured loop before swarm, typed shared state over transcripts,
-ground evaluators in edges not vibes, persist graph across sessions, keep human ownership of
-objectives/ontology — largely restate what Recertia already took from Kopadze §1.7 and
-ADR-0001 / plural memory. The “1000×” headline has no accompanying benchmark. Do not cite
-this compilation; cite the primary sources or §1.7. No change.
+**Graph Engineering / “Anthropic Playbook” [F, practitioner].** The circulating Drive PDF’s
+cover and acknowledgment state **independent synthesis, July 2026 — not affiliated with
+Karpathy or Anthropic**. Content maps public sources (`autoresearch` / AgentHub; Anthropic
+workflows + KG Cookbook). Useful surviving claims (measured loop before swarm, typed shared
+state, edge-grounded evaluators, persistence, human ownership of objectives) restate Kopadze
+§1.7 and ADR-0001. The “1000×” headline has no benchmark in the PDF. Chat re-attachments
+sometimes present a different surface branding (Anthropic mark, “2024” header, role-swarm
+diagram); treat those as the same viral compilation family, not as Anthropic authorship. Do
+not cite; cite primaries or §1.7. No change.
 
-**“Andrew Ng / 4 Steps” [F, practitioner].** OCR of the circulating one-pager: “Independently
-compiled, July 2026 — not affiliated with Andrew Ng and not endorsed.” It restates Ng’s four
-patterns (reflection, tool use, planning, multi-agent) and the HumanEval anecdote (GPT-3.5 +
-agentic workflow 95.1% vs GPT-4 zero-shot 67.0%) from his public Batch writing, then overlays
-a loop→chain→network→graph ladder that Ng did not publish as an ordered method. Patterns we
-already use are anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this
-compilation in place of Ng or those primaries. No change.
+**“Andrew Ng / 4 Steps” [F, practitioner].** OCR: “Independently compiled, July 2026 — not
+affiliated with Andrew Ng and not endorsed.” Restates Ng’s four patterns and the Batch
+HumanEval anecdote; the loop→graph ladder is the compiler’s overlay. Patterns already
+anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this compilation. No change.
