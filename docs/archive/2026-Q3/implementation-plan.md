@@ -108,7 +108,7 @@ M9  Operator GA hardening + soak path                       SHIPPED
 - `causal_lift` with Wilson intervals; `curation_gap` by provenance class.
 - Eval firewall and sensitivity proofs enforced.
 
-**Done when:** a scheduled eval run produces `causal_lift` with intervals; the control arm is the no-skill / frozen-library baseline; assumptions `a1`/`a2` can be updated from real traffic data (status remains under evaluation until evidence exists).
+**Done when:** a scheduled eval run produces `causal_lift` with intervals; the control arm is the no-skill / frozen-library baseline; assumptions `a1`/`a2` can be updated from real traffic data as research outcomes (not a merge gate; status remains under evaluation until evidence exists).
 
 ## M5 — Library lifecycle, capacity, retirement, autonomy
 
