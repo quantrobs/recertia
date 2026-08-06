@@ -1,13 +1,13 @@
 # ADR-0008: Optional join, explicit failure signals, and split terminals
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](../refactor-plan.md) B3, B4; corroborated by
+- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B3, B4; corroborated by
   `README.md`'s simplified loop diagram, which never routed through a `join` node
 
 ## Context
 
 Two routing contradictions made the graph unrunnable before fan-out exists (M0–M5, per
-`implementation-plan.md`):
+`archive/2026-Q3/implementation-plan.md`):
 
 **B3 — universal join.** `architecture/task-plane.md` §5.1 draws `validate → join` unconditionally, for
 every run, including the ordinary single-attempt case that M0–M5 exercise exclusively.
@@ -119,7 +119,7 @@ being fixed.
   (`tests/contracts/test_route_completeness.py`): every `FailureClass` has at least one producing
   edge, and every node has at least one legal outgoing route for every reachable state.
 - `specifications/graph-execution.md` §4/§4.1, `architecture/task-plane.md` §5.1's diagram and
-  node table, and `implementation-plan.md`'s M0 node list are updated to match (fourteen nodes become fifteen:
+  node table, and `archive/2026-Q3/implementation-plan.md`'s M0 node list are updated to match (fourteen nodes become fifteen:
   `quarantine` is removed, `record_dead_end` and `reject_draft` are added; `quarantine_version`
   is documented under the Recertifier/Curator in specs §20, not in the node table).
-- `docs/refactor-plan.md` marks B3 and B4 resolved with a link back here.
+- `docs/archive/2026-Q3/refactor-plan.md` marks B3 and B4 resolved with a link back here.

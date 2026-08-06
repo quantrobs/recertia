@@ -40,7 +40,7 @@ invariants the system exists to protect.
 - Specs for console HTTP, events, and UX live in
   [`../specifications/product-console.md`](../specifications/product-console.md).
 - Implementation milestones **C0–C5** live in
-  [`../implementation-plan-console.md`](../implementation-plan-console.md).
+  [`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md).
 - Observability dashboards SHOULD be bought (Grafana / OTel) rather than rebuilt; the
   console embeds links or light panels, not a second metrics product.
 - Measurement integrity (B7, ablation, golden gate) is unchanged: the console is a UI over

@@ -25,7 +25,7 @@ OpenRouter is configured as the OpenAI provider plus a gateway URL — not a sep
 provider enum. Specs and remaining polish milestones:
 [`openai-compat-gateways.md`](openai-compat-gateways.md),
 [`../specifications/openai-compat-gateways.md`](../specifications/openai-compat-gateways.md),
-[`../implementation-plan-openai-compat.md`](../implementation-plan-openai-compat.md),
+[`../implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md),
 [ADR-0013](../adr/0013-openai-compat-gateways.md).
 
 Point the OpenAI client at a full Chat Completions URL and pass gateway metadata via env:
@@ -145,7 +145,7 @@ python -m uvicorn recertia.api.app:app --host 127.0.0.1 --port 8080
 Issue an API key with `runs` (+ `metrics` / `exec` as needed) for the sidebar. Browser
 sessions (`RECERTIA_CONSOLE_AUTH=dev` or `oidc`) carry human roles; do not embed long-lived
 keys in frontend source. Specs: [`../specifications/product-console.md`](../specifications/product-console.md).
-Plan: [`../implementation-plan-console.md`](../implementation-plan-console.md).
+Plan: [`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md).
 
 ### Registered workspaces (real repo bind)
 

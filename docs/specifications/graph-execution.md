@@ -126,7 +126,7 @@ review   → reject_draft     : human or policy rejected
 `join` exists only on the fan-out path (`branches` non-empty). The ordinary, single-attempt
 path used exclusively through M0–M5 routes `validate` directly to `distill` or
 `classify_failure` — this is Option 1 from
-[`refactor-plan.md`](../refactor-plan.md) B3, chosen definitively; see
+[`archive/2026-Q3/refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B3, chosen definitively; see
 [ADR-0008](../adr/0008-optional-join-and-failure-signals.md). `MergeAudit` has no `.complete`
 field; the predicate above is the real one, over `expected`/`received`/`missing`.
 

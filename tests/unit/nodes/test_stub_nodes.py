@@ -1,7 +1,7 @@
 """Unit tests for nodes that are unreachable on M0's default (scratch, no-fan-out) path.
 
 Each is still a real function — exercised directly here with a fake ``NodeContext``, per the
-test strategy in ``docs/implementation-plan.md`` ("nodes as pure (state) -> (delta, route)
+test strategy in ``docs/archive/2026-Q3/implementation-plan.md`` ("nodes as pure (state) -> (delta, route)
 functions with fake services").
 """
 

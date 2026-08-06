@@ -1,4 +1,4 @@
-"""M1 done-when criteria (docs/implementation-plan.md M1)."""
+"""M1 done-when criteria (docs/archive/2026-Q3/implementation-plan.md M1)."""
 
 from __future__ import annotations
 

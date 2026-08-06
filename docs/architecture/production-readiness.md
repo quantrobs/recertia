@@ -1,7 +1,7 @@
 # Production readiness assessment (Phase 4 gate)
 
 Companion to [`one-year-roadmap.md`](one-year-roadmap.md) §5 and
-[`principal-review-2026-08.md`](principal-review-2026-08.md) §5. Every row must be
+[`archive/2026-Q3/principal-review-2026-08.md`](../archive/2026-Q3/principal-review-2026-08.md) §5. Every row must be
 **closed** or **accepted-with-owner** before multi-tenant GA is considered.
 
 | Item | Status | Owner / notes |

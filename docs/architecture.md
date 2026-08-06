@@ -23,7 +23,6 @@
 Normative requirements are in the [specifications index](specifications.md).
 Forward work is in the [one-year roadmap](architecture/one-year-roadmap.md).
 Completed M0–M9 sequencing is archived at
-[archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md)
-(stub: [implementation-plan.md](implementation-plan.md)).
+[archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md).
 The August 2026 principal review is archived at
 [archive/2026-Q3/principal-review-2026-08.md](archive/2026-Q3/principal-review-2026-08.md).

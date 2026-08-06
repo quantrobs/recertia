@@ -1,8 +1,8 @@
 # One-year technical roadmap (August 2026 – August 2027)
 
-Companion to [`principal-review-2026-08.md`](principal-review-2026-08.md), which contains the
+Companion to [`archive/2026-Q3/principal-review-2026-08.md`](../archive/2026-Q3/principal-review-2026-08.md), which contains the
 evidence for every gap cited here. Sequencing follows the same rule as
-[`../implementation-plan.md`](../implementation-plan.md): phases are ordered by what each one
+[`../implementation-plan.md`](../archive/2026-Q3/implementation-plan.md): phases are ordered by what each one
 lets you **measure**, not by calendar appetite. Every phase lists engineering gates (merge
 requirements) separately from research outcomes (never merge requirements, per
 [`../assumptions.md`](../assumptions.md) and refactor-plan B7).
@@ -178,7 +178,7 @@ established" is an acceptable, passing result per B7.
   the product's claim to honesty.
 - OpenRouter / OpenAI-compat gateways use `provider=openai` + base URL (ADR-0013);
   call path shipped (OR0). Polish milestones OR1–OR3:
-  [`../implementation-plan-openai-compat.md`](../implementation-plan-openai-compat.md).
+  [`../implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md).
 - Model-provider failover (P2-5) is a deliberate-absence candidate: two providers doubles the
   judge-bias surface (canary must run per provider × model) for an availability benefit a
   single operator may not need. Decide at the Phase 4 gate with data, not in advance.
@@ -210,10 +210,10 @@ and must not be marked `supported` without real traffic (B7).
 | 4 Second domain + tenant gate | research-synthesis fixture gate; planted-secret scope e2e; `QuotaStore`; [`production-readiness.md`](production-readiness.md) | Signed threat model; multi-tenant go/defer decision; console **C5** only if GA gate passes ([`product-console.md`](product-console.md)) |
 
 Operator UX beyond CLI is specified separately: console milestones **C0–C5** in
-[`../implementation-plan-console.md`](../implementation-plan-console.md) (Goal form, runs/skills
+[`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md) (Goal form, runs/skills
 browsers, proposal queue, async+SSE, OIDC). C0–C4 may ship for single-operator mode without
 waiting on multi-tenant GA. Multi-step migrations use **Goal packs** (GP0–GP2) in
-[`../implementation-plan-goal-packs.md`](../implementation-plan-goal-packs.md) — programs of
+[`../implementation-plan-goal-packs.md`](../archive/2026-Q3/implementation-plan-goal-packs.md) — programs of
 locked Goals, not mega-Goals ([ADR-0014](../adr/0014-goal-packs-as-migration-programs.md)).
 
 ## 10. References

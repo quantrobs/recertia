@@ -3,7 +3,7 @@
 - **Status:** accepted
 - **Supersedes:** the single-document `SkillVersion` shape implied by `schema/skill.schema.json`
   before this decision
-- **Evidence base:** [`../refactor-plan.md`](../refactor-plan.md) B1
+- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B1
 
 ## Context
 
@@ -71,7 +71,7 @@ read steps that never changed.
 - The canonical store path becomes `skills/<skill_id>/v<N>/version.json` (immutable, in git,
   reviewed by pull request) plus a `SkillStatus` event log and a `SkillStats` row that are
   **not** git-reviewed artifacts — they are runtime state, rebuildable from the run store and
-  the status event log respectively. `implementation-plan.md`'s repository layout is updated to
+  the status event log respectively. `archive/2026-Q3/implementation-plan.md`'s repository layout is updated to
   reflect this (§ "Repository layout").
 - `architecture/library-lifecycle.md` §7.1's lifecycle diagram is a diagram of `SkillStatus`
   transitions, not of the version document; the diagram itself does not need to change, but its
@@ -80,7 +80,7 @@ read steps that never changed.
   `SkillStatus` (`lifecycle`, `retirement`) and reads `SkillStats` (`contribution`) — it was
   already describing this split informally ("retained in full with history"); this ADR makes it
   the literal storage model.
-- The immutability CI invariant in `implementation-plan.md` ("no write to an existing
+- The immutability CI invariant in `archive/2026-Q3/implementation-plan.md` ("no write to an existing
   `SkillVersion`") is now checkable by construction: `SkillVersion` is a frozen model, and there
   is no code path that could even attempt the write the invariant used to guard against by
   convention alone.

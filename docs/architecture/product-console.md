@@ -2,7 +2,7 @@
 
 Companion to [ADR-0012](../adr/0012-product-console-surfaces.md), normative contracts in
 [`../specifications/product-console.md`](../specifications/product-console.md), and build
-order in [`../implementation-plan-console.md`](../implementation-plan-console.md).
+order in [`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md).
 
 ## 1. Purpose
 
