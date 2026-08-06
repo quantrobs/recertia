@@ -10,7 +10,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 ASSUMPTIONS = REPO / "docs" / "assumptions.md"
-PLAN = REPO / "docs" / "implementation-plan.md"
+PLAN = REPO / "docs" / "archive" / "2026-Q3" / "implementation-plan.md"
 
 STATUS_RE = re.compile(
     r"^## (a\d+)\..+?\n(?:.*?\n)*?\- \*\*Status:\*\* `([^`]+)`",
