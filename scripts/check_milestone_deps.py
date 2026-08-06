@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPO))
 
 from contracts.introduced_in import INTRODUCED_IN  # noqa: E402
 
-PLAN = REPO / "docs" / "implementation-plan.md"
+PLAN = REPO / "docs" / "archive" / "2026-Q3" / "implementation-plan.md"
 MILESTONE_RE = re.compile(r"^## M(\d)\b", re.M)
 DONE_WHEN_RE = re.compile(
     r"^\*\*Done when.*?\*\*\s*(.+?)(?=^\*\*Done when|\n## |\Z)",
