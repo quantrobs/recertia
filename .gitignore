@@ -1,4 +1,5 @@
 __pycache__/
+.env
 *.pyc
 .pytest_cache/
 .mypy_cache/
@@ -10,4 +11,4 @@ __pycache__/
 # workspace snapshots) — never checked in, per M0's own default of a repo-local .recertia/ dir.
 .recertia/
 
-.env
+
