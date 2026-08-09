@@ -11,7 +11,8 @@ Both branches are exercised, including ``eval_store is not None`` — the branch
 most work (fresh contribution estimates, stats writes, class-level ablation write, and the
 candidate-pool narrowing) and that no production caller currently reaches.
 
-The last two tests document the two places where the controller *intentionally* differs.
+Two tests near the end document the places where the controller *intentionally* differs, and
+the last one is the flag's expiry guard.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from contracts.skill import Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
 from contracts.status import SkillStatus
 from recertia.evals.store import EvalStore
+from recertia.memory.procedural import active_set
 from recertia.memory.procedural.active_set import recompute_active_set
 from recertia.memory.procedural.seeds import seed_approved_for_tests
 from recertia.memory.procedural.store import SkillStore
@@ -477,3 +479,37 @@ def test_version_tiebreak_is_numeric_not_lexicographic(
     legacy_active, controller_active = _two_way_actives(tmp_path, monkeypatch, rows, cap=1)
     assert legacy_active == {("dup", 10)}
     assert controller_active == {("dup", 2)}
+
+
+# ---------------------------------------------------------------------------
+# Flag expiry
+# ---------------------------------------------------------------------------
+
+_MEASUREMENT_REPORT = (
+    Path(__file__).resolve().parents[3] / "docs" / "architecture" / "portfolio-measurement.md"
+)
+
+
+def test_flag_and_legacy_branch_do_not_outlive_phase_2() -> None:
+    """``RECERTIA_PORTFOLIO_CONTROLLER`` is scaffolding, and this is its expiry.
+
+    Phase 2's exit criterion is a written measurement report. Once that report lands, the
+    equivalence proof has served its purpose and the dual implementation becomes a liability:
+    a switch over which skills are retrievable is measurement semantics, which ADR-0005 places
+    at T3, so it must not survive as a de-facto configuration knob.
+
+    Skipping until the report exists keeps this inert during Phase 1 and makes it fail the
+    moment the removal is due. Deleting the flag and ``_recompute_active_set_legacy`` retires
+    this whole module along with them.
+    """
+
+    if not _MEASUREMENT_REPORT.exists():
+        pytest.skip("Phase 2 measurement report not written yet; flag removal is not yet due")
+    assert not hasattr(active_set, "_recompute_active_set_legacy"), (
+        "Phase 2 is reported but the legacy ranking branch is still present. Delete "
+        "_recompute_active_set_legacy and fold the controller path into recompute_active_set."
+    )
+    assert not hasattr(active_set, "_portfolio_controller_enabled"), (
+        "Phase 2 is reported but RECERTIA_PORTFOLIO_CONTROLLER is still read. Delete the flag; "
+        "the pure controller is the only path."
+    )

@@ -8,8 +8,12 @@ runs is decided by the ``RECERTIA_PORTFOLIO_CONTROLLER`` environment flag.
 That flag is scaffolding for the equivalence proof, not a tunable. A switch that changes
 which skills are retrievable is measurement semantics, which ADR-0005 places at T3, so it
 MUST NOT be offered as user-facing configuration or documented as such. Both the flag and
-``_recompute_active_set_legacy`` are to be **deleted at the end of Phase 2**, once the
-measurement report exists and the pure path is the only path.
+``_recompute_active_set_legacy`` are to be **deleted at the end of Phase 2**, once the pure
+path is the only path.
+
+That expiry is enforced rather than merely intended: writing Phase 2's measurement report to
+``docs/architecture/portfolio-measurement.md`` makes
+``tests/unit/memory/test_portfolio_equivalence.py`` fail until both are gone.
 """
 
 from __future__ import annotations
