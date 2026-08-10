@@ -24,7 +24,7 @@ a driver swap rather than a data model change.
 | `max_attempts` | `evolve → solve` | 4 |
 | `max_tool_calls` | tool runtime | 200 |
 | `max_tokens` | solver | task class default |
-| `max_wall_clock_s` | orchestrator, per node | 900 |
+| `max_wall_clock_s` | solver, per attempt | 900 |
 | `max_cost_usd` | solver + tool runtime | task class default |
 | `max_branches` | `fan_out` | 3 |
 | `max_parallel_steps` | step scheduler in `solve` | 8 |
@@ -35,6 +35,19 @@ Exhausting any budget routes to `classify_failure` then `record_dead_end`, never
 `solve`. No-progress detection short-circuits when two consecutive attempts produce an
 identical result vector: the same failure twice means the current strategy is exhausted, not
 unlucky.
+
+A budget is only as good as the meter behind it, so `RunState.spent` has exactly one writer:
+`AttemptMeter` in `recertia.nodes.attempt`. Each `solve` path opens a meter, charges what it
+uses, and closes through the meter's outcome helpers, which means no exit can record an
+attempt while omitting a dimension — the failure mode that left wall clock uncharged and
+therefore unenforceable.
+
+Charging is per attempt, while the model client, tool runtime, and claim scheduler count
+cumulatively for the whole run. `RuntimeWindow` reports the difference between two reads of
+those counters; reading them directly charges an attempt for every attempt before it. The
+window is measured inside `ctx.op_once` and persisted alongside the operation result, so a
+resumed run charges replayed work exactly once rather than losing it. A boundary test parses
+the AST to keep both rules enforced rather than merely documented.
 
 Budgets are also *allocated*, not just capped. The policy plane holds an escalation ladder —
 start on a cheap model tier, escalate on specific failure classes — because spending

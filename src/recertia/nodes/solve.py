@@ -17,9 +17,17 @@ from pathlib import Path
 
 from contracts.budget import BudgetReservation, Spend, budget_excess
 from contracts.failure import FailureSignal
-from contracts.run import Artifact, RunState
+from contracts.run import RunState
 from recertia.memory.procedural.apply import script_from_skill
 from recertia.nodes._util import now
+from recertia.nodes.attempt import (
+    AttemptMeter,
+    RuntimeWindow,
+    UsageDelta,
+    completed,
+    failed,
+    record_new_affordances,
+)
 from recertia.nodes.context import NodeContext, NodeOutcome
 from recertia.solver.transcript import TranscriptWriter
 
@@ -47,23 +55,16 @@ def solve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     try:
         script = _resolve_script(state, ctx)
     except ModelRequiredError as exc:
-        signal = FailureSignal(
-            source="solver",
-            detail=f"environment: {exc}",
-            at=now(),
-            class_hint="environment",
-        )
-        return NodeOutcome(
-            state=state.model_copy(
-                update={
-                    "attempt_no": attempt_no,
-                    "spent": state.spent.model_copy(
-                        update={"attempts": state.spent.attempts + 1}
-                    ),
-                    "failure_signal": signal,
-                }
+        return failed(
+            state,
+            AttemptMeter.open(state),
+            signal=FailureSignal(
+                source="solver",
+                detail=f"environment: {exc}",
+                at=now(),
+                class_hint="environment",
             ),
-            route="pre_validation_failure_signal",
+            attempt_no=attempt_no,
             note="scratch requires a configured model",
         )
 
@@ -77,8 +78,11 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
     from contracts.criteria import CriterionResult
     from recertia.nodes.validate import _score_criterion_dict
 
+    # Branch leases are being retired into parent spend here, so the parent must not also be
+    # charged for still holding the reservation fan_out took out.
+    meter = AttemptMeter.open(state, reserved=BudgetReservation())
     updated = []
-    added = Spend()
+    attempts_charged = 0
     for branch in state.branches:
         if branch.status not in ("dispatched", "running"):
             updated.append(branch)
@@ -116,12 +120,14 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
                     }
                 )
             )
-            added = Spend(
-                attempts=added.attempts + projected.attempts,
-                tool_calls=added.tool_calls + projected.tool_calls,
-                wall_clock_s=added.wall_clock_s + projected.wall_clock_s,
-                cost_usd=added.cost_usd + projected.cost_usd,
+            # Wall clock comes from the meter's own clock, which spans the whole branch loop,
+            # rather than from summing per-branch measurements.
+            meter.charge(
+                tool_calls=projected.tool_calls,
+                tokens=projected.tokens,
+                cost_usd=projected.cost_usd,
             )
+            attempts_charged += projected.attempts
             continue
         ok = True
         started = time.monotonic()
@@ -155,12 +161,12 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
             wall_clock_s=elapsed,
             cost_usd=cost,
         )
-        added = Spend(
-            attempts=added.attempts + branch_spent.attempts,
-            tool_calls=added.tool_calls + branch_spent.tool_calls,
-            wall_clock_s=added.wall_clock_s + branch_spent.wall_clock_s,
-            cost_usd=added.cost_usd + branch_spent.cost_usd,
+        meter.charge(
+            tool_calls=branch_spent.tool_calls,
+            tokens=branch_spent.tokens,
+            cost_usd=branch_spent.cost_usd,
         )
+        attempts_charged += branch_spent.attempts
         updated.append(
             branch.model_copy(
                 update={
@@ -176,50 +182,33 @@ def _solve_branches(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeO
 
     # Reconcile each lease into parent spend. This catches a runtime measurement that was
     # larger than its conservative admission estimate without hiding the actual spend.
-    spent = state.spent.model_copy(
-        update={
-            "attempts": state.spent.attempts + added.attempts,
-            "tool_calls": state.spent.tool_calls + added.tool_calls,
-            "tokens": state.spent.tokens + added.tokens,
-            "wall_clock_s": state.spent.wall_clock_s + added.wall_clock_s,
-            "cost_usd": state.spent.cost_usd + added.cost_usd,
-        }
-    )
-    exhausted = budget_excess(state.budget, spent, BudgetReservation(), BudgetReservation())
+    retired = {"reserved": BudgetReservation(), "branches": updated}
+    exhausted = meter.preflight(attempts=attempts_charged)
     if exhausted is not None:
-        signal = FailureSignal(
-            source="solver",
-            detail=f"parent budget exceeded by branches: {exhausted}",
-            at=now(),
-            class_hint="budget",
-        )
-        new_state = state.model_copy(
-            update={
-                "attempt_no": attempt_no,
-                "spent": spent,
-                "reserved": BudgetReservation(),
-                "branches": updated,
-                "failure_signal": signal,
-                "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
-            }
-        )
-        return NodeOutcome(
-            state=new_state,
-            route="pre_validation_failure_signal",
+        return failed(
+            state,
+            meter,
+            signal=FailureSignal(
+                source="solver",
+                detail=f"parent budget exceeded by branches: {exhausted}",
+                at=now(),
+                class_hint="budget",
+            ),
+            attempt_no=attempt_no,
+            attempts=attempts_charged,
             note=f"budget exceeded: {exhausted}",
+            updates={**retired, "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}"},
         )
 
-    new_state = state.model_copy(
-        update={
-            "attempt_no": attempt_no,
-            "spent": spent,
-            "reserved": BudgetReservation(),
-            "branches": updated,
-            "transcript_ref": f"{ctx.run_id}/branches-{attempt_no}",
-            "failure_signal": None,
-        }
+    return completed(
+        state,
+        meter,
+        attempt_no=attempt_no,
+        attempts=attempts_charged,
+        transcript_ref=f"{ctx.run_id}/branches-{attempt_no}",
+        note=f"ran {len(updated)} branches",
+        updates=retired,
     )
-    return NodeOutcome(state=new_state, route="attempt_completed", note=f"ran {len(updated)} branches")
 
 
 def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) -> NodeOutcome:
@@ -242,6 +231,9 @@ def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) ->
 
         writer = TranscriptWriter(TranscriptStore(ctx.workdir / ".transcripts"), ctx.run_id, attempt_no)
 
+    meter = AttemptMeter.open(state)
+    window = RuntimeWindow(ctx)
+
     def _run() -> dict:
         result = ctx.applicator.apply(  # type: ignore[union-attr]
             version,
@@ -251,7 +243,8 @@ def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) ->
             attempt_no=attempt_no,
             transcript=writer,
         )
-        # Persist a JSON-safe summary so at-least-once resume stays valid.
+        # Persist a JSON-safe summary so at-least-once resume stays valid. Usage is measured
+        # inside the operation so a replayed result still charges what it originally spent.
         return {
             "ok": result.ok,
             "transcript_ref": result.transcript_ref,
@@ -261,32 +254,12 @@ def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) ->
             "conflicts": [
                 c.model_dump(mode="json") for wr in result.waves for c in wr.conflicts
             ],
-            "tool_invocations": len(ctx.tools.invocations) if ctx.tools else 0,
+            "usage": window.delta().as_dict(),
         }
 
     summary = ctx.op_once(0, _run)
-
-    # Record affordance telemetry for every tool invocation in this attempt.
-    if ctx.affordances is not None and ctx.tools is not None:
-        for inv in ctx.tools.invocations:
-            ctx.affordances.record_tool(inv)
-        for conflict in ctx.tools.scheduler.conflicts:
-            ctx.affordances.record_conflict(conflict)
-        ctx.affordances.save()
-
-    spent = state.spent.model_copy(update={"attempts": state.spent.attempts + 1})
-    if ctx.model is not None:
-        spent = spent.model_copy(
-            update={
-                "tokens": state.spent.tokens + ctx.model.spend.tokens,
-                "cost_usd": state.spent.cost_usd + ctx.model.spend.cost_usd,
-                "tool_calls": state.spent.tool_calls + int(summary["tool_invocations"]),
-            }
-        )
-    elif ctx.tools is not None:
-        spent = spent.model_copy(
-            update={"tool_calls": state.spent.tool_calls + int(summary["tool_invocations"])}
-        )
+    record_new_affordances(ctx, window)
+    meter.charge_delta(UsageDelta.from_dict(summary.get("usage") or {}))
 
     from contracts.resources import ResourceConflict
     from contracts.run import StepWave
@@ -298,41 +271,27 @@ def _solve_via_applicator(state: RunState, ctx: NodeContext, attempt_no: int) ->
         detail = summary["error"] or "skill application failed"
         if summary["merge_timeout"]:
             detail = f"claim timeout: {detail}"
-        signal = FailureSignal(source="solver", detail=detail, at=now())
-        new_state = state.model_copy(
-            update={
-                "attempt_no": attempt_no,
-                "spent": spent,
-                "failure_signal": signal,
+        return failed(
+            state,
+            meter,
+            signal=FailureSignal(source="solver", detail=detail, at=now()),
+            attempt_no=attempt_no,
+            note=f"applicator failed: {detail}",
+            updates={
                 "transcript_ref": summary["transcript_ref"],
                 "step_waves": [*state.step_waves, *waves],
                 "resource_conflicts": [*state.resource_conflicts, *conflicts],
-            }
-        )
-        return NodeOutcome(
-            state=new_state,
-            route="pre_validation_failure_signal",
-            note=f"applicator failed: {detail}",
+            },
         )
 
-    new_state = state.model_copy(
-        update={
-            "attempt_no": attempt_no,
-            "spent": spent,
-            "transcript_ref": summary["transcript_ref"],
-            "artifacts": [
-                *state.artifacts,
-                Artifact(
-                    kind="text",
-                    ref=summary["transcript_ref"] or f"{ctx.run_id}/attempt-{attempt_no}",
-                    description="structured attempt transcript",
-                ),
-            ],
-            "step_waves": [*state.step_waves, *waves],
-            "failure_signal": None,
-        }
+    return completed(
+        state,
+        meter,
+        attempt_no=attempt_no,
+        transcript_ref=summary["transcript_ref"] or f"{ctx.run_id}/attempt-{attempt_no}",
+        description="structured attempt transcript",
+        updates={"step_waves": [*state.step_waves, *waves]},
     )
-    return NodeOutcome(state=new_state, route="attempt_completed")
 
 
 def _solve_script_via_tools(
@@ -344,122 +303,93 @@ def _solve_script_via_tools(
         if ctx.transcripts is not None
         else None
     )
+    meter = AttemptMeter.open(state)
     for op_seq, command in enumerate(script):
-        requested = BudgetReservation(tool_calls=op_seq + 1)
-        exhausted = budget_excess(state.budget, state.spent, state.reserved, requested)
+        exhausted = meter.preflight(tool_calls=1)
         if exhausted is not None:
-            signal = FailureSignal(
-                source="solver",
-                detail=f"budget exhausted before tool dispatch: {exhausted}",
-                at=now(),
-                class_hint="budget",
-            )
-            return NodeOutcome(
-                state=state.model_copy(update={"failure_signal": signal}),
-                route="pre_validation_failure_signal",
+            return failed(
+                state,
+                meter,
+                signal=FailureSignal(
+                    source="solver",
+                    detail=f"budget exhausted before tool dispatch: {exhausted}",
+                    at=now(),
+                    class_hint="budget",
+                ),
+                attempt_no=attempt_no,
                 note=f"tool-call budget exhausted: {exhausted}",
+                updates={"transcript_ref": writer.finalize() if writer else None},
             )
-        def _run(cmd: str = command, seq: int = op_seq) -> dict:
+
+        window = RuntimeWindow(ctx)
+
+        def _run(cmd: str = command, seq: int = op_seq, win: RuntimeWindow = window) -> dict:
             if writer:
                 writer.event("tool", tool="shell", command=cmd)
             result = ctx.tools.invoke(  # type: ignore[union-attr]
                 "shell", {"command": cmd}, workdir=ctx.workdir, step_id=f"script-{seq}"
             )
-            if ctx.affordances is not None:
-                ctx.affordances.record_tool(result)
-                ctx.affordances.save()
             return {
                 "returncode": result.exit_code,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "flaky": ctx.tools.is_flaky("shell") if ctx.tools else False,
+                "usage": win.delta().as_dict(),
             }
 
         result = ctx.op_once(op_seq, _run)
+        meter.charge_delta(UsageDelta.from_dict(result.get("usage") or {}))
+        record_new_affordances(ctx, window)
         if result["returncode"] != 0:
             detail = f"step {op_seq} exited {result['returncode']}: {command}"
             if result.get("flaky"):
                 detail = f"flaky tool=shell: {detail}"
-            signal = FailureSignal(source="solver", detail=detail, at=now())
-            # Charge every tool call attempted so far (0..op_seq inclusive), not only attempts.
-            new_state = state.model_copy(
-                update={
-                    "attempt_no": attempt_no,
-                    "spent": state.spent.model_copy(
-                        update={
-                            "attempts": state.spent.attempts + 1,
-                            "tool_calls": state.spent.tool_calls + op_seq + 1,
-                        }
-                    ),
-                    "failure_signal": signal,
-                    "transcript_ref": writer.finalize() if writer else None,
-                }
-            )
-            return NodeOutcome(
-                state=new_state,
-                route="pre_validation_failure_signal",
+            return failed(
+                state,
+                meter,
+                signal=FailureSignal(source="solver", detail=detail, at=now()),
+                attempt_no=attempt_no,
                 note=f"solver-raised failure signal at step {op_seq}",
+                updates={"transcript_ref": writer.finalize() if writer else None},
             )
 
-    transcript_ref = writer.finalize() if writer else f"{ctx.run_id}/attempt-{attempt_no}"
-    new_state = state.model_copy(
-        update={
-            "attempt_no": attempt_no,
-            "spent": state.spent.model_copy(
-                update={
-                    "attempts": state.spent.attempts + 1,
-                    "tool_calls": state.spent.tool_calls + len(script),
-                }
-            ),
-            "transcript_ref": transcript_ref,
-            "artifacts": [
-                *state.artifacts,
-                Artifact(kind="text", ref=transcript_ref, description="scripted attempt transcript"),
-            ],
-            "failure_signal": None,
-        }
+    return completed(
+        state,
+        meter,
+        attempt_no=attempt_no,
+        transcript_ref=writer.finalize() if writer else f"{ctx.run_id}/attempt-{attempt_no}",
+        description="scripted attempt transcript",
     )
-    return NodeOutcome(state=new_state, route="attempt_completed")
 
 
 def _solve_legacy_script(
     state: RunState, ctx: NodeContext, attempt_no: int, script: list[str]
 ) -> NodeOutcome:
+    meter = AttemptMeter.open(state)
     for op_seq, command in enumerate(script):
         result = ctx.op_once(op_seq, functools.partial(_run_command, command, ctx))
+        # One legacy command is one charge whether it ran now or replayed from the ledger.
+        meter.charge(tool_calls=1)
         if result["returncode"] != 0:
-            signal = FailureSignal(
-                source="solver",
-                detail=f"step {op_seq} exited {result['returncode']}: {command}",
-                at=now(),
-            )
-            new_state = state.model_copy(
-                update={
-                    "attempt_no": attempt_no,
-                    "spent": state.spent.model_copy(update={"attempts": state.spent.attempts + 1}),
-                    "failure_signal": signal,
-                }
-            )
-            return NodeOutcome(
-                state=new_state,
-                route="pre_validation_failure_signal",
+            return failed(
+                state,
+                meter,
+                signal=FailureSignal(
+                    source="solver",
+                    detail=f"step {op_seq} exited {result['returncode']}: {command}",
+                    at=now(),
+                ),
+                attempt_no=attempt_no,
                 note=f"solver-raised failure signal at step {op_seq}",
             )
 
-    transcript_ref = f"{ctx.run_id}/attempt-{attempt_no}"
-    new_state = state.model_copy(
-        update={
-            "attempt_no": attempt_no,
-            "spent": state.spent.model_copy(update={"attempts": state.spent.attempts + 1}),
-            "transcript_ref": transcript_ref,
-            "artifacts": [
-                *state.artifacts,
-                Artifact(kind="text", ref=transcript_ref, description="scripted attempt transcript"),
-            ],
-            "failure_signal": None,
-        }
+    return completed(
+        state,
+        meter,
+        attempt_no=attempt_no,
+        transcript_ref=f"{ctx.run_id}/attempt-{attempt_no}",
+        description="scripted attempt transcript",
     )
-    return NodeOutcome(state=new_state, route="attempt_completed")
 
 
 class ModelRequiredError(RuntimeError):
@@ -490,40 +420,25 @@ def _solve_scratch_observe_act(
         else None
     )
     history: list[str] = []
-    tool_calls = 0
-    cost = 0.0
-    tokens = 0
+    meter = AttemptMeter.open(state)
     last_error: str | None = None
     max_steps = _scratch_max_steps()
 
     for step in range(max_steps):
-        requested = BudgetReservation(tool_calls=tool_calls + 1)
-        exhausted = budget_excess(state.budget, state.spent, state.reserved, requested)
+        exhausted = meter.preflight(tool_calls=1)
         if exhausted is not None:
-            signal = FailureSignal(
-                source="solver",
-                detail=f"budget exhausted before tool dispatch: {exhausted}",
-                at=now(),
-                class_hint="budget",
-            )
-            return NodeOutcome(
-                state=state.model_copy(
-                    update={
-                        "attempt_no": attempt_no,
-                        "spent": state.spent.model_copy(
-                            update={
-                                "attempts": state.spent.attempts + 1,
-                                "tool_calls": state.spent.tool_calls + tool_calls,
-                                "cost_usd": state.spent.cost_usd + cost,
-                                "tokens": state.spent.tokens + tokens,
-                            }
-                        ),
-                        "failure_signal": signal,
-                        "transcript_ref": writer.finalize() if writer else None,
-                    }
+            return failed(
+                state,
+                meter,
+                signal=FailureSignal(
+                    source="solver",
+                    detail=f"budget exhausted before tool dispatch: {exhausted}",
+                    at=now(),
+                    class_hint="budget",
                 ),
-                route="pre_validation_failure_signal",
+                attempt_no=attempt_no,
                 note=f"scratch budget exhausted: {exhausted}",
+                updates={"transcript_ref": writer.finalize() if writer else None},
             )
 
         history_block = "\n".join(history[-6:]) if history else "(no prior steps)"
@@ -541,33 +456,24 @@ def _solve_scratch_observe_act(
                 system="Return a single shell command only.",
             )
         except Exception as exc:  # noqa: BLE001 — solver boundary
-            signal = FailureSignal(
-                source="solver",
-                detail=f"environment: model error during scratch: {exc}",
-                at=now(),
-                class_hint="environment",
-            )
-            return NodeOutcome(
-                state=state.model_copy(
-                    update={
-                        "attempt_no": attempt_no,
-                        "spent": state.spent.model_copy(
-                            update={
-                                "attempts": state.spent.attempts + 1,
-                                "tool_calls": state.spent.tool_calls + tool_calls,
-                                "cost_usd": state.spent.cost_usd + cost,
-                                "tokens": state.spent.tokens + tokens,
-                            }
-                        ),
-                        "failure_signal": signal,
-                        "transcript_ref": writer.finalize() if writer else None,
-                    }
+            return failed(
+                state,
+                meter,
+                signal=FailureSignal(
+                    source="solver",
+                    detail=f"environment: model error during scratch: {exc}",
+                    at=now(),
+                    class_hint="environment",
                 ),
-                route="pre_validation_failure_signal",
+                attempt_no=attempt_no,
                 note="scratch model error",
+                updates={"transcript_ref": writer.finalize() if writer else None},
             )
-        cost += response.cost_usd
-        tokens += response.prompt_tokens + response.completion_tokens
+        # The model call is outside op_once, so it is re-issued on resume and charged directly.
+        meter.charge(
+            tokens=response.prompt_tokens + response.completion_tokens,
+            cost_usd=response.cost_usd,
+        )
         command = response.text.strip().splitlines()[0].strip().strip("`")
         if not command:
             last_error = "empty command from model"
@@ -581,23 +487,24 @@ def _solve_scratch_observe_act(
                 writer.event("tool", tool="shell", command=command, refused=str(exc))
             continue
 
-        def _run(cmd: str = command, seq: int = step) -> dict:
+        window = RuntimeWindow(ctx)
+
+        def _run(cmd: str = command, seq: int = step, win: RuntimeWindow = window) -> dict:
             if writer:
                 writer.event("tool", tool="shell", command=cmd, step=seq)
             result = ctx.tools.invoke(  # type: ignore[union-attr]
                 "shell", {"command": cmd}, workdir=ctx.workdir, step_id=f"scratch-{seq}"
             )
-            if ctx.affordances is not None:
-                ctx.affordances.record_tool(result)
-                ctx.affordances.save()
             return {
                 "returncode": result.exit_code,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
+                "usage": win.delta().as_dict(),
             }
 
         result = ctx.op_once(step, _run)
-        tool_calls += 1
+        meter.charge_delta(UsageDelta.from_dict(result.get("usage") or {}))
+        record_new_affordances(ctx, window)
         history.append(
             f"$ {command}\nexit={result['returncode']}\n"
             f"stdout:\n{result['stdout'][-1500:]}\nstderr:\n{result['stderr'][-800:]}"
@@ -609,59 +516,26 @@ def _solve_scratch_observe_act(
             continue
         # Successful command: leave the attempt for validate to judge.
         # (A final `true` also ends the loop cleanly.)
-        transcript_ref = writer.finalize() if writer else f"{ctx.run_id}/attempt-{attempt_no}"
-        new_state = state.model_copy(
-            update={
-                "attempt_no": attempt_no,
-                "spent": state.spent.model_copy(
-                    update={
-                        "attempts": state.spent.attempts + 1,
-                        "tool_calls": state.spent.tool_calls + tool_calls,
-                        "cost_usd": state.spent.cost_usd + cost,
-                        "tokens": state.spent.tokens + tokens,
-                    }
-                ),
-                "transcript_ref": transcript_ref,
-                "artifacts": [
-                    *state.artifacts,
-                    Artifact(
-                        kind="text",
-                        ref=transcript_ref,
-                        description="scratch observe-act transcript",
-                    ),
-                ],
-                "failure_signal": None,
-            }
-        )
-        return NodeOutcome(
-            state=new_state,
-            route="attempt_completed",
+        return completed(
+            state,
+            meter,
+            attempt_no=attempt_no,
+            transcript_ref=writer.finalize() if writer else f"{ctx.run_id}/attempt-{attempt_no}",
+            description="scratch observe-act transcript",
             note=f"scratch observe-act completed after {step + 1} step(s)",
         )
 
-    signal = FailureSignal(
-        source="solver",
-        detail=last_error or f"scratch observe-act exhausted {max_steps} steps",
-        at=now(),
-    )
-    return NodeOutcome(
-        state=state.model_copy(
-            update={
-                "attempt_no": attempt_no,
-                "spent": state.spent.model_copy(
-                    update={
-                        "attempts": state.spent.attempts + 1,
-                        "tool_calls": state.spent.tool_calls + tool_calls,
-                        "cost_usd": state.spent.cost_usd + cost,
-                        "tokens": state.spent.tokens + tokens,
-                    }
-                ),
-                "failure_signal": signal,
-                "transcript_ref": writer.finalize() if writer else None,
-            }
+    return failed(
+        state,
+        meter,
+        signal=FailureSignal(
+            source="solver",
+            detail=last_error or f"scratch observe-act exhausted {max_steps} steps",
+            at=now(),
         ),
-        route="pre_validation_failure_signal",
+        attempt_no=attempt_no,
         note="scratch observe-act exhausted without success",
+        updates={"transcript_ref": writer.finalize() if writer else None},
     )
 
 
