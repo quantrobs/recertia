@@ -35,8 +35,11 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# Prefer this checkout's sources over any editable install, so comparing two revisions
+# measures the revision it was invoked from rather than whatever is installed.
+for _path in (REPO_ROOT / "src", REPO_ROOT):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
 
 from contracts.budget import Budget  # noqa: E402
 from contracts.fact import Fact, FactProvenance  # noqa: E402
