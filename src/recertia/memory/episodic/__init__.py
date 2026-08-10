@@ -67,6 +67,7 @@ class EpisodicStore:
         self._index_cache: list[dict] | None = None
         self._index_stat: tuple[int, int] | None = None
         self._buckets: dict[tuple[str, str | None], list[dict]] | None = None
+        self._class_counts: dict[str | None, int] | None = None
 
     def _index_file_stat(self) -> tuple[int, int] | None:
         try:
@@ -103,6 +104,7 @@ class EpisodicStore:
         self._index_cache = rows
         self._index_stat = stat
         self._buckets = None
+        self._class_counts = None
         return rows
 
     def _buckets_unlocked(self) -> dict[tuple[str, str | None], list[dict]]:
@@ -114,6 +116,23 @@ class EpisodicStore:
                     buckets.setdefault(key, []).append(row)
             self._buckets = buckets
         return self._buckets
+
+    def count_for_task_class(self, task_class: str | None) -> int:
+        """How many cases were recorded for ``task_class``.
+
+        Distill asks this once per run to judge how often a task class recurs; counting it by
+        scanning the index made the end of every run cost the whole history.
+        """
+
+        with self._lock:
+            rows = self._index_unlocked()
+            if self._class_counts is None:
+                counts: dict[str | None, int] = {}
+                for row in rows:
+                    key = row.get("task_class")
+                    counts[key] = counts.get(key, 0) + 1
+                self._class_counts = counts
+            return self._class_counts.get(task_class, 0)
 
     def _recent_rows(self, kind: str, task_class: str | None, limit: int) -> list[dict]:
         """Up to ``limit`` rows of ``kind``, most recent first. Falsy class means any."""
@@ -151,6 +170,9 @@ class EpisodicStore:
                 if self._buckets is not None:
                     for key in self._bucket_keys(row):
                         self._buckets.setdefault(key, []).append(row)
+                if self._class_counts is not None:
+                    seen = self._class_counts.get(case.task_class, 0)
+                    self._class_counts[case.task_class] = seen + 1
         return content_hash
 
     def get(self, content_hash: str) -> CaseRecord:

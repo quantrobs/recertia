@@ -613,6 +613,29 @@ def test_episodic_bucketed_lookups_match_a_reverse_scan(tmp_path: Path) -> None:
             ), (task_class, limit)
 
 
+def test_episodic_task_class_counts_match_a_scan_and_track_writes(tmp_path: Path) -> None:
+    """Distill's "how often does this task class recur" must not cost the whole history."""
+
+    store = EpisodicStore(tmp_path / "episodic")
+    for i in range(30):
+        store.write(
+            _episodic_case(
+                i,
+                task_class="repo-chore" if i % 3 else "research-synthesis",
+                solved=i % 2 == 0,
+            )
+        )
+
+    index = store.list_index()
+    for task_class in ("repo-chore", "research-synthesis", "never-seen"):
+        expected = sum(1 for row in index if row.get("task_class") == task_class)
+        assert store.count_for_task_class(task_class) == expected, task_class
+
+    # Counting warms the cache; a later write must still be reflected.
+    store.write(_episodic_case(99, task_class="never-seen", solved=True))
+    assert store.count_for_task_class("never-seen") == 1
+
+
 def test_episodic_buckets_stay_current_across_writes_and_external_appends(
     tmp_path: Path,
 ) -> None:
