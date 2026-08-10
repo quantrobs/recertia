@@ -89,16 +89,12 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
                     summary=(case.dead_end.why_failed if case.dead_end else case.outcome),
                 )
             )
-        for row in reversed(ctx.episodic.list_index()):
-            if row.get("outcome") != "solved":
-                continue
-            if state.task.task_class and row.get("task_class") != state.task.task_class:
-                continue
+        for case_id in ctx.episodic.solved_case_ids_for(
+            task_class=state.task.task_class, limit=3
+        ):
             cases.append(
-                MemoryElementRef(plane="episodic", ref=row["case_id"], summary="solved analogue")
+                MemoryElementRef(plane="episodic", ref=case_id, summary="solved analogue")
             )
-            if len(cases) >= 3:
-                break
 
     tool_cautions: list[MemoryElementRef] = []
     if ctx.affordances is not None:
