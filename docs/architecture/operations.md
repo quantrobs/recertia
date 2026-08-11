@@ -15,6 +15,55 @@
 The v1 column lets one developer run everything locally with no services; the upgrade path is
 a driver swap rather than a data model change.
 
+### 9.1 What consulting memory costs
+
+Recertia's premise is that the memory planes get bigger and runs get better because of it.
+That only holds while the cost of consulting memory stays independent of how much it holds:
+`retrieve` is mandatory on every task, so any per-record cost there is a tax on every run,
+paid forever, and growing. The standing contract is therefore that **the online path may scan
+an answer, never a plane**.
+
+| Online cost | Shape | Measured |
+| --- | --- | --- |
+| Episodic dead ends and solved analogues | Flat in history size | 0.06ms at 0 and at 16k cases |
+| Fact scoring | Linear, small coefficient | ~0.3µs per fact in scope |
+| Fact cache validation | Flat in library size | One stat per fact *directory* per call |
+| Procedural lexical + vector top-k | FTS5, then a scan of a cached embedding matrix | — |
+
+Two of those deserve their reasoning recorded, because both were once the dominant cost of
+the first step of every task:
+
+- **Episodic lookups are bucketed, not scanned.** Asking for the most recent dead ends or
+  solved analogues of a task class used to walk the index backwards until it collected three.
+  That short-circuits only when history is dense with matches; a task class with no history
+  walked every case ever recorded. Rows are now bucketed by `(kind, task_class)` when the
+  index cache is built, so the answer is a slice of the tail.
+- **Cache validation is tiered.** Detecting an arbitrary out-of-process edit to the fact tree
+  costs one stat per fact, and doing that per call made validation four fifths of the retrieval
+  it protected. Writes through the store invalidate directly; adds and removes bump a directory
+  mtime, so the per-call gate stats only the fact directories; and the full per-file sweep that
+  catches an external *in-place* edit runs on an interval. Only that last case is delayed, and
+  only for edits made behind the store's back.
+
+Fact scoring stays a scan because every fact carries a floor score, so the top-k can include
+facts the query never matched — the ranking, not the implementation, is what makes it O(n). It
+is cheap enough to leave alone at current library sizes; moving facts onto the FTS5 index the
+procedural plane already uses is the lever if that changes, and it would need the ranking
+change treated as a measurement change, not an optimisation.
+
+Two costs remain linear by design, recorded here so they are budgeted rather than discovered:
+a checkpoint carries the whole `RunState` and the state accumulates a route entry per hop, so
+bytes written over a walk grow with the square of its length (475KB over 60 hops — chore-length
+runs are fine, long multi-evolve walks are what would justify delta checkpoints); and both the
+library fingerprint taken at every run start and the index snapshot id recomputed on every
+`store` upsert are linear in library size (8ms and 0.9ms at 400 skills).
+
+`scripts/bench_critical_path.py` measures all of this on demand, one dimension of state at a
+time, with no model wired so engine and memory overhead are not hidden behind model latency.
+The contracts themselves are pinned in `tests/unit/test_performance_regressions.py` as
+assertions about *how much work happens* — files examined, indexes copied — rather than about
+durations, so they hold on any machine and in CI.
+
 ## 10. Bounded loops and attempt isolation
 
 ### 10.1 Budgets

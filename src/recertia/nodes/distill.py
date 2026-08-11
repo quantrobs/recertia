@@ -205,7 +205,7 @@ def _commands_from_context(state: RunState, ctx: NodeContext) -> list[str]:
 def _task_class_sightings(ctx: NodeContext, task_class: str | None) -> int:
     if not task_class or ctx.episodic is None:
         return 1
-    return sum(1 for row in ctx.episodic.list_index() if row.get("task_class") == task_class)
+    return ctx.episodic.count_for_task_class(task_class)
 
 
 def _nearest_duplicate(ctx: NodeContext, request: str) -> tuple[str, int] | None:
