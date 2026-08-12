@@ -213,6 +213,85 @@ def recertify_stale(store: SkillStore, *, tool_upgraded: str | None = None) -> l
     return proposals
 
 
+def recertify_with_revokes(
+    store: SkillStore,
+    *,
+    lineage_index=None,
+    revoke_queue=None,
+    max_writes: int = 50,
+    tool_upgraded: str | None = None,
+) -> list[Proposal]:
+    """One Recertifier pass: stale certs + lineage revoke drain (ADR-0015)."""
+
+    proposals = recertify_stale(store, tool_upgraded=tool_upgraded)
+    if lineage_index is None or revoke_queue is None:
+        return proposals
+    from recertia.memory.procedural.lineage import drain_revokes
+
+    touched = drain_revokes(store, lineage_index, revoke_queue, max_writes=max_writes)
+    for status in touched:
+        proposals.append(
+            Proposal(
+                kind="recertify",
+                skill_id=status.skill_id,
+                version=status.version,
+                rationale="lineage revoke drain → needs_recert",
+            )
+        )
+    return proposals
+
+
+def practice_from_fail_clusters(
+    eligible_rows: list,
+    *,
+    curriculum_dir: Path | None = None,
+) -> list[Proposal]:
+    """Prefer incremental eligible clusters over random one-offs (ADR-0015 P2)."""
+
+    proposals: list[Proposal] = []
+    if curriculum_dir is not None:
+        curriculum_dir.mkdir(parents=True, exist_ok=True)
+    for i, row in enumerate(eligible_rows):
+        signature = getattr(row, "signature", None) or str(row)
+        task_class = getattr(row, "task_class", "unknown")
+        skill_id = f"practice-cluster-{i}"
+        payload = {
+            "predicted_success_band": [0.2, 0.8],
+            "cluster_signature": signature,
+            "task_class": task_class,
+            "excluded_from_user_metrics": True,
+            "source": "fail_cluster",
+        }
+        if curriculum_dir is not None:
+            path = curriculum_dir / f"{skill_id}.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "skill_id": skill_id,
+                        "predicted_success": 0.5,
+                        "band": [0.2, 0.8],
+                        "signature": signature,
+                        "task_class": task_class,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            payload["curriculum_path"] = str(path)
+        proposals.append(
+            Proposal(
+                kind="fail_cluster",
+                skill_id=skill_id,
+                version=1,
+                rationale=f"fail-cluster curriculum: {signature[:60]}",
+                payload=payload,
+            )
+        )
+    return proposals
+
+
+
 def schedule_shadow_evaluations(
     store: SkillStore,
     *,

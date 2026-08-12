@@ -21,13 +21,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
+from contracts.cluster import FailureClusterRow  # noqa: E402
 from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, MetricReport  # noqa: E402
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
 from contracts.goal import Goal  # noqa: E402
+from contracts.guide import ExecutionGuide  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402
+from contracts.lint import LintReport  # noqa: E402
 from contracts.node import CheckpointRecord, NodeOutput  # noqa: E402
-from contracts.policy import AuthoringPrior, Policy  # noqa: E402
+from contracts.patch import PatchTemplate  # noqa: E402
+from contracts.policy import AuthoringPrior, JobQuota, Policy  # noqa: E402
 from contracts.program import MigrationProgram  # noqa: E402
 from contracts.review import ReviewDecision  # noqa: E402
 from contracts.run import RunState  # noqa: E402
@@ -52,6 +56,11 @@ MODELS: dict[str, type] = {
     "review_decision.schema.json": ReviewDecision,
     "authoring_prior.schema.json": AuthoringPrior,
     "policy.schema.json": Policy,
+    "job_quota.schema.json": JobQuota,
+    "failure_cluster_row.schema.json": FailureClusterRow,
+    "lint_report.schema.json": LintReport,
+    "execution_guide.schema.json": ExecutionGuide,
+    "patch_template.schema.json": PatchTemplate,
     "node_output.schema.json": NodeOutput,
     "checkpoint_record.schema.json": CheckpointRecord,
     "scope_promotion.schema.json": ScopePromotion,

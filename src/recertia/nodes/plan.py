@@ -97,11 +97,17 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
                 "strategy_reason": f"top candidate {top.skill_id}@v{top.version} score={top.score}",
                 "predicted_success": min(0.95, top.score),
                 "chosen": top,
+                "execution_guide": None,
             }
         )
         return NodeOutcome(state=new_state, route="single_strategy")
 
     if top.score >= ADAPT_THRESHOLD:
+        guide = None
+        if ctx.deterministic_guide and len(skills) > 1:
+            from recertia.nodes.guide_stitch import stitch_guide
+
+            guide = stitch_guide(list(skills))
         new_state = state.model_copy(
             update={
                 "strategy": "adapt",
@@ -111,6 +117,7 @@ def plan(state: RunState, ctx: NodeContext) -> NodeOutcome:
                 ),
                 "predicted_success": top.score,
                 "chosen": top,
+                "execution_guide": guide,
             }
         )
         return NodeOutcome(state=new_state, route="single_strategy")

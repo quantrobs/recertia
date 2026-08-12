@@ -118,6 +118,7 @@ Decision records:
 | [0012](docs/adr/0012-product-console-surfaces.md) | Console as control plane over headless Recertia |
 | [0013](docs/adr/0013-openai-compat-gateways.md) | OpenRouter as openai provider + full Chat Completions URL |
 | [0014](docs/adr/0014-goal-packs-as-migration-programs.md) | Goal packs as migration / multi-step programs |
+| [0015](docs/adr/0015-improvement-plane-search.md) | Search and compression live on the improvement plane |
 
 Machine-readable contracts are generated from [`contracts/`](contracts) (Pydantic models,
 ADR-0009) into [`schema/`](schema) (JSON Schema); see `scripts/generate_schemas.py` and

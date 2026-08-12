@@ -20,6 +20,11 @@ LedgerAction = Literal[
     "quarantine_version",
     "deprecate",
     "policy_change",
+    "lint_reject",
+    "compress_skill",
+    "revoke_lineage",
+    "compose_block",
+    "publish_patch_template",
 ]
 
 

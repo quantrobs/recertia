@@ -48,6 +48,7 @@ def record_dead_end(state: RunState, ctx: NodeContext) -> NodeOutcome:
             approach=approach,
             skill_id=state.chosen.skill_id if state.chosen else None,
             skill_version=state.chosen.version if state.chosen else None,
+            session_id=state.task.submitted_by or ctx.run_id,
         )
         ref = ctx.episodic.write(case)
         note = f"{note} case_hash={ref}"

@@ -138,6 +138,8 @@ class NodeContext:
     facts: "FactStore | None" = None
     reviewer: "ReviewService | None" = None
     one_off_log: Path | None = None
+    deterministic_guide: bool = False
+    patch_templates: Any = None
 
     def op_once(self, op_seq: int, fn: Callable[[], T]) -> T:
         return self.ops.run_once(self.run_id, self.attempt_no, self.node, op_seq, fn)

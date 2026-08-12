@@ -1,4 +1,8 @@
-"""``distill``: success distillation, fact extraction, failure-cluster pitfalls (M3)."""
+"""``distill``: success distillation and fact extraction (M3).
+
+Failure-cluster authoring is a scheduled job / Practice curriculum (ADR-0015).
+This node MUST NOT scan the episodic store for clusters.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,6 @@ from pathlib import Path
 
 from contracts.run import ReusabilityVerdict, RunState
 from contracts.skill import SkillVersion
-from recertia.distill.failure_clusters import author_pitfall_skill, cluster_dead_ends
 from recertia.distill.prior import load_authoring_prior
 from recertia.distill.success import distill_success
 from recertia.memory.episodic import CaseRecord
@@ -67,11 +70,13 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             approach=approach,
             skill_id=state.chosen.skill_id if state.chosen else None,
             skill_version=state.chosen.version if state.chosen else None,
+            session_id=state.task.submitted_by or ctx.run_id,
         )
         ctx.episodic.write(case)
 
     # Applying an existing skill is evidence, not a new library entry (unless scratch).
     if state.strategy in ("apply", "adapt") and state.chosen is not None:
+        _note_apply_session(ctx, state)
         verdict = ReusabilityVerdict(
             verdict="one_off",
             parameterisable=True,
@@ -102,6 +107,22 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
         near_duplicate_of=near,
     )
 
+    if draft is not None and state.execution_guide is not None:
+        from recertia.nodes.guide_stitch import reject_guide_leak
+
+        leak = reject_guide_leak(draft.model_dump_json(), state.execution_guide)
+        if leak:
+            verdict = ReusabilityVerdict(
+                verdict="one_off",
+                parameterisable=False,
+                context_free=True,
+                checkable=True,
+                not_duplicate=True,
+                bounded=True,
+                reason=leak,
+            )
+            draft = None
+
     # Without a skill store the graph cannot persist memory — keep M0/M1 one_off behaviour.
     # Without a reviewer, do not enter review (which would mark a *solved* task as
     # terminal=rejected); retain the draft on state for later promotion.
@@ -121,38 +142,6 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
             reason=reason,
         )
 
-    # Failure-cluster side path: author pitfall skills when threshold met (does not block success path).
-    pitfall_note = None
-    if ctx.episodic is not None and state.task.task_class:
-        clusters = cluster_dead_ends(ctx.episodic, task_class=state.task.task_class, min_runs=3)
-        if clusters and ctx.store is not None:
-            # Pitfalls are enqueued as drafts onto state when produced; store path handles approved ones.
-            sig, cluster = clusters[0]
-            neg = ctx.workdir / ".recertia-pitfall-neg"
-            neg.mkdir(exist_ok=True)
-            pitfall = author_pitfall_skill(
-                task_class=state.task.task_class,
-                signature=sig,
-                cluster=cluster,
-                negative_workdir=neg,
-            )
-            pitfall_note = f"failure-cluster ready: {pitfall.skill_id}"
-            if draft is None:
-                # Prefer surfacing the pitfall as the draft when success path is one_off.
-                draft = pitfall
-                from contracts.run import ReusabilityVerdict as RV
-
-                if pitfall.certification_criteria[0].is_preregistered_and_proven:
-                    verdict = RV(
-                        verdict="reusable",
-                        parameterisable=True,
-                        context_free=True,
-                        checkable=True,
-                        not_duplicate=True,
-                        bounded=True,
-                        reason="failure-cluster pitfall skill",
-                    )
-
     _record_one_off(ctx, state, verdict)
 
     facts_payload = [f.model_dump(mode="json") for f in facts]
@@ -170,11 +159,30 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
         verdict = verdict.model_copy(update={"verdict": "one_off", "reason": "draft missing"})
         new_state = new_state.model_copy(update={"reusability": verdict})
     note = verdict.reason
-    if pitfall_note:
-        note = f"{note}; {pitfall_note}"
     if draft is not None and draft.provenance.authoring_prior_version:
         note = f"{note}; authoring_prior={draft.provenance.authoring_prior_version}"
     return NodeOutcome(state=new_state, route=route, note=note)
+
+
+def _note_apply_session(ctx: NodeContext, state: RunState) -> None:
+    store = ctx.store
+    chosen = state.chosen
+    if store is None or chosen is None:
+        return
+    if not hasattr(store, "get_stats") or not hasattr(store, "write_stats"):
+        return
+    from recertia.memory.procedural.apply_diversity import note_apply_session
+
+    session_id = state.task.submitted_by or ctx.run_id
+    try:
+        note_apply_session(
+            store,  # type: ignore[arg-type]
+            skill_id=chosen.skill_id,
+            version=chosen.version,
+            session_id=session_id,
+        )
+    except FileNotFoundError:
+        return
 
 
 def _commands_from_context(state: RunState, ctx: NodeContext) -> list[str]:

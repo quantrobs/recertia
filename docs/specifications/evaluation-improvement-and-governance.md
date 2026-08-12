@@ -30,9 +30,9 @@ Every job: reads memory and the run store, writes **only** proposals, and is bud
 | Job | Trigger | Emits | Hard rule |
 | --- | --- | --- | --- |
 | `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
-| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, and **serialise** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3) |
-| `practice` | Scheduled, or ≥3 one-offs in a class | Practice runs marked `arm="practice"` | Excluded from user-facing metrics; separate budget |
-| `recertifier` | Schedule, model upgrade, tool version change, child invalidation | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008) |
+| `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, **serialise**, and (flagged) **compress** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3); compress uses step units and cached-trace LOO (ADR-0015) |
+| `practice` | Scheduled, or ≥3 one-offs in a class, or an eligible failure cluster | Practice runs marked `arm="practice"`; optional HEX search may publish a `PatchTemplate` | Excluded from user-facing metrics; separate budget; HEX only under leftover `JobQuota` |
+| `recertifier` | Schedule, model upgrade, tool version change, child invalidation, lineage-revoke queue | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008); revoke drain is write-capped |
 | `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
 
 Practice task selection targets estimated success probability in `[0.2, 0.8]`, using
@@ -103,6 +103,12 @@ Enforcement requirements:
 | `curator_yield` | Curator proposals approved ÷ proposals raised |
 | `fact_contradiction_rate` | Open contradictions ÷ total facts |
 | `practice_conversion` | Practice runs producing an approved skill ÷ practice runs |
+| `lint_block_rate` | Drafts failing packaging lint ÷ drafts proposed |
+| `distill_fail_path_share` | Failure-cluster *job* drafts ÷ all drafts (not per-run distill) |
+| `off_intent_activation` | Runs where `chosen` ∉ `bundle.skills` ÷ applications |
+| `guide_used_rate` | Treatment runs where `execution_guide` was set ÷ treatment runs with skills |
+| `compose_block_rate` | Store/promote blocked by compose lint ÷ candidates reviewed |
+| `practice_hex_accept_rate` | Practice patches that become byte-distinct validation bests ÷ candidates |
 
 `retrieval_decay` is the early-warning metric for library entropy: it turns negative before
 `first_attempt_success` does, which is what gives the Curator time to act.

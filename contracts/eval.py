@@ -135,5 +135,15 @@ class MetricReport(BaseModel):
     active_cap_pressure: float | None = None
     judge_false_pass_rate: float | None = None
     mean_composition_depth: float | None = None
+    lint_block_rate: float | None = None
+    distill_fail_path_share: float | None = None
+    practice_hex_accept_rate: float | None = None
+    promotion_source_diversity: float | None = None
+    lineage_revoke_count: int | None = None
+    compress_token_ratio: float | None = None
+    compress_perf_delta: float | None = None
+    guide_used_rate: float | None = None
+    compose_block_rate: float | None = None
+    off_intent_activation: float | None = None
     unavailable: dict[str, str] = Field(default_factory=dict)
     at: datetime

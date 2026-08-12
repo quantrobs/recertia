@@ -131,6 +131,12 @@ class Provenance(BaseModel):
     authoring_prior_version: str | None = None
     evolved_because: str | None = None
     model: str | None = None
+    # Authoring-time identity only (frozen). Application-session diversity lives on SkillStats.
+    source_case_ids: list[str] = Field(default_factory=list)
+    source_run_ids: list[str] = Field(default_factory=list)
+    source_session_ids: list[str] = Field(default_factory=list)
+    source_contributor_ids: list[str] = Field(default_factory=list)
+    attribution_summary: str | None = None
 
 
 class Hygiene(BaseModel):
@@ -140,6 +146,8 @@ class Hygiene(BaseModel):
 
     secret_scan: Literal["passed", "failed", "skipped"]
     scanned_at: datetime | None = None
+    lint_content_hash: str | None = None
+
 
 
 class SkillUse(BaseModel):

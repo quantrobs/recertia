@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from recertia.memory.episodic.clusters import ClusterStore
+
 
 class DeadEnd(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -41,6 +43,7 @@ class CaseRecord(BaseModel):
     skill_id: str | None = None
     skill_version: int | None = None
     distilled_into: str | None = None
+    session_id: str | None = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -68,6 +71,7 @@ class EpisodicStore:
         self._index_stat: tuple[int, int] | None = None
         self._buckets: dict[tuple[str, str | None], list[dict]] | None = None
         self._class_counts: dict[str | None, int] | None = None
+        self.clusters = ClusterStore(self.root / "clusters.json")
 
     def _index_file_stat(self) -> tuple[int, int] | None:
         try:
@@ -173,6 +177,16 @@ class EpisodicStore:
                 if self._class_counts is not None:
                     seen = self._class_counts.get(case.task_class, 0)
                     self._class_counts[case.task_class] = seen + 1
+        if case.dead_end is not None and case.task_class:
+            from recertia.memory.episodic.clusters import normalize_signature
+
+            self.clusters.upsert(
+                task_class=case.task_class,
+                signature=normalize_signature(case.dead_end.why_failed, case.failure_class),
+                run_id=case.run_id,
+                session_id=case.session_id or case.run_id,
+                case_hash=content_hash,
+            )
         return content_hash
 
     def get(self, content_hash: str) -> CaseRecord:

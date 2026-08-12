@@ -46,6 +46,18 @@
           ],
           "default": null,
           "title": "Scanned At"
+        },
+        "lint_content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lint Content Hash"
         }
       },
       "required": [
@@ -295,6 +307,46 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "source_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Case Ids",
+          "type": "array"
+        },
+        "source_run_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Run Ids",
+          "type": "array"
+        },
+        "source_session_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Session Ids",
+          "type": "array"
+        },
+        "source_contributor_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Contributor Ids",
+          "type": "array"
+        },
+        "attribution_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution Summary"
         }
       },
       "required": [

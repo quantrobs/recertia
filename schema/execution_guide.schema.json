@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/recertia/schema/ExecutionGuide",
+  "additionalProperties": false,
+  "properties": {
+    "primary": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Primary",
+      "type": "array"
+    },
+    "checks": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "avoid": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Avoid",
+      "type": "array"
+    },
+    "fallback": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Fallback",
+      "type": "array"
+    },
+    "source_skills": {
+      "default": [],
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Source Skills",
+      "type": "array"
+    },
+    "adapted_at": {
+      "format": "date-time",
+      "title": "Adapted At",
+      "type": "string"
+    },
+    "method": {
+      "const": "deterministic_stitch",
+      "default": "deterministic_stitch",
+      "title": "Method",
+      "type": "string"
+    }
+  },
+  "required": [
+    "adapted_at"
+  ],
+  "title": "ExecutionGuide",
+  "type": "object"
+}

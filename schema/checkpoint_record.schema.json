@@ -678,6 +678,77 @@
       "title": "DesiredState",
       "type": "object"
     },
+    "ExecutionGuide": {
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Primary",
+          "type": "array"
+        },
+        "checks": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "avoid": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Avoid",
+          "type": "array"
+        },
+        "fallback": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback",
+          "type": "array"
+        },
+        "source_skills": {
+          "default": [],
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Source Skills",
+          "type": "array"
+        },
+        "adapted_at": {
+          "format": "date-time",
+          "title": "Adapted At",
+          "type": "string"
+        },
+        "method": {
+          "const": "deterministic_stitch",
+          "default": "deterministic_stitch",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapted_at"
+      ],
+      "title": "ExecutionGuide",
+      "type": "object"
+    },
     "FailureSignal": {
       "additionalProperties": false,
       "description": "Raised by the orchestrator, solver, validator, or join \u2014 never inferred after the fact.\n\n``classify_failure``'s only precondition is that a ``FailureSignal`` exists on the run\nstate (ADR-0008); this replaces the old, unsatisfiable-for-most-classes precondition of\n\"some required criterion failed.\"\n\n``class_hint`` is an optional structured producer signal (e.g. budget preflight via\n``budget_excess``). When set, ``classify_failure`` prefers it over detail substring matching.",
@@ -1634,6 +1705,17 @@
           },
           "title": "Written Versions",
           "type": "array"
+        },
+        "execution_guide": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionGuide"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "budget": {
           "$ref": "#/$defs/Budget",
