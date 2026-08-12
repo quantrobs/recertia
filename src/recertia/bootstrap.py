@@ -127,6 +127,8 @@ def build_default_orchestrator(
     """
 
     from recertia.graph.engine import GraphOrchestrator
+    from recertia.memory.procedural.lineage import LineageServices
+    from recertia.policy_load import load_policy
     from recertia.review import ReviewService
 
     runs_root = Path(runs_root)
@@ -140,7 +142,13 @@ def build_default_orchestrator(
         # Stub → None (fail-loud scratch). Non-stub misconfig raises ModelConfigError.
         model, verifier_model = build_solver_and_verifier(cfg)
 
-    store = SkillStore(skills_root)
+    lineage = LineageServices.open(runs_root / "lineage")
+    store = SkillStore(
+        skills_root,
+        lineage_index=lineage.index,
+        revoke_queue=lineage.queue,
+    )
+    policy = load_policy()
     index = SkillIndex(index_path)
     # Full rebuilds cost one JSON parse + embed per skill version. When the persisted
     # index already matches the on-disk library (the common case: startup, per-request
@@ -183,6 +191,7 @@ def build_default_orchestrator(
         reviewer=reviewer,
         # Empty fingerprint: only mismatch when both sides declare a tool.
         env_fingerprint=env_fingerprint if env_fingerprint is not None else {},
+        policy=policy,
     )
     # Share the same WorkspaceManager the applicator uses for attempt isolation.
     orch.workspaces = workspaces

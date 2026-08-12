@@ -60,5 +60,26 @@ def require_clean(version: SkillVersion) -> SkillVersion:
             f"hygiene scan failed for {version.skill_id}@v{version.version}; "
             f"refusing to store ({', '.join(findings)}; specs §2.4)"
         )
-    hygiene = Hygiene(secret_scan="passed", scanned_at=datetime.now(timezone.utc))
-    return version.model_copy(update={"hygiene": hygiene})
+    return stamp_lint_hash(
+        version.model_copy(
+            update={
+                "hygiene": Hygiene(
+                    secret_scan="passed",
+                    scanned_at=datetime.now(timezone.utc),
+                )
+            }
+        )
+    )
+
+
+def stamp_lint_hash(version: SkillVersion) -> SkillVersion:
+    """Set ``hygiene.lint_content_hash`` without changing the hashed surface."""
+
+    from contracts.lint import lint_content_hash
+
+    digest = lint_content_hash(version)
+    if version.hygiene.lint_content_hash == digest:
+        return version
+    return version.model_copy(
+        update={"hygiene": version.hygiene.model_copy(update={"lint_content_hash": digest})}
+    )

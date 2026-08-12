@@ -33,17 +33,18 @@ from recertia.evals.canary import run_judge_canary
 from recertia.evals.metrics import build_metric_report
 from recertia.evals.store import EvalStore
 from recertia.graph.engine import GraphOrchestrator
-from recertia.jobs import JobBudget, JobRunner
+from recertia.jobs import JobBudget, build_job_runner
 from recertia.jobs.workers import (
     correction_miner_from_reviewer_edits,
     curator_active_set_and_dedup,
     load_one_off_reasons,
     load_reviewer_edits,
     mine_from_repo_hints,
+    practice_from_fail_clusters,
     practice_from_one_offs,
     propose_parallelise,
     propose_serialise,
-    recertify_stale,
+    recertify_with_revokes,
     schedule_shadow_evaluations,
 )
 from recertia.ledger import HashChainLedger
@@ -820,10 +821,13 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             stats = store.get_stats(skill_id, version)
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=404, detail="skill not found") from exc
+        from recertia.memory.procedural.apply_diversity import skill_identity
+
         return {
             "version": ver.model_dump(mode="json"),
             "status": status.model_dump(mode="json"),
             "stats": stats.model_dump(mode="json"),
+            "identity": skill_identity(ver, stats),
         }
 
     @app.post("/v1/skills/search")
@@ -1088,9 +1092,19 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
     ) -> dict[str, Any]:
         tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
         name = job.strip().lower()
-        store = SkillStore(ctx.tenant_skills_root(tenant_id))
+        from recertia.memory.episodic import EpisodicStore
+        from recertia.memory.procedural.lineage import LineageServices
+        from recertia.policy_load import load_policy
+
+        policy = load_policy()
         runs_root = ctx.tenant_runs_root(tenant_id)
-        runner = JobRunner(store, runs_root=runs_root / "jobs")
+        lineage = LineageServices.open(runs_root / "lineage")
+        store = SkillStore(
+            ctx.tenant_skills_root(tenant_id),
+            lineage_index=lineage.index,
+            revoke_queue=lineage.queue,
+        )
+        runner = build_job_runner(store, runs_root=runs_root / "jobs", policy=policy)
         budget = JobBudget(max_proposals=body.max_proposals)
         job_rec = ctx.job_runs.create(
             name, tenant_id=tenant_id, dry_run=body.dry_run
@@ -1111,21 +1125,44 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                     budget=budget,
                 )
             elif name == "practice":
-                reasons = list(body.one_off) if body.one_off else load_one_off_reasons(
-                    runs_root / "one_off_log.jsonl"
+                explicit = list(body.one_off) if body.one_off else None
+                episodic = EpisodicStore(runs_root / "episodic")
+                eligible = (
+                    episodic.clusters.eligible()
+                    if policy.improvement.fail_cluster_curriculum and not explicit
+                    else []
                 )
-                if not reasons:
-                    reasons = ["unsolved one-off cluster"]
-                curriculum = None if body.dry_run else runs_root / "practice-curriculum"
-                result = runner.run(
-                    "practice",
-                    lambda: practice_from_one_offs(reasons, curriculum_dir=curriculum),
-                    budget=budget,
-                )
+                if eligible:
+                    curriculum = None if body.dry_run else runs_root / "practice-curriculum"
+                    result = runner.run(
+                        "fail_cluster_author",
+                        lambda: practice_from_fail_clusters(
+                            eligible, curriculum_dir=curriculum
+                        ),
+                        budget=budget,
+                    )
+                else:
+                    reasons = explicit if explicit else load_one_off_reasons(
+                        runs_root / "one_off_log.jsonl"
+                    )
+                    if not reasons:
+                        reasons = ["unsolved one-off cluster"]
+                    curriculum = None if body.dry_run else runs_root / "practice-curriculum"
+                    result = runner.run(
+                        "practice",
+                        lambda: practice_from_one_offs(reasons, curriculum_dir=curriculum),
+                        budget=budget,
+                    )
             elif name == "recertify":
                 result = runner.run(
                     "recertify",
-                    lambda: recertify_stale(store, tool_upgraded=body.tool_upgraded),
+                    lambda: recertify_with_revokes(
+                        store,
+                        lineage_index=lineage.index,
+                        revoke_queue=lineage.queue,
+                        max_writes=runner.quota.max_status_writes_per_tick,
+                        tool_upgraded=body.tool_upgraded,
+                    ),
                     budget=budget,
                 )
             elif name == "shadow":

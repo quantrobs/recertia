@@ -9,7 +9,7 @@ from pathlib import Path
 
 from contracts.criteria import SkillCertificationCriterion
 from contracts.replay import WorldState
-from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import Hygiene, Precondition, Provenance, SkillVersion, Step
 from recertia.evals.store import EvalStore
 from recertia.jobs import Proposal
 from recertia.memory.procedural.store import SkillStore
@@ -489,6 +489,13 @@ def draft_from_mine_proposal(proposal: Proposal) -> SkillVersion:
         title=f"Mined skill {proposal.skill_id}",
         intent="Skill mined from a human artifact hint for cold-start library bootstrap.",
         task_class="repo-chore",
+        preconditions=[
+            Precondition(
+                kind="file_exists",
+                value=".",
+                description="Workspace root exists before the mined chore runs.",
+            )
+        ],
         steps=[
             Step(
                 id="step_1",

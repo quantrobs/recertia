@@ -45,6 +45,11 @@ on the version document.
 - Practice and Curator budgets must be real. HEX default-off until `practice_conversion`
   is a number.
 - Console and Python lineage fields share one identity: authoring ids on the version,
-  apply diversity on stats.
+  apply diversity on stats. `GET /v1/skills/{id}/versions/{n}` exposes this as `identity`.
 - `cluster_dead_ends` remains as a rebuild path when the incremental index is empty.
 - Capability flags are T2; they cannot change `contracts.graph.NODES`.
+- **P0″ (2026-08-12):** operator path loads `policy/default.json`. Job spend lives in
+  `.recertia/job_quota.json` (week-scoped sidecar). `write_version` stamps
+  `hygiene.lint_content_hash` and records the lineage idx. Quarantine enqueues revoke.
+  Recertify drains. Practice prefers eligible cluster rows. Lineage lookup is a point get
+  (`lineage.idx.json`); the JSONL is WAL only. R1.3 stays a warning.

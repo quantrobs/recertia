@@ -20,13 +20,14 @@ def test_note_apply_session_does_not_rewrite_version(tmp_path: Path) -> None:
     store.write_version(version)
     store._write_status_unchecked(bump_python_dep_status())
     store.write_stats(SkillStats(skill_id=version.skill_id, version=version.version))
+    persisted = store.get_version(version.skill_id, version.version)
     note_apply_session(store, skill_id=version.skill_id, version=version.version, session_id="alice")
     note_apply_session(store, skill_id=version.skill_id, version=version.version, session_id="alice")
     note_apply_session(store, skill_id=version.skill_id, version=version.version, session_id="bob")
     stats = store.get_stats(version.skill_id, version.version)
     assert stats.apply_diversity.distinct_apply_sessions == 2
-    # Version bytes unchanged.
-    assert store.get_version(version.skill_id, version.version) == version
+    # Version bytes unchanged by the stats write.
+    assert store.get_version(version.skill_id, version.version) == persisted
 
 
 def test_single_session_applications_fail_approved_self_distilled_gate() -> None:
