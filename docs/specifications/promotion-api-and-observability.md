@@ -8,9 +8,11 @@ candidate  → shadow    : task_class has an eval set with >= 5 golden tasks
 shadow     → candidate : >= 10 shadow applications
                          AND lift / success thresholds (maybe_advance_shadow_to_candidate)
 candidate  → approved  : golden-gated promote_to_approved (human approval is the v1 default path;
-                         post-shadow eligibility still requires the same golden gate)
+                         post-shadow eligibility still requires the same golden gate);
+                         self_distilled also needs apply_diversity.distinct_apply_sessions ≥ 2
 approved   → deprecated: a newer version of the same skill reaches approved
 any        → quarantined: 2 consecutive field failures, or a reviewer rejection
+                         (enqueues lineage revoke; Recertifier drains)
 ```
 
 These are all `SkillStatus` transitions (§2.2, §2.5), made by the Curator or Recertifier reading
@@ -57,7 +59,7 @@ milestones.
 | `GET` | `/v1/runs/{run_id}/events` | SSE run event stream (console C2) |
 | `POST` | `/v1/runs/{run_id}/cancel` | Cooperative cancel at next node boundary |
 | `GET` | `/v1/skills` | List/filter by `task_class`, `lifecycle`, `tag` |
-| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full skill version |
+| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full skill version + `identity` split (console C0) |
 | `POST` | `/v1/skills/search` | Retrieval debug endpoint: scores and drop reasons |
 | `POST` | `/v1/skills/…/promote` | Enqueue golden-gated promote (console C1) |
 | `GET` | `/v1/reviews?status=pending` | Review queue |
@@ -92,7 +94,14 @@ recertia skills promote <skill_id> --version N --golden-dir PATH
 recertia ledger verify [--runs-root .recertia]
 recertia lift --task-class repo-chore
 recertia keys issue|revoke|list
+recertia jobs run curator --dry-run
+recertia jobs run practice
+recertia jobs run recertify
+recertia jobs run mine --hint "docs/runbook.md" --submit
 ```
+
+Policy is `policy/default.json` (`RECERTIA_POLICY_PATH`). `practice` without `--one-off`
+prefers eligible failure clusters. `recertify` drains the lineage-revoke queue.
 
 ### Aspirational (not implemented)
 
@@ -106,9 +115,6 @@ recertia metrics --task-class repo-chore --compare HEAD~5..HEAD
 recertia memory query "dependency bump" --planes skills,facts,cases --explain
 recertia facts list --scope project
 recertia cases show <case_id>
-recertia jobs run curator --dry-run
-recertia jobs run practice --task-class repo-chore --budget cost=5.00
-recertia jobs run recertify --stale-days 30
 recertia proposals queue
 recertia policy show
 recertia policy propose retrieval.min_score=0.60 --eval-compare

@@ -124,6 +124,10 @@ Today jobs print `Proposal` JSON. The console requires:
 
 Jobs still MUST NOT write `approved` skills (ADR-0004).
 
+Skill detail MUST label **Authoring** (`Provenance.source_*`, curation, derivation) separately
+from **Applications** (`SkillStats.apply_diversity`). The API `identity` object is that
+split — not a third store ([ADR-0015](../adr/0015-improvement-plane-search.md)).
+
 ### 4.4 AuthN / AuthZ
 
 | Actor | Mechanism | Console role |

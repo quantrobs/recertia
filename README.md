@@ -72,7 +72,10 @@ export RECERTIA_OPENAI_BASE_URL=https://openrouter.ai/api/v1/chat/completions
 ```
 
 Jobs and retention: `recertia jobs run curator --dry-run`, `recertia gc --older-than-days 14`.
-Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
+Policy is [`policy/default.json`](policy/default.json) (`RECERTIA_POLICY_PATH` to override).
+Weekly job spend is a sidecar, not that file. Practice without `--one-off` prefers eligible
+failure clusters. Details: [`docs/architecture/go-live.md`](docs/architecture/go-live.md),
+[`docs/architecture/improvement-plane.md`](docs/architecture/improvement-plane.md),
 [`docs/archive/2026-Q3/implementation-plan-openai-compat.md`](docs/archive/2026-Q3/implementation-plan-openai-compat.md) (archived).
 
 ## Documents

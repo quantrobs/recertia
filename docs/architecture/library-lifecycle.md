@@ -36,6 +36,13 @@ the version back to `candidate` (`maybe_advance_shadow_to_candidate`); golden-ga
 `promote_to_approved` remains required before `approved`. The human gate relaxes on evidence
 rather than being absent from the start — shadow never writes `approved` directly.
 
+For `self_distilled` skills, `approved` also requires
+`SkillStats.apply_diversity.distinct_apply_sessions ≥ 2` (ADR-0015). The gate does not apply
+at `candidate` or `shadow`. Application sessions are counted on stats, not on `Provenance`.
+
+A transition into `quarantined` enqueues lineage revoke; the Recertifier drains it (§8.4).
+The task plane never marks a stored version quarantined.
+
 **Curation provenance affects the bar.** Skills carry `curation`: `human_authored`,
 `mined_from_human_artifact`, or `self_distilled`. The one benchmark that separated these found
 human-curated skills worth +16.2pp against a no-skill baseline while self-generated skills

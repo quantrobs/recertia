@@ -84,17 +84,17 @@ version* harmful is not a task-plane action at all (§2.5, §20). The full route
 | --- | --- | --- | --- |
 | `intake` | Request validated | `task` set, budget + model tier resolved, `manifest` recorded, `criteria` locked with hash (`TaskCriterion` only) | `retrieve` |
 | `retrieve` | `task` set, criteria locked | `bundle` populated across planes, preconditions evaluated; empty when `arm == "control"` | `plan` |
-| `plan` | `bundle` present (possibly empty) | `strategy`, `strategy_reason`, `predicted_success` set | `solve`, `fan_out`, `finalize` (abstain) |
+| `plan` | `bundle` present (possibly empty) | `strategy`, `strategy_reason`, `predicted_success` set; MAY set `execution_guide` (deterministic claim-conflict stitch; default off, no happy-path LLM) | `solve`, `fan_out`, `finalize` (abstain) |
 | `fan_out` | `strategy` is `portfolio` or `decomposition` | `branches` created with `kind` set, disjoint workspaces, non-overlapping write claims, divided budget, and (decomposition) `owned_criteria` partitioning the locked set | `solve` |
 | `solve` | `strategy` set, budget not exhausted, clean workspace snapshot taken | Steps executed in `input_bindings`-derived dependency order with bounded concurrency (§26.1); `transcript_ref`, `artifacts`, `step_waves` set; `attempt_no` incremented; MAY raise a `FailureSignal` directly (environment/tool/budget) without ever reaching `validate` | `validate`, `classify_failure` |
 | `validate` | `transcript_ref` set | `results` set and appended to history; `certification_observations` scored; `judge` criteria scored in fresh contexts (§26.3); a required-criterion failure raises `failure_signal` | `join` (if `branches` non-empty), `distill`, `classify_failure` |
 | `join` | `branches` non-empty; every dispatched branch has terminated (result, error, or timeout) | `merge_audits` appended; portfolio winner selected by result vector then cost, decomposition inputs reduced then synthesised; losers written to episodic memory; a gap raises `failure_signal` | `distill`, `classify_failure` |
 | `classify_failure` | `failure_signal` is set (ADR-0008; not "some required criterion failed" — most classes have no result vector at all) | `failure` set with class + evidence | `evolve`, `record_dead_end` |
-| `evolve` | Budget remains, progress observed, `failure` set | Repair move applied per §16; workspace restored; a budget decremented | `solve` |
-| `distill` | All required criteria passed, `arm != "control"`, task is not an eval fixture | `draft`, `facts_extracted`, `affordance_updates`, `reusability` set | `review`, `finalize` |
+| `evolve` | Budget remains, progress observed, `failure` set | Repair move applied per §16; MAY apply one Practice-published `PatchTemplate` via O(1) lookup; MUST NOT search or hold a patch tree on `RunState`; workspace restored; a budget decremented | `solve` |
+| `distill` | All required criteria passed, `arm != "control"`, task is not an eval fixture | `draft`, `facts_extracted`, `affordance_updates`, `reusability` set; MUST NOT scan episodic memory for failure clusters | `review`, `finalize` |
 | `review` | `draft` reusable | Decision recorded | `store`, `reject_draft` |
-| `store` | Decision is approve, hygiene scan passed | `written_versions` set; index updated; ledger appended | `finalize` |
-| `record_dead_end` | `failure` set | Failed run recorded to episodic memory with `why_failed`; skill trust untouched unless `failure.counts_against_trust` | `finalize` (`terminal="unsolved"`) |
+| `store` | Decision is approve, hygiene scan passed | `written_versions` set; index updated; ledger appended; lineage idx recorded | `finalize` |
+| `record_dead_end` | `failure` set | Failed run recorded to episodic memory with `why_failed`; incremental `FailureClusterRow` upserted; MUST NOT enqueue lineage revoke (that is Recertifier); skill trust untouched unless `failure.counts_against_trust` | `finalize` (`terminal="unsolved"`) |
 | `reject_draft` | Draft rejected by policy or human | Rejection recorded with the diff for the Correction Miner (§20); no version written | `finalize` (`terminal="rejected"`) |
 | `finalize` | — | `terminal` set | — |
 

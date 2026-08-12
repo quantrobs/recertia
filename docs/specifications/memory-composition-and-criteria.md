@@ -68,9 +68,15 @@ a known-flaky tool produces `tool`, which does not damage skill trust (§16).
 ### 13.5 Policy record
 
 A single versioned document holding model tier per task class, escalation ladder, budget
-defaults, retrieval thresholds (`min_score`, `min_trust`, decay), ablation rate, and
-promotion thresholds. Fields are tagged with their governance tier; a write attempt to a T3
-field MUST fail closed regardless of caller (§22).
+defaults, retrieval thresholds (`min_score`, `min_trust`, decay), ablation rate,
+promotion thresholds, and (ADR-0015) `ImprovementFlags` / `ImprovementLimits` / `JobQuota`
+caps. Checked-in default: [`policy/default.json`](../../policy/default.json). Fields are
+tagged with their governance tier; a write attempt to a T3 field MUST fail closed
+regardless of caller (§22). Flags MUST NOT grow the task-plane node set.
+
+Lint and compose review share one uses-DAG walk. Sibling `uses` with overlapping
+write/exclusive claims and no serialising edge fail compose lint (`COMPOSE`) at store /
+promote time — not on the retrieve hot path.
 
 ## 14. Composite skills
 
@@ -82,6 +88,7 @@ A skill MAY declare `uses: [{skill_id, version}]` and invoke a child as a step.
 | The `uses` graph is acyclic | Cycle detection at store time |
 | Depth ≤ 3 | Store-time validation |
 | A parent's criteria MUST cover the composed outcome | Parent needs ≥1 required criterion of its own, not only inherited ones |
+| Sibling write/exclusive claims without a serialising edge | Compose lint on the uses-DAG walk (ADR-0015 P6) |
 | Child invalidation propagates | Marking a child `quarantined` (§2.5, §20) or `deprecated` sets every pinning parent to `needs_recert` |
 | `needs_recert` parents are not retrievable as `approved` | Retrieval lifecycle filter (§5) |
 

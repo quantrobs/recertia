@@ -63,10 +63,12 @@ nor near 0, because that is where an attempt carries information. Practice runs 
 such, are budgeted separately, and their results never count toward user-facing metrics.
 
 Eligible failure clusters (incremental `FailureClusterRow`, written on `record_dead_end`)
-outrank one-off success practice when `n_runs ≥ 3` and `n_sessions ≥ 2`. SkillHEX-shaped
+outrank one-off success practice when `n_runs ≥ 3` and `n_sessions ≥ 2`. The operator
+`practice` job reads `eligible` first; `--one-off` is an explicit override. SkillHEX-shaped
 search, when enabled, runs only here: it may publish a `PatchTemplate`. User-facing `evolve`
 applies a published template as the single class repair and does not search
-([ADR-0015](../adr/0015-improvement-plane-search.md)).
+([ADR-0015](../adr/0015-improvement-plane-search.md)). HEX stays off until
+`practice_conversion` is a measured number.
 
 ### 8.4 Recertifier — drift defence
 
@@ -76,6 +78,11 @@ schedule and on triggers — model upgrade, tool version change, child invalidat
 lineage-revoke queue — and moves failures to `needs_recert` or `quarantined` (§13). Revoke is
 never applied inline on the task plane.
 
+A `SkillStatus` transition *into* `quarantined` enqueues the version and its authoring
+sources. `recertia jobs run recertify` (and the console job of the same name) drains that
+queue through the lineage point index (`lineage.idx.json`; JSONL is WAL only) and is
+write-capped by `JobQuota.max_status_writes_per_tick`.
+
 ### 8.5 Correction miner — improving the learner
 
 When a reviewer edits a draft before approving, the diff is the single highest-quality signal
@@ -84,3 +91,16 @@ stored the decision and discarded the edit. The Correction miner clusters these 
 recurring correction patterns and proposes updates to distiller guidance and criteria
 templates. This is where the system improves *how it learns*, not just what it knows — and it
 is bounded by §14.
+
+### 8.6 Policy document and job quota
+
+The checked-in T2 document is [`policy/default.json`](../../policy/default.json)
+(`RECERTIA_POLICY_PATH` overrides). It holds `ImprovementFlags`, `ImprovementLimits`, and
+the `JobQuota` **caps**. Flags MUST NOT grow `contracts.graph.NODES`.
+
+Weekly spend (`tokens_spent`, HEX counters) is a T0 sidecar next to the job runs root
+(`.recertia/job_quota.json` or `{runs_root}/jobs/job_quota.json`). ISO-week rollover in UTC
+resets spend. The policy file is never rewritten to record consumption.
+
+Admit order: recertifier → curator retire → fail-cluster author → practice band →
+practice HEX (≤25% leftover) → compress. HEX and compress remain default-off.

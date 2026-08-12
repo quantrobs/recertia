@@ -44,17 +44,17 @@ flowchart LR
 | --- | --- | --- |
 | `intake` | Normalise the request into a `Task`; resolve budgets and model tier from the policy store; record the run manifest (§11.3); **lock pre-registered `TaskCriterion`s** (§11.1) | Call a solver model, or accept a skill as a criteria source |
 | `retrieve` | Federated query across memory planes; evaluate preconditions; apply score floor; honour ablation suppression (§11.4) | Execute anything |
-| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `decomposition` / `abstain`; emit a calibrated `predicted_success`; record the reason | Mutate memory, or add to the run's locked criteria |
+| `plan` | Choose `apply` / `adapt` / `scratch` / `portfolio` / `decomposition` / `abstain`; emit a calibrated `predicted_success`; record the reason; MAY emit a deterministic `ExecutionGuide` (default off) | Mutate memory, add to the run's locked criteria, or call a happy-path LLM to stitch skills |
 | `fan_out` | Split budget across ≤3 branches — racing strategies, or disjoint parts of the work — with disjoint workspaces and non-overlapping write claims | Exceed the parent budget, or fan out work whose criteria cannot be partitioned |
 | `solve` | Execute the skill's step graph in dependency waves with bounded concurrency, producing artifacts plus a structured transcript, inside an isolated attempt workspace (§10.2); MAY raise a failure signal directly, before any result exists | Judge its own success, or run steps whose resource claims collide |
 | `validate` | Execute locked criteria in a sandbox; score model-judged criteria in fresh contexts; score the applied skill's certification criteria as an advisory observation; emit a per-criterion result vector | Rewrite or relax criteria, let a certification observation gate the route, or show a judge the solver's reasoning |
 | `join` | *Only reached when `fan_out` ran.* Audit expected against received inputs; select a portfolio winner by validator result then cost, or reduce and synthesise decomposition inputs; discard losers to episodic memory | Prefer a branch on model preference alone, or synthesise across a gap |
 | `classify_failure` | Assign a failure class from the taxonomy (§12) with evidence, given a raised failure signal | Retry, or require a result vector that may not exist |
-| `evolve` | Choose the repair move dictated by the failure class; decrement a budget; restore the workspace to a clean snapshot | Loop without a class or a budget decrement |
-| `distill` | Extract skill draft **and** facts and affordance updates; apply the reusability filter | Store directly |
+| `evolve` | Choose the repair move dictated by the failure class; MAY apply one Practice-published `PatchTemplate` (O(1) lookup); decrement a budget; restore the workspace to a clean snapshot | Search, hold a patch tree, or loop without a class or a budget decrement |
+| `distill` | Extract skill draft **and** facts and affordance updates; apply the reusability filter | Store directly, or scan episodic memory for failure clusters |
 | `review` | Apply promotion policy; request a human when policy requires | Block the caller's answer, or mark an existing stored version quarantined |
-| `store` | Idempotent, transactional write of new versions with lineage; append to the integrity ledger | Overwrite an existing version |
-| `record_dead_end` | Record the failed run and its dead end to episodic memory | Touch a stored skill version's lifecycle |
+| `store` | Idempotent, transactional write of new versions with lineage; stamp lint hash; append to the integrity ledger | Overwrite an existing version |
+| `record_dead_end` | Record the failed run and its dead end to episodic memory; upsert the incremental failure-cluster row | Touch a stored skill version's lifecycle, or enqueue lineage revoke |
 | `reject_draft` | Record the rejection and the reviewer's diff for the Correction Miner; write no version | Quarantine an already-approved version |
 
 `finalize` returns the caller's answer. It does not wait on review: a run can succeed while
