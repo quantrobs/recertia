@@ -46,6 +46,13 @@ explicit deduplication was found to be largely subsumed by the prior itself
 ([`references.md`](../references.md) §1.2), so it earns effort only after retirement and abstraction
 are working.
 
+**Compress** (ADR-0015) is a later Curator proposal kind: unit-level (existing steps / `uses`
+children), replay-first LOO, one golden at the end. Default off until a weekly lift interval
+exists. It does not run Shapley on live traffic.
+
+Jobs share a weekly `JobQuota`. Recertifier and retirement go first; Practice HEX and compress
+spend leftover tokens only (HEX ≤ 25% of the weekly cap).
+
 ### 8.3 Practice — curriculum at the frontier
 
 Waiting for user tasks means learning only what traffic happens to cover. Practice generates
@@ -55,12 +62,19 @@ just barely passed. Selection targets the band where success probability is neit
 nor near 0, because that is where an attempt carries information. Practice runs are marked as
 such, are budgeted separately, and their results never count toward user-facing metrics.
 
+Eligible failure clusters (incremental `FailureClusterRow`, written on `record_dead_end`)
+outrank one-off success practice when `n_runs ≥ 3` and `n_sessions ≥ 2`. SkillHEX-shaped
+search, when enabled, runs only here: it may publish a `PatchTemplate`. User-facing `evolve`
+applies a published template as the single class repair and does not search
+([ADR-0015](../adr/0015-improvement-plane-search.md)).
+
 ### 8.4 Recertifier — drift defence
 
 Skills rot without anyone touching them: tools upgrade, APIs change, the model version
 changes underneath. The Recertifier re-runs skills against their golden fixtures on a
-schedule and on triggers — model upgrade, tool version change, child invalidation — and moves
-failures to `needs_recert` or `quarantined` (§13).
+schedule and on triggers — model upgrade, tool version change, child invalidation, and the
+lineage-revoke queue — and moves failures to `needs_recert` or `quarantined` (§13). Revoke is
+never applied inline on the task plane.
 
 ### 8.5 Correction miner — improving the learner
 

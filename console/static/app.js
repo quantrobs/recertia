@@ -487,7 +487,7 @@ async function refreshSkills() {
     tr.querySelectorAll("button")[0].onclick = async () => {
       const d = await api(`/v1/skills/${s.skill_id}/versions/${s.version}`);
       $("#skillDetail").classList.remove("hidden");
-      $("#skillDetail").textContent = JSON.stringify(d, null, 2);
+      $("#skillDetail").textContent = formatSkillDetail(d);
     };
     tr.querySelectorAll("button")[1].onclick = async () => {
       if (!confirm(`Promote ${s.skill_id}@v${s.version}? Golden gate required.`)) return;
@@ -499,6 +499,21 @@ async function refreshSkills() {
   }
 }
 $("#refreshSkills").onclick = () => refreshSkills().catch((e) => alert(e));
+
+function formatSkillDetail(d) {
+  const identity = d.identity || {};
+  const blocks = [
+    "Authoring (Provenance — frozen)",
+    JSON.stringify(identity.authoring || {}, null, 2),
+    "",
+    "Applications (SkillStats.apply_diversity — rebuildable)",
+    JSON.stringify(identity.applications || {}, null, 2),
+    "",
+    "--- full document ---",
+    JSON.stringify({ version: d.version, status: d.status, stats: d.stats }, null, 2),
+  ];
+  return blocks.join("\n");
+}
 
 async function refreshTower() {
   const summary = await api("/v1/console/tower-summary");

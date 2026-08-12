@@ -36,6 +36,20 @@ def evolve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if suppressed:
         move = suppressed
 
+    template_note = ""
+    signature = _failure_signature(state, failure_class)
+    store = getattr(ctx, "patch_templates", None)
+    if store is not None and signature:
+        template = store.get(signature)
+        if template is not None:
+            move = {
+                "name": f"apply_template:{template.template_id}",
+                "approach": move["approach"],
+                "reason": f"apply published template {template.template_id}",
+                "strategy": state.strategy,
+            }
+            template_note = f"; template={template.template_id}"
+
     updates: dict = {
         "workspace_snapshots": snapshots,
         "failure_signal": None,
@@ -55,7 +69,10 @@ def evolve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     return NodeOutcome(
         state=new_state,
         route="always",
-        note=f"{note_prefix}restored={clean_ref!r}; move={move['name']}; approach={move['approach']}",
+        note=(
+            f"{note_prefix}restored={clean_ref!r}; move={move['name']}; "
+            f"approach={move['approach']}{template_note}"
+        ),
     )
 
 
@@ -112,6 +129,19 @@ def _repair_move(failure_class: str, state: RunState, ctx: NodeContext) -> dict:
         "reason": f"no evolve move for class {failure_class}; restore only",
         "strategy": state.strategy,
     }
+
+
+def _failure_signature(state: RunState, failure_class: str) -> str:
+    from recertia.memory.episodic.clusters import normalize_signature
+
+    why = ""
+    if state.failure_signal:
+        why = state.failure_signal.detail
+    elif state.failure and state.failure.evidence:
+        why = state.failure.evidence[0]
+    else:
+        why = failure_class
+    return normalize_signature(why, failure_class)
 
 
 def _current_approach(state: RunState) -> str:

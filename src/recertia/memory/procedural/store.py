@@ -41,9 +41,17 @@ class LifecycleConflictError(Exception):
 
 
 class SkillStore:
-    def __init__(self, skills_root: Path | str) -> None:
+    def __init__(
+        self,
+        skills_root: Path | str,
+        *,
+        lineage_index: object | None = None,
+        revoke_queue: object | None = None,
+    ) -> None:
         self.root = Path(skills_root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.lineage_index = lineage_index
+        self.revoke_queue = revoke_queue
 
     def version_dir(self, skill_id: str, version: int) -> Path:
         return self.root / skill_id / f"v{version}"
@@ -51,6 +59,9 @@ class SkillStore:
     def write_version(self, version: SkillVersion) -> Path:
         """Write an immutable ``version.json``. Refuses if the file already exists."""
 
+        from recertia.memory.procedural.hygiene import stamp_lint_hash
+
+        version = stamp_lint_hash(version)
         dest_dir = self.version_dir(version.skill_id, version.version)
         dest = dest_dir / "version.json"
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -64,6 +75,9 @@ class SkillStore:
             ) from exc
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(payload)
+        record = getattr(self.lineage_index, "record", None)
+        if callable(record):
+            record(version)
         return dest
 
     def write_candidate(self, version: SkillVersion) -> SkillVersion:
@@ -76,6 +90,9 @@ class SkillStore:
         those transitions belong to explicit lifecycle helpers.
         """
 
+        from recertia.memory.procedural.hygiene import stamp_lint_hash
+
+        version = stamp_lint_hash(version)
         dest = self.version_dir(version.skill_id, version.version) / "version.json"
         if not dest.exists():
             self.write_version(version)
@@ -129,7 +146,9 @@ class SkillStore:
                     f"refusing to write lifecycle=approved for "
                     f"{status.skill_id}@v{status.version}; use promote_to_approved"
                 )
-        return self._write_status_unchecked(status)
+        dest = self._write_status_unchecked(status)
+        self._maybe_enqueue_revoke(status, previous=existing)
+        return dest
 
     def _write_status_unchecked(self, status: SkillStatus) -> Path:
         """Persist status without the approved-lifecycle gate (promote / test seeder only)."""
@@ -142,6 +161,25 @@ class SkillStore:
         dest = dest_dir / "status.json"
         dest.write_text(status.model_dump_json(indent=2) + "\n", encoding="utf-8")
         return dest
+
+    def _maybe_enqueue_revoke(
+        self, status: SkillStatus, *, previous: SkillStatus | None
+    ) -> None:
+        if status.lifecycle != "quarantined":
+            return
+        if previous is not None and previous.lifecycle == "quarantined":
+            return
+        if self.revoke_queue is None:
+            return
+        try:
+            version = self.get_version(status.skill_id, status.version)
+        except FileNotFoundError:
+            return
+        from recertia.memory.procedural.lineage import enqueue_revoke_for_quarantine
+
+        enqueue_revoke_for_quarantine(
+            self.revoke_queue, version, reason="quarantine_version"
+        )
 
     def _read_status_if_present(self, skill_id: str, version: int) -> SkillStatus | None:
         path = self.version_dir(skill_id, version) / "status.json"

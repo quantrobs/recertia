@@ -56,7 +56,7 @@ def jobs_run(
 ) -> None:
     """Run an offline improvement job under a proposal budget."""
 
-    from recertia.jobs import JobBudget, JobRunner
+    from recertia.jobs import JobBudget, build_job_runner
     from recertia.jobs.workers import (
         correction_miner_from_reviewer_edits,
         curator_active_set_and_dedup,
@@ -64,17 +64,27 @@ def jobs_run(
         load_one_off_reasons,
         load_reviewer_edits,
         mine_from_repo_hints,
+        practice_from_fail_clusters,
         practice_from_one_offs,
         propose_parallelise,
         propose_serialise,
-        recertify_stale,
+        recertify_with_revokes,
         schedule_shadow_evaluations,
     )
+    from recertia.memory.episodic import EpisodicStore
+    from recertia.memory.procedural.lineage import LineageServices
     from recertia.memory.procedural.store import SkillStore
+    from recertia.policy_load import load_policy
     from recertia.trajectory.store import TrajectoryStore
 
-    store = SkillStore(skills_root)
-    runner = JobRunner(store, runs_root=runs_root / "jobs")
+    policy = load_policy()
+    lineage = LineageServices.open(runs_root / "lineage")
+    store = SkillStore(
+        skills_root,
+        lineage_index=lineage.index,
+        revoke_queue=lineage.queue,
+    )
+    runner = build_job_runner(store, runs_root=runs_root / "jobs", policy=policy)
     budget = JobBudget(max_proposals=max_proposals)
     name = job.strip().lower()
     traj_store = TrajectoryStore(runs_root / "trajectories")
@@ -93,19 +103,40 @@ def jobs_run(
             budget=budget,
         )
     elif name == "practice":
-        reasons = list(one_off) if one_off else load_one_off_reasons(runs_root / "one_off_log.jsonl")
-        if not reasons:
-            reasons = ["unsolved one-off cluster"]
-        curriculum = None if dry_run else runs_root / "practice-curriculum"
-        result = runner.run(
-            "practice",
-            lambda: practice_from_one_offs(reasons, curriculum_dir=curriculum),
-            budget=budget,
+        explicit = list(one_off) if one_off else None
+        episodic = EpisodicStore(runs_root / "episodic")
+        eligible = (
+            episodic.clusters.eligible()
+            if policy.improvement.fail_cluster_curriculum and not explicit
+            else []
         )
+        if eligible:
+            curriculum = None if dry_run else runs_root / "practice-curriculum"
+            result = runner.run(
+                "fail_cluster_author",
+                lambda: practice_from_fail_clusters(eligible, curriculum_dir=curriculum),
+                budget=budget,
+            )
+        else:
+            reasons = explicit if explicit else load_one_off_reasons(runs_root / "one_off_log.jsonl")
+            if not reasons:
+                reasons = ["unsolved one-off cluster"]
+            curriculum = None if dry_run else runs_root / "practice-curriculum"
+            result = runner.run(
+                "practice",
+                lambda: practice_from_one_offs(reasons, curriculum_dir=curriculum),
+                budget=budget,
+            )
     elif name == "recertify":
         result = runner.run(
             "recertify",
-            lambda: recertify_stale(store, tool_upgraded=tool_upgraded),
+            lambda: recertify_with_revokes(
+                store,
+                lineage_index=lineage.index,
+                revoke_queue=lineage.queue,
+                max_writes=runner.quota.max_status_writes_per_tick,
+                tool_upgraded=tool_upgraded,
+            ),
             budget=budget,
         )
     elif name == "shadow":

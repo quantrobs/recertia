@@ -28,6 +28,7 @@ from recertia.trajectory.store import TrajectoryStore
 from recertia.workspace import WorkspaceManager
 
 if TYPE_CHECKING:
+    from contracts.policy import Policy
     from recertia.memory.affordance import AffordanceStore
     from recertia.memory.episodic import EpisodicStore
     from recertia.memory.procedural.store import SkillStore
@@ -66,6 +67,7 @@ class GraphOrchestrator:
         facts: "FactStore | None" = None,
         reviewer: "ReviewService | None" = None,
         one_off_log: Path | None = None,
+        policy: "Policy | None" = None,
     ) -> None:
         self.runs_root = Path(runs_root)
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -86,6 +88,7 @@ class GraphOrchestrator:
         self.facts = facts
         self.reviewer = reviewer
         self.one_off_log = one_off_log
+        self.policy = policy
         self.trajectories = TrajectoryStore(self.runs_root / "trajectories")
         self._trajectory_emitter = TrajectoryEmitter()
 
@@ -231,6 +234,9 @@ class GraphOrchestrator:
                 facts=self.facts,
                 reviewer=self.reviewer,
                 one_off_log=self.one_off_log,
+                deterministic_guide=bool(
+                    self.policy is not None and self.policy.improvement.deterministic_guide
+                ),
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state

@@ -285,10 +285,16 @@
     "failure_cluster_id": null,
     "authoring_prior_version": null,
     "evolved_because": "v2 left the lockfile stale when the bump was a no-op.",
-    "model": null
+    "model": null,
+    "source_case_ids": [],
+    "source_run_ids": [],
+    "source_session_ids": [],
+    "source_contributor_ids": [],
+    "attribution_summary": null
   },
   "hygiene": {
     "secret_scan": "passed",
-    "scanned_at": "2026-07-30T15:22:11Z"
+    "scanned_at": "2026-07-30T15:22:11Z",
+    "lint_content_hash": null
   }
 }

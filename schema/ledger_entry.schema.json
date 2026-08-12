@@ -27,7 +27,12 @@
         "advance_to_candidate",
         "quarantine_version",
         "deprecate",
-        "policy_change"
+        "policy_change",
+        "lint_reject",
+        "compress_skill",
+        "revoke_lineage",
+        "compose_block",
+        "publish_patch_template"
       ],
       "title": "Action",
       "type": "string"

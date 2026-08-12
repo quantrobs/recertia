@@ -26,7 +26,7 @@ from contracts.skill import (
     StepLoop,
     StepOutput,
 )
-from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
+from contracts.stats import ApplyDiversity, Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
 from contracts.status import Certification, SkillStatus
 
 _NOW = datetime(2026, 7, 30, 15, 22, 11, tzinfo=timezone.utc)
@@ -196,6 +196,10 @@ def bump_python_dep_stats() -> SkillStats:
             interval_low=0.02,
             interval_high=0.38,
             last_evaluated_at=_NOW,
+        ),
+        apply_diversity=ApplyDiversity(
+            distinct_apply_sessions=6,
+            apply_session_sample=["s1", "s2", "s3", "s4", "s5", "s6"],
         ),
     )
 

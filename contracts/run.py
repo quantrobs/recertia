@@ -21,6 +21,7 @@ from contracts.common import Arm, Strategy, Terminal
 from contracts.criteria import CriterionResult, TaskCriterion
 from contracts.failure import FailureSignal, FailureVerdict
 from contracts.goal import Goal
+from contracts.guide import ExecutionGuide
 from contracts.resources import ResourceConflict
 
 
@@ -219,6 +220,7 @@ class RunState(BaseModel):
     affordance_updates: list[dict] = Field(default_factory=list)
     reusability: ReusabilityVerdict | None = None
     written_versions: list[dict] = Field(default_factory=list)
+    execution_guide: ExecutionGuide | None = None
 
     budget: Budget = Budget()
     spent: Spend = Spend()

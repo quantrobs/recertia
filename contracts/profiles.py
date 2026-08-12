@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contracts.run import RunState
 from contracts.skill import SkillVersion
-from contracts.stats import Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
+from contracts.stats import ApplyDiversity, Contribution, PredictiveTrust, RetrievalAblationEffect, SkillStats
 from contracts.status import SkillStatus
 
 
@@ -63,12 +63,22 @@ def validate_retrieval_ablation(effect: RetrievalAblationEffect) -> list[str]:
     return violations
 
 
+def validate_apply_diversity(diversity: ApplyDiversity, *, label: str = "apply_diversity") -> list[str]:
+    violations: list[str] = []
+    if len(diversity.apply_session_sample) > diversity.floor:
+        violations.append(f"{label}.apply_session_sample exceeds floor")
+    if diversity.distinct_apply_sessions < len(diversity.apply_session_sample):
+        violations.append(f"{label}.distinct_apply_sessions smaller than sample")
+    return violations
+
+
 def validate_skill_stats(stats: SkillStats) -> list[str]:
     """MUSTs for the three separated measurement quantities on ``SkillStats`` (S4)."""
 
     violations: list[str] = []
     violations.extend(validate_predictive_trust(stats.predictive_trust))
     violations.extend(validate_contribution(stats.contribution))
+    violations.extend(validate_apply_diversity(stats.apply_diversity))
     return violations
 
 
@@ -116,6 +126,17 @@ def validate_approved_skill(
             violations.append(
                 "self_distilled skill approved with zero observed applications and no "
                 "certification run; higher evidence bar (ADR-0006) not demonstrated"
+            )
+        # ADR-0015: application-session diversity is a SkillStats fact, gated only at
+        # approved. Candidate/shadow still gather the evidence. Golden-only approval
+        # (zero applications, recert from the gate) is unchanged.
+        if (
+            stats.predictive_trust.applications > 0
+            and stats.apply_diversity.distinct_apply_sessions < 2
+        ):
+            violations.append(
+                "self_distilled skill approved from a single application session "
+                "(ADR-0015 distinct-source floor)"
             )
     if status.active and status.lifecycle != "approved":
         violations.append("active=True requires lifecycle == 'approved'")

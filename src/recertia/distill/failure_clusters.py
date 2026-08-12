@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,20 +11,42 @@ from contracts.criteria import SkillCertificationCriterion
 from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
 from recertia.distill.prior import load_authoring_prior
 from recertia.memory.episodic import CaseRecord, EpisodicStore
+from recertia.memory.episodic.clusters import ClusterStore, normalize_signature
 from recertia.validation.sensitivity import author_sensitivity_proof
 
+__all__ = [
+    "normalize_signature",
+    "cluster_dead_ends",
+    "eligible_clusters",
+    "author_pitfall_skill",
+]
 
-def normalize_signature(why_failed: str, failure_class: str | None = None) -> str:
-    text = re.sub(r"\s+", " ", (why_failed or "").strip().lower())
-    text = re.sub(r"[0-9a-f]{8,}", "<id>", text)
-    prefix = (failure_class or "unknown").lower()
-    return f"{prefix}::{text}"[:240]
+
+def eligible_clusters(store: ClusterStore, *, task_class: str | None = None) -> list:
+    """Read incremental eligible rows. Preferred over ``cluster_dead_ends``."""
+
+    return store.eligible(task_class=task_class)
 
 
 def cluster_dead_ends(
     episodic: EpisodicStore, *, task_class: str, min_runs: int = 3
 ) -> list[tuple[str, list[CaseRecord]]]:
-    """Group dead ends by normalized signature; return clusters with ≥ ``min_runs`` distinct runs."""
+    """Rebuild clusters from the incremental index when present; else scan (rebuild)."""
+
+    indexed = episodic.clusters.eligible(task_class=task_class)
+    if indexed:
+        out: list[tuple[str, list[CaseRecord]]] = []
+        for row in indexed:
+            if row.n_runs < min_runs:
+                continue
+            cases: list[CaseRecord] = []
+            if row.last_case_hash:
+                try:
+                    cases.append(episodic.get(row.last_case_hash))
+                except FileNotFoundError:
+                    pass
+            out.append((row.signature, cases or [_synthetic_case(row)]))
+        return out
 
     buckets: dict[str, list[CaseRecord]] = defaultdict(list)
     seen_runs: dict[str, set[str]] = defaultdict(set)
@@ -42,6 +63,18 @@ def cluster_dead_ends(
         seen_runs[sig].add(case.run_id)
         buckets[sig].append(case)
     return [(sig, cases) for sig, cases in buckets.items() if len(cases) >= min_runs]
+
+
+def _synthetic_case(row) -> CaseRecord:
+    return CaseRecord(
+        case_id=f"cluster-{row.signature[:12]}",
+        run_id=row.run_ids_sample[0] if row.run_ids_sample else "unknown",
+        attempt_no=1,
+        task_class=row.task_class,
+        outcome="failed",
+        failure_class=row.signature.split("::", 1)[0],
+    )
+
 
 
 def author_pitfall_skill(
@@ -105,6 +138,11 @@ def author_pitfall_skill(
             derivation="failure_cluster",
             failure_cluster_id=digest,
             authoring_prior_version=prior.version,
+            source_run_ids=[c.run_id for c in cluster[:8]],
+            source_session_ids=list(
+                dict.fromkeys((c.session_id or c.run_id) for c in cluster)
+            )[:8],
+            source_case_ids=[c.case_id for c in cluster[:8]],
         ),
         hygiene=Hygiene(secret_scan="skipped"),
     )

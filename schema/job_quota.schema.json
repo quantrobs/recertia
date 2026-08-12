@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/quantrobs/recertia/schema/JobQuota",
+  "additionalProperties": false,
+  "description": "Weekly improvement-plane token QoS (ADR-0015). HEX/compress are leftover-only.",
+  "properties": {
+    "weekly_token_cap": {
+      "default": 500000,
+      "minimum": 0,
+      "title": "Weekly Token Cap",
+      "type": "integer"
+    },
+    "hex_share": {
+      "default": 0.25,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Hex Share",
+      "type": "number"
+    },
+    "max_hex_jobs_per_task_class": {
+      "default": 1,
+      "minimum": 0,
+      "title": "Max Hex Jobs Per Task Class",
+      "type": "integer"
+    },
+    "max_status_writes_per_tick": {
+      "default": 50,
+      "minimum": 1,
+      "title": "Max Status Writes Per Tick",
+      "type": "integer"
+    },
+    "max_compress_candidates_per_tick": {
+      "default": 1,
+      "minimum": 0,
+      "title": "Max Compress Candidates Per Tick",
+      "type": "integer"
+    },
+    "tokens_spent": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tokens Spent",
+      "type": "integer"
+    },
+    "hex_tokens_spent": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Hex Tokens Spent",
+      "type": "integer"
+    },
+    "hex_jobs_by_class": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Hex Jobs By Class",
+      "type": "object"
+    }
+  },
+  "title": "JobQuota",
+  "type": "object"
+}
