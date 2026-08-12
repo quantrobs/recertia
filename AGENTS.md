@@ -35,8 +35,9 @@ files under a gitignored `.recertia/` dir; no external database is required for 
   write weekly `JobQuota` spend back into that file — spend is `.recertia/job_quota.json`.
 - Drift/hygiene checks (part of CI): the `--check` scripts under `scripts/`
   (`generate_schemas.py`, `export_examples.py`, `check_cross_refs.py`, `check_milestone_deps.py`,
-  `check_assumptions_hygiene.py`). `schema/` is generated from `contracts/` — regenerate with
-  `python3 scripts/generate_schemas.py` when contracts change, or CI's drift check fails.
+  `check_assumptions_hygiene.py`, `security_review.py`). `schema/` is generated from `contracts/`
+  — regenerate with `python3 scripts/generate_schemas.py` when contracts change, or CI's drift
+  check fails. Run a Python security review with `python3 scripts/security_review.py --check`.
 - Tests: `pytest -v` (fast, ~10s).
 
 ### Running the surfaces
