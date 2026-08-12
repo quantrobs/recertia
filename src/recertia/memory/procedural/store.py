@@ -16,10 +16,14 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from contracts.skill import SkillVersion
 from contracts.stats import SkillStats
 from contracts.status import SkillStatus
+
+if TYPE_CHECKING:
+    from recertia.memory.procedural.lineage import LineageIndex, RevokeQueue
 
 
 class ImmutabilityError(Exception):
@@ -45,8 +49,8 @@ class SkillStore:
         self,
         skills_root: Path | str,
         *,
-        lineage_index: object | None = None,
-        revoke_queue: object | None = None,
+        lineage_index: LineageIndex | None = None,
+        revoke_queue: RevokeQueue | None = None,
     ) -> None:
         self.root = Path(skills_root)
         self.root.mkdir(parents=True, exist_ok=True)
