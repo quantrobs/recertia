@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import re
 import secrets
 import sqlite3
@@ -18,7 +19,8 @@ from typing import Callable
 from fastapi import Header, HTTPException
 
 _TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-_ALLOWED_SCOPES = frozenset({"runs", "blobs", "metrics", "admin", "exec"})
+_ALLOWED_SCOPES = frozenset({"runs", "blobs", "metrics", "admin", "exec", "promote", "jobs"})
+
 # New secrets: rec_<key_id>.<token> — enables O(1) lookup by key_id.
 _STRUCTURED_SECRET_RE = re.compile(r"^rec_(key_[0-9a-f]+)\.([A-Za-z0-9_-]+)$")
 
@@ -118,6 +120,10 @@ class ApiKeyStore:
                 );
                 """
             )
+        try:
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path)
@@ -202,51 +208,40 @@ class ApiKeyStore:
             return None
 
         structured = _STRUCTURED_SECRET_RE.fullmatch(secret)
-        with self._connect() as conn:
-            if structured:
-                key_id = structured.group(1)
-                row = conn.execute(
-                    """SELECT key_id, tenant_id, scopes, salt, key_hash FROM api_keys
-                       WHERE key_id=? AND revoked_at IS NULL""",
-                    (key_id,),
-                ).fetchone()
-                if row is not None:
-                    principal = self._principal_from_row(
-                        conn,
-                        key_id=row[0],
-                        tenant_id=row[1],
-                        scopes=row[2],
-                        salt=row[3],
-                        stored_hash=row[4],
-                        secret=secret,
-                    )
-                    if principal is not None:
-                        return principal
-                self._limiter.record_failure(secret)
+        if not structured:
+            self._limiter.record_failure(secret)
+            with self._connect() as conn:
                 self._audit(
-                    conn, "authentication_failed", key_id=key_id, actor="anonymous", detail="invalid key"
+                    conn,
+                    "authentication_failed",
+                    key_id=None,
+                    actor="anonymous",
+                    detail="unstructured key rejected",
                 )
-                return None
+            return None
 
-            # Legacy secrets (e.g. fnd_…) — O(n) scan for one compatibility window.
-            rows = conn.execute(
-                "SELECT key_id, tenant_id, scopes, salt, key_hash FROM api_keys WHERE revoked_at IS NULL"
-            ).fetchall()
-            for key_id, tenant_id, scopes, salt, stored_hash in rows:
+        key_id = structured.group(1)
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT key_id, tenant_id, scopes, salt, key_hash FROM api_keys
+                   WHERE key_id=? AND revoked_at IS NULL""",
+                (key_id,),
+            ).fetchone()
+            if row is not None:
                 principal = self._principal_from_row(
                     conn,
-                    key_id=key_id,
-                    tenant_id=tenant_id,
-                    scopes=scopes,
-                    salt=salt,
-                    stored_hash=stored_hash,
+                    key_id=row[0],
+                    tenant_id=row[1],
+                    scopes=row[2],
+                    salt=row[3],
+                    stored_hash=row[4],
                     secret=secret,
                 )
                 if principal is not None:
                     return principal
             self._limiter.record_failure(secret)
             self._audit(
-                conn, "authentication_failed", key_id=None, actor="anonymous", detail="invalid key"
+                conn, "authentication_failed", key_id=key_id, actor="anonymous", detail="invalid key"
             )
         return None
 

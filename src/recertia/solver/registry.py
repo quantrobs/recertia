@@ -7,6 +7,8 @@ live on :class:`ToolRegistry` and are not injected into ``NodeContext``.
 
 from __future__ import annotations
 
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal
@@ -100,9 +102,32 @@ def _fetch_allowlist() -> tuple[str, ...]:
 def _host_allowed(hostname: str, allowlist: tuple[str, ...]) -> bool:
     host = hostname.lower().rstrip(".")
     for allowed in allowlist:
-        if host == allowed or host.endswith("." + allowed):
+        needle = allowed.lower().rstrip(".")
+        if not needle:
+            continue
+        if host == needle:
             return True
     return False
+
+
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        raise urllib.error.HTTPError(
+            req.full_url, code, "redirect refused (fetch allowlist is hop-exact)", headers, fp
+        )
+
+
+def _https_get(url: str, *, timeout_s: float, max_bytes: int) -> bytes:
+    """HTTPS GET that does not follow redirects."""
+
+    req = urllib.request.Request(
+        url,
+        headers={"user-agent": "recertia-fetch/0.1", "accept": "application/json,text/*"},
+        method="GET",
+    )
+    opener = urllib.request.build_opener(_RefuseRedirect)
+    with opener.open(req, timeout=timeout_s) as resp:
+        return resp.read(max_bytes + 1)
 
 
 def default_registry() -> ToolRegistry:
@@ -249,7 +274,7 @@ def default_registry() -> ToolRegistry:
                 stderr="fetch requires url or package",
             )
         parsed = urllib.parse.urlparse(url)
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        if parsed.scheme != "https" or not parsed.hostname:
             return ToolResult(
                 tool="fetch", ok=False, exit_code=2, stderr=f"unsupported url: {url!r}"
             )
@@ -262,14 +287,8 @@ def default_registry() -> ToolRegistry:
             )
         timeout_s = float(os.environ.get("RECERTIA_FETCH_TIMEOUT_S", "20"))
         max_bytes = int(os.environ.get("RECERTIA_FETCH_MAX_BYTES", str(512 * 1024)))
-        req = urllib.request.Request(
-            url,
-            headers={"user-agent": "recertia-fetch/0.1", "accept": "application/json,text/*"},
-            method="GET",
-        )
         try:
-            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-                raw = resp.read(max_bytes + 1)
+            raw = _https_get(url, timeout_s=timeout_s, max_bytes=max_bytes)
         except urllib.error.HTTPError as exc:
             return ToolResult(
                 tool="fetch",

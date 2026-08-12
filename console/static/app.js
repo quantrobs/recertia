@@ -2,10 +2,20 @@
 
 const $ = (sel) => document.querySelector(sel);
 const state = {
-  session: localStorage.getItem("recertia_session") || "",
   draft: null,
   formSource: "manual",
 };
+
+function escapeHtml(value) {
+  const table = {
+    "&": "\u0026amp;",
+    "<": "\u0026lt;",
+    ">": "\u0026gt;",
+    '"': "\u0026quot;",
+    "'": "\u0026#39;",
+  };
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => table[ch]);
+}
 
 function apiKey() { return $("#apiKey").value.trim(); }
 function tenantHeader() { return $("#tenantHeader").value.trim(); }
@@ -68,9 +78,8 @@ async function loadWorkspaces() {
 async function api(path, opts = {}) {
   const headers = Object.assign({ "content-type": "application/json" }, opts.headers || {});
   if (apiKey()) headers["X-API-Key"] = apiKey();
-  if (state.session) headers["X-Recertia-Session"] = state.session;
   if (tenantHeader()) headers["X-Recertia-Tenant"] = tenantHeader();
-  const res = await fetch(path, { ...opts, headers });
+  const res = await fetch(path, { ...opts, headers, credentials: "same-origin" });
   const text = await res.text();
   let body;
   try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
@@ -123,13 +132,13 @@ function addDesiredRow(prefill = {}) {
   const row = document.createElement("div");
   row.className = "desired-row";
   row.innerHTML = `
-    <input placeholder="id" value="${prefill.id || ""}" data-f="id" />
+    <input placeholder="id" value="${escapeHtml(prefill.id || "")}" data-f="id" />
     <select data-f="kind">
       <option value="file_exists">file_exists</option>
       <option value="file_contains">file_contains</option>
       <option value="command">command</option>
     </select>
-    <input placeholder="path / path|pattern / command" value="${desiredValue(prefill)}" data-f="value" />
+    <input placeholder="path / path|pattern / command" value="${escapeHtml(desiredValue(prefill))}" data-f="value" />
     <button type="button" class="danger">×</button>`;
   if (prefill.kind) row.querySelector('[data-f="kind"]').value = prefill.kind;
   row.querySelector("button").onclick = () => row.remove();
@@ -141,13 +150,13 @@ function addConstraintRow(prefill = {}) {
   row.className = "desired-row";
   const val = Array.isArray(prefill.value) ? prefill.value.join(",") : (prefill.value ?? "");
   row.innerHTML = `
-    <input placeholder="id" value="${prefill.id || ""}" data-f="id" />
+    <input placeholder="id" value="${escapeHtml(prefill.id || "")}" data-f="id" />
     <select data-f="kind">
       <option value="must_not_modify">must_not_modify</option>
       <option value="must_pass_command">must_pass_command</option>
       <option value="no_external_effects">no_external_effects</option>
     </select>
-    <input placeholder="paths (comma) / command / true" value="${val}" data-f="value" />
+    <input placeholder="paths (comma) / command / true" value="${escapeHtml(val)}" data-f="value" />
     <button type="button" class="danger">×</button>`;
   if (prefill.kind) row.querySelector('[data-f="kind"]').value = prefill.kind;
   row.querySelector("button").onclick = () => row.remove();
@@ -221,9 +230,9 @@ function renderDraft(draft) {
     el.innerHTML = `
       <input type="checkbox" data-draft-d="${i}" ${d.selected !== false ? "checked" : ""} />
       <div>
-        <strong>${d.id}</strong> · ${d.kind}
-        <div class="meta">${summary}</div>
-        <div class="muted">${d.why || ""}${d.risk ? " — risk: " + d.risk : ""}</div>
+        <strong>${escapeHtml(d.id)}</strong> · ${escapeHtml(d.kind)}
+        <div class="meta">${escapeHtml(summary)}</div>
+        <div class="muted">${escapeHtml(d.why || "")}${d.risk ? " — risk: " + escapeHtml(d.risk) : ""}</div>
       </div>`;
     box.appendChild(el);
   });
@@ -238,9 +247,9 @@ function renderDraft(draft) {
     el.innerHTML = `
       <input type="checkbox" data-draft-c="${i}" ${c.selected !== false ? "checked" : ""} />
       <div>
-        <strong>${c.id}</strong> · ${c.kind}
-        <div class="meta">${Array.isArray(c.value) ? c.value.join(", ") : c.value}</div>
-        <div class="muted">${c.why || ""}</div>
+        <strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.kind)}
+        <div class="meta">${escapeHtml(Array.isArray(c.value) ? c.value.join(", ") : c.value)}</div>
+        <div class="muted">${escapeHtml(c.why || "")}</div>
       </div>`;
     cbox.appendChild(el);
   });
@@ -253,9 +262,9 @@ function renderDraft(draft) {
   pack.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "pack-card";
-    card.innerHTML = `<strong>${i + 1}. ${p.title}</strong>
-      <div class="muted">${p.context || ""}</div>
-      <div class="meta">${(p.desired || []).map((d) => d.id).join(", ") || "(no desired)"}</div>
+    card.innerHTML = `<strong>${i + 1}. ${escapeHtml(p.title)}</strong>
+      <div class="muted">${escapeHtml(p.context || "")}</div>
+      <div class="meta">${escapeHtml((p.desired || []).map((d) => d.id).join(", ") || "(no desired)")}</div>
       <button type="button" class="secondary" data-pack-apply="${i}">Apply this pack goal</button>`;
     pbox.appendChild(card);
   });
@@ -440,7 +449,7 @@ async function refreshRuns() {
   tb.innerHTML = "";
   for (const r of data.items || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.run_id}</td><td>${r.task_class}</td><td>${r.terminal || r.status}</td><td>${r.cost_usd ?? "—"}</td><td><button class="secondary">Open</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(r.run_id)}</td><td>${escapeHtml(r.task_class)}</td><td>${escapeHtml(r.terminal || r.status)}</td><td>${escapeHtml(r.cost_usd ?? "—")}</td><td><button class="secondary">Open</button></td>`;
     tr.querySelector("button").onclick = () => openRun(r.run_id);
     tb.appendChild(tr);
   }
@@ -463,7 +472,7 @@ function streamEvents(runId) {
   el.textContent = `SSE ${runId}…\n`;
   const headers = {};
   if (apiKey()) headers["X-API-Key"] = apiKey();
-  fetch(`/v1/runs/${runId}/events`, { headers }).then(async (res) => {
+  fetch(`/v1/runs/${runId}/events`, { headers, credentials: "same-origin" }).then(async (res) => {
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     while (true) {
@@ -483,7 +492,7 @@ async function refreshSkills() {
   tb.innerHTML = "";
   for (const s of data.items || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${s.skill_id}</td><td>${s.version}</td><td>${s.lifecycle}</td><td>${s.active}</td><td><button class="secondary">View</button> <button class="primary">Promote</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(s.skill_id)}</td><td>${escapeHtml(s.version)}</td><td>${escapeHtml(s.lifecycle)}</td><td>${escapeHtml(s.active)}</td><td><button class="secondary">View</button> <button class="primary">Promote</button></td>`;
     tr.querySelectorAll("button")[0].onclick = async () => {
       const d = await api(`/v1/skills/${s.skill_id}/versions/${s.version}`);
       $("#skillDetail").classList.remove("hidden");
@@ -518,16 +527,16 @@ function formatSkillDetail(d) {
 async function refreshTower() {
   const summary = await api("/v1/console/tower-summary");
   $("#towerSummary").innerHTML = `
-    <div class="card"><div class="k">active_cap_pressure</div><div class="v">${summary.active_cap_pressure ?? "—"}</div></div>
-    <div class="card"><div class="k">composition depth</div><div class="v">${summary.mean_composition_depth ?? "—"}</div></div>
-    <div class="card"><div class="k">practice_conversion</div><div class="v">${summary.practice_conversion ?? summary.practice_conversion_unavailable ?? "—"}</div></div>
-    <div class="card"><div class="k">pending proposals</div><div class="v">${summary.pending_proposals}</div></div>`;
+    <div class="card"><div class="k">active_cap_pressure</div><div class="v">${escapeHtml(summary.active_cap_pressure ?? "—")}</div></div>
+    <div class="card"><div class="k">composition depth</div><div class="v">${escapeHtml(summary.mean_composition_depth ?? "—")}</div></div>
+    <div class="card"><div class="k">practice_conversion</div><div class="v">${escapeHtml(summary.practice_conversion ?? summary.practice_conversion_unavailable ?? "—")}</div></div>
+    <div class="card"><div class="k">pending proposals</div><div class="v">${escapeHtml(summary.pending_proposals)}</div></div>`;
   const props = await api("/v1/proposals");
   const tb = $("#proposalsTable tbody");
   tb.innerHTML = "";
   for (const p of props.items || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.proposal_id}</td><td>${p.kind}</td><td>${p.skill_id}</td><td>${p.status}</td>
+    tr.innerHTML = `<td>${escapeHtml(p.proposal_id)}</td><td>${escapeHtml(p.kind)}</td><td>${escapeHtml(p.skill_id)}</td><td>${escapeHtml(p.status)}</td>
       <td><button class="secondary">Open</button>
       <button class="primary" ${p.status !== "pending" ? "disabled" : ""}>Approve</button>
       <button class="danger" ${p.status !== "pending" ? "disabled" : ""}>Reject</button></td>`;
@@ -583,12 +592,10 @@ $("#devLogin").onclick = async () => {
     method: "POST",
     body: JSON.stringify({
       user_id: "dev-operator",
-      roles: ["operator", "reviewer", "admin"],
+      roles: ["operator"],
       tenants: ["default", "tenant-b"],
     }),
   });
-  state.session = d.session;
-  localStorage.setItem("recertia_session", d.session);
   $("#authOut").textContent = JSON.stringify(d, null, 2);
 };
 $("#loadMe").onclick = async () => {
@@ -597,8 +604,6 @@ $("#loadMe").onclick = async () => {
 };
 $("#logout").onclick = async () => {
   await api("/v1/auth/logout", { method: "POST", body: "{}" });
-  state.session = "";
-  localStorage.removeItem("recertia_session");
   $("#authOut").textContent = "logged out";
 };
 $("#doSwitch").onclick = async () => {
@@ -606,8 +611,6 @@ $("#doSwitch").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ tenant_id: $("#switchTenant").value }),
   });
-  state.session = d.session;
-  localStorage.setItem("recertia_session", d.session);
   $("#tenantHeader").value = d.active_tenant;
   $("#authOut").textContent = JSON.stringify(d, null, 2);
 };
@@ -649,7 +652,7 @@ async function refreshPrograms() {
   tb.innerHTML = "";
   for (const p of data.programs || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${p.program_id}</td><td>${p.title}</td><td>${p.status}</td><td><button class="secondary">Open</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(p.program_id)}</td><td>${escapeHtml(p.title)}</td><td>${escapeHtml(p.status)}</td><td><button class="secondary">Open</button></td>`;
     tr.querySelector("button").onclick = () => openProgram(p.program_id);
     tb.appendChild(tr);
   }
@@ -674,10 +677,10 @@ function renderProgramSteps(prog, warnings) {
     el.className = "program-step";
     el.innerHTML = `
       <div class="program-step-head">
-        <strong>${step.ordinal}. ${step.title}</strong>
-        <span class="muted">${step.role} · ${step.status}</span>
+        <strong>${escapeHtml(step.ordinal)}. ${escapeHtml(step.title)}</strong>
+        <span class="muted">${escapeHtml(step.role)} · ${escapeHtml(step.status)}</span>
       </div>
-      <div class="muted">freeze: ${(step.freeze_paths || []).join(", ") || "—"} · mutate: ${(step.mutate_paths || []).join(", ") || "—"}</div>
+      <div class="muted">freeze: ${escapeHtml((step.freeze_paths || []).join(", ") || "—")} · mutate: ${escapeHtml((step.mutate_paths || []).join(", ") || "—")}</div>
       <div class="actions">
         <button type="button" class="secondary" data-act="preview">Preview</button>
         <button type="button" class="secondary" data-act="envelope">Run envelope</button>

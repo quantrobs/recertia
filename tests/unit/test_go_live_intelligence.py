@@ -106,17 +106,7 @@ def test_fetch_package_builds_pypi_url(tmp_path: Path) -> None:
         {"info": {"name": "demo", "version": "1.2.3", "summary": "ok"}}
     ).encode()
 
-    class _Resp:
-        def __enter__(self) -> "_Resp":
-            return self
-
-        def __exit__(self, *args: object) -> None:
-            return None
-
-        def read(self, n: int = -1) -> bytes:
-            return payload
-
-    with patch("urllib.request.urlopen", return_value=_Resp()):
+    with patch("recertia.solver.registry._https_get", return_value=payload):
         result = runtime.invoke(
             "fetch",
             {},

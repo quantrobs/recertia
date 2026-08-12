@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import threading
 from datetime import datetime, timezone
@@ -20,9 +19,13 @@ from recertia.api.console_auth import (
     ConsoleUser,
     SessionStore,
     auth_mode,
+    dev_admin_enabled,
+    dev_login_enabled,
     oidc_authorize_url,
     oidc_configured,
     oidc_exchange_code,
+    pkce_challenge,
+    session_cookie_kwargs,
 )
 from recertia.api.events import RunEventLog
 from recertia.api.jobs_store import JobRunStore
@@ -83,7 +86,7 @@ class GoalSuggest(BaseModel):
 class DevLogin(BaseModel):
     user_id: str = "dev-operator"
     display_name: str = "Dev Operator"
-    roles: list[str] = Field(default_factory=lambda: ["operator", "reviewer", "admin"])
+    roles: list[str] = Field(default_factory=lambda: ["operator"])
     tenants: list[str] = Field(default_factory=lambda: ["default"])
     active_tenant: str | None = None
 
@@ -323,6 +326,29 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             return principal.key_id
         raise HTTPException(status_code=403, detail="admin required to register workspace")
 
+    def _require_library_write(
+        request: Request, principal: Any, *, scope: str, min_role: str = "reviewer"
+    ) -> None:
+        """Promote / jobs: console reviewer, or API key with dedicated scope / admin."""
+
+        user = _optional_console_user(request)
+        if user is not None:
+            if not user.may(min_role):  # type: ignore[arg-type]
+                raise HTTPException(status_code=403, detail=f"requires role {min_role}")
+            return
+        if "admin" in principal.scopes or scope in principal.scopes:
+            return
+        raise HTTPException(status_code=403, detail=f"missing scope: {scope}")
+
+    def _public_user(user: ConsoleUser) -> dict[str, Any]:
+        return {
+            "user_id": user.user_id,
+            "display_name": user.display_name,
+            "roles": sorted(user.roles),
+            "tenants": list(user.tenants),
+            "active_tenant": user.active_tenant,
+        }
+
     # ----- C3 auth -----
     @app.get("/v1/me")
     def me(request: Request) -> dict[str, Any]:
@@ -340,30 +366,30 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
 
     @app.post("/v1/auth/dev-login")
     def dev_login(body: DevLogin, response: Response) -> dict[str, Any]:
-        if auth_mode() not in {"dev", "development"}:
+        if not dev_login_enabled():
             raise HTTPException(status_code=404, detail="dev login disabled")
+        requested = frozenset(body.roles) or frozenset({"operator"})
+        if "admin" in requested and not dev_admin_enabled():
+            raise HTTPException(
+                status_code=403,
+                detail="admin via dev-login requires RECERTIA_CONSOLE_DEV_ADMIN=1",
+            )
         tenants = tuple(body.tenants) or ("default",)
         active = body.active_tenant or tenants[0]
         user = ConsoleUser(
             user_id=body.user_id,
             display_name=body.display_name,
-            roles=frozenset(body.roles) or frozenset({"operator"}),
+            roles=requested,
             tenants=tenants,
             active_tenant=active if active in tenants else tenants[0],
         )
         token = ctx.sessions.issue(user)
-        response.set_cookie("recertia_session", token, httponly=True, samesite="lax")
-        return {"session": token, "user": json.loads(json.dumps({
-            "user_id": user.user_id,
-            "display_name": user.display_name,
-            "roles": sorted(user.roles),
-            "tenants": list(user.tenants),
-            "active_tenant": user.active_tenant,
-        }))}
+        response.set_cookie("recertia_session", token, **session_cookie_kwargs())
+        return {"ok": True, "user": _public_user(user)}
 
     @app.post("/v1/auth/logout")
     def logout(response: Response) -> dict[str, str]:
-        response.delete_cookie("recertia_session")
+        response.delete_cookie("recertia_session", path="/")
         return {"status": "ok"}
 
     @app.post("/v1/auth/switch-tenant")
@@ -376,8 +402,8 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         except ValueError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         token = ctx.sessions.issue(switched)
-        response.set_cookie("recertia_session", token, httponly=True, samesite="lax")
-        return {"active_tenant": switched.active_tenant, "session": token, "tenants": list(switched.tenants)}
+        response.set_cookie("recertia_session", token, **session_cookie_kwargs())
+        return {"active_tenant": switched.active_tenant, "tenants": list(switched.tenants)}
 
     # ----- Registered workspaces (RW0) -----
     @app.get("/v1/workspaces")
@@ -483,21 +509,31 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         if auth_mode() != "oidc" or not oidc_configured():
             raise HTTPException(status_code=404, detail="oidc not configured")
         redirect = str(request.url_for("oidc_callback"))
-        state = uuid4().hex
-        return {"authorize_url": oidc_authorize_url(redirect_uri=redirect, state=state), "state": state}
+        state, verifier = ctx.sessions.begin_oidc(redirect_uri=redirect)
+        return {
+            "authorize_url": oidc_authorize_url(
+                redirect_uri=redirect,
+                state=state,
+                code_challenge=pkce_challenge(verifier),
+            ),
+            "state": state,
+        }
 
     @app.get("/v1/auth/oidc/callback", name="oidc_callback")
     def oidc_callback(
         request: Request, response: Response, code: str = "", state: str = ""
     ) -> dict[str, Any]:
-        del state
         if auth_mode() != "oidc" or not oidc_configured():
             raise HTTPException(status_code=404, detail="oidc not configured")
-        redirect = str(request.url_for("oidc_callback"))
-        user = oidc_exchange_code(code=code, redirect_uri=redirect)
+        pending = ctx.sessions.take_oidc(state)
+        if pending is None:
+            raise HTTPException(status_code=400, detail="invalid or expired oidc state")
+        user = oidc_exchange_code(
+            code=code, redirect_uri=pending.redirect_uri, code_verifier=pending.verifier
+        )
         token = ctx.sessions.issue(user)
-        response.set_cookie("recertia_session", token, httponly=True, samesite="lax")
-        return {"session": token, "user_id": user.user_id, "tenants": list(user.tenants)}
+        response.set_cookie("recertia_session", token, **session_cookie_kwargs())
+        return {"ok": True, "user_id": user.user_id, "tenants": list(user.tenants)}
 
     # ----- C0 goals / templates -----
     @app.post("/v1/goals/preview")
@@ -868,9 +904,8 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
     ) -> dict[str, Any]:
         tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        _require_library_write(request, principal, scope="promote", min_role="reviewer")
         user = _optional_console_user(request)
-        if user is not None and not user.may("reviewer"):
-            raise HTTPException(status_code=403, detail="requires reviewer role")
         job = ctx.job_runs.create(
             "promote",
             tenant_id=tenant_id,
@@ -1091,6 +1126,7 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
     ) -> dict[str, Any]:
         tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
+        _require_library_write(request, principal, scope="jobs", min_role="reviewer")
         name = job.strip().lower()
         from recertia.memory.episodic import EpisodicStore
         from recertia.memory.procedural.lineage import LineageServices

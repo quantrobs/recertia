@@ -114,7 +114,9 @@ HTTP status `202` when `mode=async`. Sync mode keeps today's blocking semantics 
 | `POST` | `/v1/skills/{skill_id}/versions/{version}/promote` | Enqueue golden-gated promote; returns `job_id` | C1 |
 
 Promote MUST NOT set `approved` in the request handler. It MUST invoke the same gate as
-`recertia skills promote` and record progress under jobs (§3.4).
+`recertia skills promote` and record progress under jobs (§3.4). The caller MUST hold
+the `promote` or `admin` API-key scope, or a console session with the `reviewer` role.
+A `runs`-only key is not sufficient.
 
 ### 3.3 Proposals and reviews
 
@@ -142,7 +144,8 @@ Decision semantics:
 | `GET` | `/v1/jobs/{job_run_id}` | Status, proposals emitted, errors | C1 |
 
 Body for trigger MAY include the same flags as CLI (`dry_run`, `max_proposals`, hints, …).
-Jobs still MUST NOT write `approved` directly. `practice` without `one_off` prefers eligible
+Jobs still MUST NOT write `approved` directly. Trigger requires the `jobs` or `admin`
+API-key scope, or a console `reviewer` session. `practice` without `one_off` prefers eligible
 fail-cluster rows. `recertify` drains the lineage-revoke queue (write-capped). Runner
 constructs from `policy/default.json` plus the weekly quota sidecar.
 

@@ -454,6 +454,30 @@ _RECERTIA_CONTROLS: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
         ("T3_FORBIDDEN_FOR_RUNS_AND_JOBS",),
         "T3 surfaces must remain listed as import-forbidden for runs/jobs",
     ),
+    (
+        "console-auth-default-off",
+        "src/recertia/api/console_auth.py",
+        ('RECERTIA_CONSOLE_AUTH", "off"', "dev_login_enabled"),
+        "console auth must default off; dev-login is a second explicit flag",
+    ),
+    (
+        "fetch-https-no-redirect",
+        "src/recertia/solver/registry.py",
+        ("_RefuseRedirect", 'parsed.scheme != "https"', "_https_get"),
+        "fetch must be HTTPS-only and refuse redirects",
+    ),
+    (
+        "no-legacy-key-scan",
+        "src/recertia/api/auth.py",
+        ("unstructured key rejected", "_STRUCTURED_SECRET_RE"),
+        "API key auth must not scan every key for unstructured secrets",
+    ),
+    (
+        "promote-requires-scope",
+        "src/recertia/api/console_routes.py",
+        ('_require_library_write', 'scope="promote"', 'scope="jobs"'),
+        "promote and jobs must require a dedicated scope or admin, not runs alone",
+    ),
 )
 
 
