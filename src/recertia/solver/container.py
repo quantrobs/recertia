@@ -316,7 +316,7 @@ def _local_run(
         env.setdefault("TMPDIR", str(workdir))
 
     kwargs: dict = {
-        "shell": True,
+        "shell": True,  # recertia-security-ok: local executor; gated by LocalExecutionCapability
         "cwd": workdir,
         "capture_output": True,
         "text": True,
