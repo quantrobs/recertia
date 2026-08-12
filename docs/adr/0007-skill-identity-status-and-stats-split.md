@@ -32,13 +32,18 @@ different governance tiers ([ADR-0005](0005-self-modification-boundary.md)):
 | --- | --- | --- | --- | --- |
 | `SkillVersion` | `(skill_id, version)`, content-addressed | Immutable once written | T1 (write path is promotion-gated; the document itself never changes) | `skill_id`, `version`, `supersedes`, `title`, `intent`, `task_class`, `tags`, `parameters`, `preconditions`, `steps`, `uses`, `certification_criteria` (§ADR-0007 companion, see amended ADR-0003), `failure_modes`, `provenance`, `hygiene` |
 | `SkillStatus` | `(skill_id, version)`, append-only event log projected to current state | Append-only; the projection is recomputed, never edited | T1 for lifecycle transitions (promotion-gated); T0 for the `active` flag (recomputed by the Curator, derived) | `lifecycle`, `active`, `certification` (model/tool fingerprint last validated against — this drifts, so it lives here, not on the version), `retirement` |
-| `SkillStats` | `(skill_id, version)`, one row, rebuilt from the run store | Derived, rebuildable | T0 | `trust`, `contribution` |
+| `SkillStats` | `(skill_id, version)`, one row, rebuilt from the run store | Derived, rebuildable | T0 | `predictive_trust`, `contribution`, `apply_diversity` ([ADR-0015](0015-improvement-plane-search.md)) |
 
 Two fields that a first read might expect to stay on `SkillVersion` deliberately do not:
 
 - **`hygiene.secret_scan` stays on `SkillVersion`.** It is a one-time gate evaluated once, at
   store time, before the immutable document is ever written — it never changes afterward, so it
-  is data about the version's content, not a status.
+  is data about the version's content, not a status. `hygiene.lint_content_hash` is the same
+  kind of stamp: content identity for skip-if-unchanged re-lint (ADR-0015).
+- **Application-session diversity does not live on `Provenance`.** Authoring-time source ids
+  (`source_run_ids`, …) are frozen on the version. Distinct *application* sessions are
+  `SkillStats.apply_diversity` (T0, rebuildable). Growing session lists on the immutable
+  document would violate this split.
 - **`certification` moves to `SkillStatus`, not `SkillStats`.** It records what the version was
   *validated against* (model, tool fingerprints), and a model upgrade or tool change can mark a
   version `needs_recert` without any new evidence being collected — that is a lifecycle-relevant

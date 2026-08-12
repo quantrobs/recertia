@@ -199,6 +199,23 @@ measure and support library hygiene; they do not train weights.
 | **Self-Evolving LLM Agents through an Experience-Driven Lifecycle**, Wu et al., arXiv:2510.16079, 2025 **[B]** | Lifecycle framing of experience accumulation |
 | **Self-Improvements in Modern Agentic Systems** — [survey hub](https://selfimproving-agent.github.io/) **[F]** | Taxonomy separating foundation-model improvement from scaffolding improvement (~166 scaffolding papers); our design is entirely in the scaffolding branch |
 
+### 2.1 Improvement-plane search and packaging (ADR-0015)
+
+These informed [ADR-0015](adr/0015-improvement-plane-search.md). Mechanisms were kept;
+placement on the *task* graph was declined (T3 topology, default `max_attempts`, Phase-2
+measurement first).
+
+| Work | What we took | What we declined |
+| --- | --- | --- |
+| **How We Built Our Multi-Agent Research System**, Anthropic, MLSys 2026 **[F]** | Bounded investigation loop; deterministic control signals | A 16th `align_skills` node or in-run tree search |
+| **A Survey of Agent Memory in the Second Half**, TMLR 2026, [arXiv:2602.06052](https://arxiv.org/abs/2602.06052) **[F]** | Plural memory planes; authoring vs application identity | Collapsing application sessions onto the immutable version |
+| **SkillHEX / SkillProx / SkillAligner** (skill-library search and alignment line) **[B]** | Practice-only HEX; O(1) `PatchTemplate` apply in `evolve` | PUCT / hypothesis trees on `RunState` |
+| **Feedback Dynamics; PoisonedEvolution** **[B]** | Async lineage revoke from quarantined authoring sources | Inline revoke on `record_dead_end` |
+| **Packaging-lint study (~138K skills)** **[B]** | Deterministic packaging rules + `lint_content_hash` skip | Happy-path LLM lint; R1.3 as a hard error before seeds/miner are clean |
+
+HEX and unit-level compress stay default-off until `practice_conversion` and a weekly lift
+interval are numbers.
+
 ## 3. Memory and experiential learning
 
 | Work | Relevance |

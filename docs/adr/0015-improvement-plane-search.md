@@ -1,6 +1,6 @@
 # ADR-0015: Search and compression live on the improvement plane
 
-- **Status:** accepted
+- **Status:** accepted (implemented: P0′ contracts, P0″ operator path)
 - **Date:** 2026-08-12
 
 ## Context

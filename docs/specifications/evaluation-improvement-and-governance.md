@@ -31,8 +31,8 @@ Every job: reads memory and the run store, writes **only** proposals, and is bud
 | --- | --- | --- | --- |
 | `miner` | Manual, or on repository connect | `draft` skills and facts from history, PRs, CI config, runbooks | Mined skills MUST be validated before promotion; merged history is evidence, not certification |
 | `curator` | Scheduled, or on library-size or precision-decay trigger | Active-set recomputation, retirement, extract-child, split, tighten-precondition, merge, compact, **parallelise**, **serialise**, and (flagged) **compress** proposals | Every proposal MUST pass the golden-set regression gate; retirement MUST respect the evidence floor (§24.3); compress uses step units and cached-trace LOO (ADR-0015) |
-| `practice` | Scheduled, or ≥3 one-offs in a class, or an eligible failure cluster | Practice runs marked `arm="practice"`; optional HEX search may publish a `PatchTemplate` | Excluded from user-facing metrics; separate budget; HEX only under leftover `JobQuota` |
-| `recertifier` | Schedule, model upgrade, tool version change, child invalidation, lineage-revoke queue | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008); revoke drain is write-capped |
+| `practice` | Scheduled, or ≥3 one-offs in a class, or an eligible failure cluster | Practice runs marked `arm="practice"`; optional HEX search may publish a `PatchTemplate` | Excluded from user-facing metrics; separate budget; HEX only under leftover `JobQuota`; default path prefers incremental eligible clusters over one-offs |
+| `recertifier` | Schedule, model upgrade, tool version change, child invalidation, lineage-revoke queue | Recert results; `needs_recert` / `quarantined` transitions on `SkillStatus` | MUST re-run sensitivity proofs, not just criteria; MUST re-derive resource claims when a tool's registry entry changes; marking `quarantined` is a `SkillStatus` write, never a task-plane route (§2.5, ADR-0008); revoke drain is write-capped; `record_dead_end` MUST NOT enqueue |
 | `correction_miner` | ≥N reviewer edits accumulated | Distiller-guidance and criteria-template proposals (T2) | MUST NOT self-apply; human approval plus eval comparison required |
 
 Practice task selection targets estimated success probability in `[0.2, 0.8]`, using
@@ -51,6 +51,32 @@ Both go through the normal promotion gate, so a wrongly removed edge shows up as
 regression before it reaches a user's run. A `serialise` proposal MUST NOT be blocked on the
 latency regression it causes: correctness outranks the parallelism metric.
 
+### 20.1 Policy and `JobQuota`
+
+[`policy/default.json`](../../policy/default.json) is the versioned T2 `Policy` document
+(`RECERTIA_POLICY_PATH` overrides). `ImprovementFlags` (including `deterministic_guide`,
+`practice_hex_search`, `curator_compress`) MUST NOT change graph topology. Caps live on
+`Policy.job_quota`; weekly spend lives on a T0 sidecar and MUST NOT be written back into the
+policy file. ISO week in UTC is the rollover key.
+
+Priority for `can_admit`: `recertifier` → `curator_retire` → `fail_cluster_author` →
+`practice_band` → `practice_hex` (≤ `hex_share` of leftover) → `compress`. Operator names
+`recertify` / `practice` map onto those priorities. HEX and compress stay off until
+`practice_conversion` and a weekly lift interval exist.
+
+### 20.2 Lineage revoke and failure clusters
+
+`write_version` records authoring sources into `lineage.idx.json` (point map; `lineage.jsonl`
+is WAL). `rebuild` from persisted versions is the T0 recovery path.
+
+A transition *into* `quarantined` enqueues `skill:{id}@{version}` plus each
+`provenance.source_*` id. Recertifier drain marks intersecting versions and pinning parents
+`needs_recert`, capped by `max_status_writes_per_tick`.
+
+`record_dead_end` upserts a `FailureClusterRow`. Practice reads `eligible`.
+`cluster_dead_ends` remains only as a rebuild when the incremental index is empty.
+Success-path `distill` MUST NOT scan for clusters.
+
 ## 21. Provenance ledger
 
 ```python
@@ -59,7 +85,18 @@ class LedgerEntry(BaseModel):
     prev_hash: str
     entry_hash: str            # sha256 over canonical entry minus entry_hash
     actor: str                 # run id, job name, or human id
-    action: Literal["write", "advance_to_candidate", "quarantine_version", "deprecate", "policy_change"]
+    action: Literal[
+        "write",
+        "advance_to_candidate",
+        "quarantine_version",
+        "deprecate",
+        "policy_change",
+        "lint_reject",
+        "compress_skill",
+        "revoke_lineage",
+        "compose_block",
+        "publish_patch_template",
+    ]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver
     at: datetime
@@ -74,9 +111,9 @@ Every mutable surface carries a tier (see [ADR-0005](../adr/0005-self-modificati
 
 | Tier | Surfaces | Write path |
 | --- | --- | --- |
-| T0 | Trust scores, affordance aggregates, cases, retrieval caches | Runs write directly; derived and rebuildable |
+| T0 | Trust scores, affordance aggregates, cases, retrieval caches, `SkillStats.apply_diversity`, failure-cluster rows, lineage idx, weekly `JobQuota` spend sidecar | Runs / jobs write directly; derived and rebuildable |
 | T1 | Skill and fact versions, curator proposals, shadow promotions | Promotion policy with eval evidence and zero regressions |
-| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` / `max_parallel_steps` / `conflict_threshold` / `layer_threshold` | Versioned config, human approval, eval comparison |
+| T2 | Authoring prior, distiller guidance, criteria templates, retrieval thresholds, routing ladder, budget defaults, values of `active_cap` / `retirement_threshold` / `evidence_floor` / `max_parallel_steps` / `conflict_threshold` / `layer_threshold`, `ImprovementFlags` / `ImprovementLimits` / `JobQuota` caps | Versioned config, human approval, eval comparison |
 | T3 | Tool registry with side-effect classes **and declared resource claims**, sandbox policy, promotion thresholds, ablation rate, graph topology, judge-isolation and merge-audit enforcement, finiteness of the active cap and retirement threshold, tier assignments | Code or config review only; unreachable from run and job code paths |
 
 Enforcement requirements:

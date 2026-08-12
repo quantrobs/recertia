@@ -30,7 +30,9 @@ files under a gitignored `.recertia/` dir; no external database is required for 
 ### Lint / test / build
 
 - Lint + types: `ruff check contracts/ src/ scripts/ tests/ conftest.py` and
-  `mypy contracts/ src/recertia/`.
+  `mypy contracts/ src/recertia/`. Main CI fails closed on mypy (see #8).
+- Default T2 policy is `policy/default.json` (`RECERTIA_POLICY_PATH` overrides). Do not
+  write weekly `JobQuota` spend back into that file — spend is `.recertia/job_quota.json`.
 - Drift/hygiene checks (part of CI): the `--check` scripts under `scripts/`
   (`generate_schemas.py`, `export_examples.py`, `check_cross_refs.py`, `check_milestone_deps.py`,
   `check_assumptions_hygiene.py`). `schema/` is generated from `contracts/` — regenerate with

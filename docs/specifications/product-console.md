@@ -109,7 +109,7 @@ HTTP status `202` when `mode=async`. Sync mode keeps today's blocking semantics 
 | Method | Path | Purpose | Milestone |
 | --- | --- | --- | --- |
 | `GET` | `/v1/skills` | List summaries; filter `task_class`, `lifecycle`, `active` | C0 |
-| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full version + status + stats | C0 |
+| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full version + status + stats plus `identity` (`authoring` from `Provenance`, `applications` from `SkillStats.apply_diversity`) | C0 |
 | `POST` | `/v1/skills/search` | Retrieval debug: query, top-k, scores, drop reasons | C1 |
 | `POST` | `/v1/skills/{skill_id}/versions/{version}/promote` | Enqueue golden-gated promote; returns `job_id` | C1 |
 
@@ -142,7 +142,9 @@ Decision semantics:
 | `GET` | `/v1/jobs/{job_run_id}` | Status, proposals emitted, errors | C1 |
 
 Body for trigger MAY include the same flags as CLI (`dry_run`, `max_proposals`, hints, …).
-Jobs still MUST NOT write `approved` directly.
+Jobs still MUST NOT write `approved` directly. `practice` without `one_off` prefers eligible
+fail-cluster rows. `recertify` drains the lineage-revoke queue (write-capped). Runner
+constructs from `policy/default.json` plus the weekly quota sidecar.
 
 ### 3.5 Metrics and ops
 

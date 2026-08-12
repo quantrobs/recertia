@@ -97,15 +97,21 @@ Approved seeds must carry hash-bound sensitivity proofs (`evidence_hash`). CI ru
 
 ## Jobs and retention
 
+Policy: [`policy/default.json`](../../policy/default.json). Override with
+`RECERTIA_POLICY_PATH`. Weekly spend is `{runs-root}/jobs/job_quota.json` (T0 sidecar).
+
 ```bash
 recertia jobs run curator --dry-run
+recertia jobs run practice                 # eligible fail-clusters first
 recertia jobs run practice --one-off "lockfile drift"
+recertia jobs run recertify                # stale certs + revoke drain
 recertia jobs run mine --hint "docs/runbook.md" --submit
 recertia gc --older-than-days 14 --dry-run
 recertia gc --older-than-days 14
 ```
 
-Jobs emit proposals / candidates only — never write `approved` (M7).
+Jobs emit proposals / candidates only — never write `approved` (M7). HEX and compress stay
+off until `practice_conversion` and a lift interval exist.
 
 ## Execution backend
 

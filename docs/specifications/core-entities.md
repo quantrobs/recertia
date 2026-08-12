@@ -118,6 +118,13 @@ Canonical form is JSON at `skills/<skill_id>/v<version>/version.json`, validated
 }
 ```
 
+`provenance.source_run_ids` / `source_case_ids` / `source_session_ids` /
+`source_contributor_ids` are **authoring-time** identity (frozen). They feed the lineage
+index for revoke. They are not application-session history — that lives on
+`SkillStats.apply_diversity` ([ADR-0015](../adr/0015-improvement-plane-search.md)).
+`hygiene.lint_content_hash` is stamped at `write_version`; the store re-lints only when it
+disagrees with the current bytes.
+
 ### 2.2 `SkillStatus` (append-only, projected)
 
 Canonical form is JSON at `skills/<skill_id>/v<version>/status.json`, validated against
@@ -157,7 +164,10 @@ always rebuilt from the run store. Losing this record is a rebuild, not a data-l
   "contribution": { "applications": 14, "successes": 12,
                     "suppressed_applications": 9, "suppressed_successes": 5,
                     "interval_low": 0.02, "interval_high": 0.38,
-                    "last_evaluated_at": "2026-07-30T15:22:11Z" }
+                    "last_evaluated_at": "2026-07-30T15:22:11Z" },
+  "apply_diversity": { "distinct_apply_sessions": 6,
+                       "apply_session_sample": ["s1", "s2", "s3", "s4", "s5", "s6"],
+                       "floor": 30 }
 }
 ```
 
@@ -170,6 +180,10 @@ retirement input lives on `contribution`.
 `successes/applications − suppressed_successes/suppressed_applications`, or `null` when either
 arm lacks observations — see §24.2 for when `null` is the only honest answer. A task-class
 control baseline MUST NOT be subtracted here: selection into a particular skill is not random.
+
+`apply_diversity` counts distinct *application* sessions (T0). The sample is bounded by
+`floor` (default 30). The approved-profile diversity gate (`distinct_apply_sessions ≥ 2`)
+applies only to `self_distilled` skills at `approved`, never at `candidate` / `shadow`.
 
 ### 2.4 Field rules
 
@@ -199,10 +213,15 @@ control baseline MUST NOT be subtracted here: selection into a particular skill 
   drift in either marks the version `needs_recert` (§20).
 - `SkillVersion.hygiene.secret_scan` MUST be `passed` before a version may be stored. This stays
   on the immutable version, not `SkillStatus`, because it is a one-time gate evaluated once,
-  before the document is ever written.
+  before the document is ever written. `hygiene.lint_content_hash` MUST be stamped at write;
+  a matching hash MAY skip re-lint.
 - `provenance.curation` MUST be one of `human_authored`, `mined_from_human_artifact`, or
   `self_distilled`, and `self_distilled` versions require the higher evidence bar in §24.
+- `provenance.source_*` lists are authoring sources only. Application sessions MUST NOT be
+  appended there; they belong on `SkillStats.apply_diversity`.
 - `SkillStats.contribution` is derived, never authored, and is the retirement input (§24).
+- `SkillStats.apply_diversity` is derived, never authored. The approved diversity gate is
+  specified in §8 / [ADR-0015](../adr/0015-improvement-plane-search.md).
 
 ### 2.5 Lifecycle values
 
