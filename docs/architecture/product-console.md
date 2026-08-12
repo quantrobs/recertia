@@ -132,7 +132,7 @@ split — not a third store ([ADR-0015](../adr/0015-improvement-plane-search.md)
 
 | Actor | Mechanism | Console role |
 | --- | --- | --- |
-| Human operator / reviewer | OIDC (or SSO proxy injecting identity) | Session cookie / bearer; roles `operator`, `reviewer`, `admin` |
+| Human operator / reviewer | OIDC (or SSO proxy injecting identity); default auth is off | Session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` outside dev); roles `operator`, `reviewer`, `admin` |
 | Automation / CI | Existing `X-API-Key` scopes | Unchanged |
 | Browser → API | BFF holds session; exchanges for scoped service credentials or passes user JWT with audience=recertia-api | Never embed long-lived API keys in SPA |
 

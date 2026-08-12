@@ -39,6 +39,17 @@ def _goal() -> dict:
     }
 
 
+def _enable_dev_console(monkeypatch: pytest.MonkeyPatch, *, admin: bool = True) -> None:
+    monkeypatch.setenv("RECERTIA_CONSOLE_AUTH", "dev")
+    monkeypatch.setenv("RECERTIA_CONSOLE_DEV_LOGIN", "1")
+    monkeypatch.setenv("RECERTIA_CONSOLE_SESSION_SECRET", "t" * 32)
+    monkeypatch.setenv("RECERTIA_CONSOLE_COOKIE_SECURE", "0")
+    if admin:
+        monkeypatch.setenv("RECERTIA_CONSOLE_DEV_ADMIN", "1")
+    else:
+        monkeypatch.delenv("RECERTIA_CONSOLE_DEV_ADMIN", raising=False)
+
+
 def _client(tmp_path: Path, *, skills_root: Path | None = None) -> tuple[TestClient, Any]:
     app = create_app(
         root=tmp_path / "api-root",
@@ -173,7 +184,10 @@ def test_pc2_promote_does_not_skip_golden_gate(tmp_path: Path) -> None:
     assert after == "draft"
 
 
-def test_pc3_proposal_decision_appends_human_actor(tmp_path: Path) -> None:
+def test_pc3_proposal_decision_appends_human_actor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enable_dev_console(monkeypatch)
     client, app = _client(tmp_path)
     headers = _issue(app, tenant_id="t1")
 
@@ -186,8 +200,9 @@ def test_pc3_proposal_decision_appends_human_actor(tmp_path: Path) -> None:
         },
     )
     assert login.status_code == 200
-    session = login.json()["session"]
-    headers = {**headers, "X-Recertia-Session": session}
+    assert "session" not in login.json()
+    assert client.cookies.get("recertia_session")
+    headers = {**headers}  # cookie carries the console session
 
     prop = ProposalRecord(
         proposal_id="prop-pc3",
@@ -324,7 +339,10 @@ def test_c2_async_run_returns_202_and_completes(tmp_path: Path) -> None:
     assert "run.queued" in ev.text or "run.started" in ev.text
 
 
-def test_c3_me_and_rbac_operator_cannot_decide_t2(tmp_path: Path) -> None:
+def test_c3_me_and_rbac_operator_cannot_decide_t2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enable_dev_console(monkeypatch)
     client, app = _client(tmp_path)
     headers = _issue(app, tenant_id="t1")
 
@@ -337,8 +355,7 @@ def test_c3_me_and_rbac_operator_cannot_decide_t2(tmp_path: Path) -> None:
         },
     )
     assert op.status_code == 200
-    session = op.json()["session"]
-    me = client.get("/v1/me", headers={"X-Recertia-Session": session})
+    me = client.get("/v1/me")
     assert me.status_code == 200
     assert me.json()["user_id"] == "ops-only"
     assert "operator" in me.json()["roles"]
@@ -355,7 +372,7 @@ def test_c3_me_and_rbac_operator_cannot_decide_t2(tmp_path: Path) -> None:
     app.state.console_ctx.proposals.add(prop)
     denied = client.post(
         "/v1/proposals/t2-prop/decision",
-        headers={**headers, "X-Recertia-Session": session},
+        headers=headers,
         json={"decision": "approve"},
     )
     assert denied.status_code == 403
@@ -388,6 +405,7 @@ def test_c5_tenant_switch_isolates_skills_and_proposals(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("RECERTIA_TENANT_SKILLS", "1")
+    _enable_dev_console(monkeypatch)
     client, app = _client(tmp_path)
     # Key for tenant-a; session membership covers both.
     headers = _issue(app, tenant_id="tenant-a")
@@ -400,10 +418,9 @@ def test_c5_tenant_switch_isolates_skills_and_proposals(
             "active_tenant": "tenant-a",
         },
     )
-    session = login.json()["session"]
+    assert login.status_code == 200
     headers_a = {
         **headers,
-        "X-Recertia-Session": session,
         "X-Recertia-Tenant": "tenant-a",
     }
 
@@ -445,14 +462,11 @@ def test_c5_tenant_switch_isolates_skills_and_proposals(
 
     switched = client.post(
         "/v1/auth/switch-tenant",
-        headers={"X-Recertia-Session": session},
         json={"tenant_id": "tenant-b"},
     )
     assert switched.status_code == 200
-    session_b = switched.json()["session"]
     headers_b = {
         **headers,
-        "X-Recertia-Session": session_b,
         "X-Recertia-Tenant": "tenant-b",
     }
     props_b = client.get("/v1/proposals", headers=headers_b)

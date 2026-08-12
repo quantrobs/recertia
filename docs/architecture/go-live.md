@@ -95,6 +95,23 @@ recertia skills lint
 Approved seeds must carry hash-bound sensitivity proofs (`evidence_hash`). CI runs
 `recertia skills lint` on every change that touches `skills/`.
 
+## Console auth
+
+Default is **off** (API keys only). Browser sessions are not issued unless you
+opt in.
+
+| Mode | Env |
+| --- | --- |
+| Off (default) | unset / `RECERTIA_CONSOLE_AUTH=off` |
+| Dev login | `RECERTIA_CONSOLE_AUTH=dev` **and** `RECERTIA_CONSOLE_DEV_LOGIN=1`. Admin roles also need `RECERTIA_CONSOLE_DEV_ADMIN=1`. |
+| OIDC | `RECERTIA_CONSOLE_AUTH=oidc` plus issuer/client id/secret **and** `RECERTIA_CONSOLE_SESSION_SECRET` (≥32 chars). PKCE S256 + one-time `state`. |
+
+Cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` except in `dev`. The session
+token is not returned in JSON and is not stored in `localStorage`.
+
+Promote and improvement jobs require the `promote` / `jobs` API-key scopes (or
+`admin`), or a console reviewer session. A `runs` key cannot approve skills.
+
 ## Jobs and retention
 
 Policy: [`policy/default.json`](../../policy/default.json). Override with

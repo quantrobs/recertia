@@ -23,14 +23,42 @@ def test_api_refuses_local_backend_without_break_glass(monkeypatch: pytest.Monke
         ensure_api_execution_ready()
 
 
-def test_structured_api_key_authenticates_in_one_lookup(tmp_path: Path) -> None:
+def test_unstructured_api_key_is_rejected(tmp_path: Path) -> None:
     keys = ApiKeyStore(tmp_path / "keys.sqlite")
-    issued = keys.issue(tenant_id="t1", scopes={"runs"}, actor="op")
-    assert issued.secret.startswith("rec_key_")
-    assert issued.key_id in issued.secret
-    principal = keys.authenticate(issued.secret)
-    assert principal is not None
-    assert principal.key_id == issued.key_id
+    keys.issue(tenant_id="t1", scopes={"runs"}, actor="op")
+    assert keys.authenticate("fnd_legacy_not_structured") is None
+
+
+def test_runs_key_cannot_promote_or_trigger_jobs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("RECERTIA_EXECUTION_BACKEND", "local")
+    monkeypatch.setenv("RECERTIA_API_ALLOW_LOCAL_EXEC", "1")
+    app = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
+    runs_only = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    client = TestClient(app)
+    denied_promote = client.post(
+        "/v1/skills/demo/versions/1/promote",
+        headers={"X-API-Key": runs_only.secret},
+    )
+    assert denied_promote.status_code == 403
+    assert "promote" in denied_promote.json()["detail"]
+    denied_job = client.post(
+        "/v1/jobs/practice/run",
+        headers={"X-API-Key": runs_only.secret},
+        json={"dry_run": True},
+    )
+    assert denied_job.status_code == 403
+    assert "jobs" in denied_job.json()["detail"]
+
+
+def test_dev_login_disabled_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RECERTIA_CONSOLE_AUTH", raising=False)
+    monkeypatch.delenv("RECERTIA_CONSOLE_DEV_LOGIN", raising=False)
+    app = create_app(root=tmp_path / "api-root")
+    client = TestClient(app)
+    resp = client.post("/v1/auth/dev-login", json={"user_id": "x", "roles": ["admin"]})
+    assert resp.status_code == 404
 
 
 def test_script_requires_exec_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

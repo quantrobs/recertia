@@ -68,8 +68,16 @@ def test_command_policy_blocks_chaining_and_unknown() -> None:
         assert_command_allowed("echo hi; rm -rf /")
     with pytest.raises(CommandPolicyError):
         assert_command_allowed("curl http://evil.example")
+    with pytest.raises(CommandPolicyError):
+        assert_command_allowed("echo pwned > /tmp/x")
+    with pytest.raises(CommandPolicyError):
+        assert_command_allowed("sleep 1 & echo x")
+    with pytest.raises(CommandPolicyError):
+        assert_command_allowed("python3 -c \"print(1)\"")
     assert assert_command_allowed("touch DONE") == "touch DONE"
-    assert assert_command_allowed("python3 -c \"print(1)\"")
+    assert assert_command_allowed("python3 -m pytest -q").startswith("python3")
+    # authored skill steps may redirect
+    assert ">" in assert_command_allowed("echo x > FILE", allow_redirects=True)
 
 
 def test_wrap_untrusted_delimits_and_neutralizes() -> None:
