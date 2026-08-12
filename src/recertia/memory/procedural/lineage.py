@@ -234,28 +234,28 @@ def drain_revokes(
     items = queue.drain(limit=max_writes)
     leftover: list[dict] = []
     parents_of: dict[tuple[str, int], list[tuple[str, int]]] = {}
-    for parent_ver, _status, _stats in store.iter_loaded():
-        for use in parent_ver.uses:
+    for parent_doc, _status, _stats in store.iter_loaded():
+        for use in parent_doc.uses:
             parents_of.setdefault((use.skill_id, use.version), []).append(
-                (parent_ver.skill_id, parent_ver.version)
+                (parent_doc.skill_id, parent_doc.version)
             )
     for item in items:
         if remaining <= 0:
             leftover.append(item)
             continue
         targets = index.lookup(item["source_kind"], item["source_id"])
-        for skill_id, version in targets:
+        for skill_id, ver_n in targets:
             if remaining <= 0:
                 leftover.append(item)
                 break
-            marked = _mark_needs_recert(store, skill_id, version)
+            marked = _mark_needs_recert(store, skill_id, ver_n)
             if marked is not None:
                 touched.append(marked)
                 remaining -= 1
-            for parent_id, parent_ver in parents_of.get((skill_id, version), []):
+            for parent_id, parent_n in parents_of.get((skill_id, ver_n), []):
                 if remaining <= 0:
                     break
-                parent_marked = _mark_needs_recert(store, parent_id, parent_ver)
+                parent_marked = _mark_needs_recert(store, parent_id, parent_n)
                 if parent_marked is not None:
                     touched.append(parent_marked)
                     remaining -= 1

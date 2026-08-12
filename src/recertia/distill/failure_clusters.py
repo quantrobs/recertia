@@ -50,12 +50,12 @@ def cluster_dead_ends(
 
     buckets: dict[str, list[CaseRecord]] = defaultdict(list)
     seen_runs: dict[str, set[str]] = defaultdict(set)
-    for row in episodic.list_index():
-        if not row.get("has_dead_end"):
+    for index_row in episodic.list_index():
+        if not index_row.get("has_dead_end"):
             continue
-        if row.get("task_class") != task_class:
+        if index_row.get("task_class") != task_class:
             continue
-        case = episodic.get(row["hash"])
+        case = episodic.get(index_row["hash"])
         assert case.dead_end is not None
         sig = normalize_signature(case.dead_end.why_failed, case.failure_class)
         if case.run_id in seen_runs[sig]:
