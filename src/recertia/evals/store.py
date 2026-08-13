@@ -365,6 +365,41 @@ class EvalStore:
             )
         return {key: (pair[0], pair[1]) for key, pair in out.items()}
 
+    def field_failure_streaks(self) -> dict[tuple[str, int], int]:
+        """Trailing treatment-arm failure counts per applied skill (non-fixture).
+
+        ``solved`` and ``abstained`` break the streak. ``practice`` / ``shadow`` /
+        ``control`` arms and eval fixtures are ignored — those are not the operator's
+        live mix.
+        """
+
+        rows = self._conn.execute(
+            """
+            SELECT skill_id, skill_version, terminal, recorded_at
+            FROM observations
+            WHERE arm = 'treatment' AND is_eval_fixture = 0
+              AND skill_id IS NOT NULL AND skill_version IS NOT NULL
+            ORDER BY skill_id, skill_version, recorded_at DESC, run_id DESC
+            """
+        ).fetchall()
+        streaks: dict[tuple[str, int], int] = {}
+        broken: set[tuple[str, int]] = set()
+        for row in rows:
+            key = (str(row["skill_id"]), int(row["skill_version"]))
+            if key in broken:
+                continue
+            terminal = row["terminal"]
+            if terminal in {"solved", "abstained"}:
+                broken.add(key)
+                streaks.setdefault(key, 0)
+                continue
+            if terminal in {"unsolved", "rejected", "error"}:
+                streaks[key] = streaks.get(key, 0) + 1
+            else:
+                broken.add(key)
+                streaks.setdefault(key, 0)
+        return streaks
+
     def retrieval_ablation_samples(
         self, *, task_class: str, snapshot_id: str | None = None
     ) -> tuple[BinomialSample, BinomialSample]:

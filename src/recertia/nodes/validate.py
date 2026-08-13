@@ -30,20 +30,32 @@ _OPS = {
 }
 
 
+_CERT_OBS_OP_BASE = 10_000
+
+
 def validate(state: RunState, ctx: NodeContext) -> NodeOutcome:
     results, failure_signal, downgrade_notes = score_criteria(state, ctx)
+    observations = score_certification_observations(state, ctx)
     new_state = state.model_copy(
         update={
             "results": results,
             "results_history": [*state.results_history, results],
             "failure_signal": failure_signal,
+            "certification_observations": observations,
         }
     )
 
     route = "no_branches_and_failing" if failure_signal is not None else "no_branches_and_passing"
     if state.branches:
         route = "has_branches"
-    note = "; ".join(downgrade_notes) if downgrade_notes else None
+    notes = list(downgrade_notes)
+    failed_obs = [o.criterion_id for o in observations if not o.passed]
+    if failed_obs:
+        notes.append(
+            "certification_observations failed (advisory, does not gate the caller): "
+            + ",".join(failed_obs)
+        )
+    note = "; ".join(notes) if notes else None
     return NodeOutcome(state=new_state, route=route, note=note)
 
 
@@ -94,6 +106,43 @@ def score_criteria(
         )
 
     return results, failure_signal, downgrade_notes
+
+
+def score_certification_observations(state: RunState, ctx: NodeContext) -> list[CriterionResult]:
+    """Score the applied skill's certification criteria against this artifact.
+
+    Advisory only: never sets ``failure_signal`` or changes the caller's result
+    (ADR-0003 amendment / specs §15.4).
+    """
+
+    if state.chosen is None or ctx.store is None:
+        return []
+    try:
+        version = ctx.store.get_version(state.chosen.skill_id, state.chosen.version)
+    except FileNotFoundError:
+        return []
+    observations: list[CriterionResult] = []
+    for offset, criterion in enumerate(version.certification_criteria):
+        if criterion.kind == "judge":
+            continue
+        op_seq = _CERT_OBS_OP_BASE + offset
+        try:
+            raw = ctx.op_once(
+                op_seq, functools.partial(_score_criterion_dict, criterion, ctx)
+            )
+            observations.append(CriterionResult.model_validate(raw))
+        except Exception as exc:  # noqa: BLE001 — observations must not fail the run
+            observations.append(
+                CriterionResult(
+                    criterion_id=criterion.id,
+                    kind=criterion.kind,  # type: ignore[arg-type]
+                    passed=False,
+                    weight=criterion.weight,
+                    output_excerpt=f"certification observation error: {exc}"[:2000],
+                    errored=True,
+                )
+            )
+    return observations
 
 
 def _score_criterion_dict(criterion: CriterionLike, ctx: NodeContext) -> dict:

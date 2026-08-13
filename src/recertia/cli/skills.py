@@ -137,5 +137,10 @@ def skills_promote(
         f"skill_id={status.skill_id} version={status.version} "
         f"lifecycle={status.lifecycle} active={status.active}"
     )
+    from recertia.memory.procedural.live_mix import live_mix_reason
+
+    ver = store.get_version(skill_id, version)
+    stats = store.get_stats(skill_id, version)
+    typer.echo(f"live_mix={live_mix_reason(ver, status, stats)}")
     if status.certification.golden_set_ref:
         typer.echo(f"golden_set_ref={status.certification.golden_set_ref}")

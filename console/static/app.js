@@ -492,7 +492,7 @@ async function refreshSkills() {
   tb.innerHTML = "";
   for (const s of data.items || []) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${escapeHtml(s.skill_id)}</td><td>${escapeHtml(s.version)}</td><td>${escapeHtml(s.lifecycle)}</td><td>${escapeHtml(s.active)}</td><td><button class="secondary">View</button> <button class="primary">Promote</button></td>`;
+    tr.innerHTML = `<td>${escapeHtml(s.skill_id)}</td><td>${escapeHtml(s.version)}</td><td>${escapeHtml(s.lifecycle)}</td><td>${escapeHtml(s.active)}</td><td>${escapeHtml((s.live_mix && s.live_mix.reason) || "—")}</td><td><button class="secondary">View</button> <button class="primary">Promote</button></td>`;
     tr.querySelectorAll("button")[0].onclick = async () => {
       const d = await api(`/v1/skills/${s.skill_id}/versions/${s.version}`);
       $("#skillDetail").classList.remove("hidden");
@@ -511,16 +511,34 @@ $("#refreshSkills").onclick = () => refreshSkills().catch((e) => alert(e));
 
 function formatSkillDetail(d) {
   const identity = d.identity || {};
+  const live = d.live_mix || {};
+  const banner = live.reason
+    ? `Live mix: ${live.reason}` +
+      (live.consecutive_field_failures
+        ? ` · ${live.consecutive_field_failures} consecutive field failure(s)`
+        : "") +
+      (live.reason === "shadow_trial"
+        ? " — certified, not steering live traffic until contribution is non-negative."
+        : "") +
+      (live.reason === "quarantined"
+        ? " — pulled off the live mix after consecutive field failures."
+        : "")
+    : "";
   const blocks = [
+    banner,
+    banner ? "" : "",
     "Authoring (Provenance — frozen)",
     JSON.stringify(identity.authoring || {}, null, 2),
     "",
     "Applications (SkillStats.apply_diversity — rebuildable)",
     JSON.stringify(identity.applications || {}, null, 2),
     "",
+    "Live mix",
+    JSON.stringify(live, null, 2),
+    "",
     "--- full document ---",
     JSON.stringify({ version: d.version, status: d.status, stats: d.stats }, null, 2),
-  ];
+  ].filter((line, i, arr) => !(line === "" && arr[i - 1] === ""));
   return blocks.join("\n");
 }
 

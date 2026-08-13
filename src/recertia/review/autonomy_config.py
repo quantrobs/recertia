@@ -12,7 +12,7 @@ class AutonomyConfig:
     shadow_min_successes: int = 5
     shadow_min_applications: int = 8
     shadow_min_lift: float = 0.05
-    quarantine_consecutive_failures: int = 3
+    quarantine_consecutive_failures: int = 2
     evidence_floor: int = 30
     retirement_threshold: float = 0.05
     active_cap_per_task_class: int = 50

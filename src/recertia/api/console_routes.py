@@ -818,6 +818,16 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
     ) -> dict[str, Any]:
         tenant_id = _resolve_tenant(principal, request, x_recertia_tenant)
         store = SkillStore(ctx.tenant_skills_root(tenant_id))
+        streaks: dict[tuple[str, int], int] = {}
+        eval_db = ctx.tenant_runs_root(tenant_id) / "evals.db"
+        if eval_db.exists():
+            eval_store = EvalStore(eval_db)
+            try:
+                streaks = eval_store.field_failure_streaks()
+            finally:
+                eval_store.close()
+        from recertia.memory.procedural.live_mix import live_mix_view
+
         items = []
         for ver, status, stats in store.iter_loaded():
             if task_class and ver.task_class != task_class:
@@ -826,6 +836,7 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                 continue
             if active is not None and status.active != active:
                 continue
+            streak = streaks.get((ver.skill_id, ver.version), 0)
             items.append(
                 {
                     "skill_id": ver.skill_id,
@@ -834,6 +845,9 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                     "task_class": ver.task_class,
                     "lifecycle": status.lifecycle,
                     "active": status.active,
+                    "live_mix": live_mix_view(
+                        ver, status, stats, consecutive_field_failures=streak
+                    ),
                     "contribution": stats.contribution.model_dump(mode="json")
                     if stats.contribution
                     else None,
@@ -858,12 +872,24 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=404, detail="skill not found") from exc
         from recertia.memory.procedural.apply_diversity import skill_identity
+        from recertia.memory.procedural.live_mix import live_mix_view
 
+        streak = 0
+        eval_db = ctx.tenant_runs_root(tenant_id) / "evals.db"
+        if eval_db.exists():
+            eval_store = EvalStore(eval_db)
+            try:
+                streak = eval_store.field_failure_streaks().get((skill_id, version), 0)
+            finally:
+                eval_store.close()
         return {
             "version": ver.model_dump(mode="json"),
             "status": status.model_dump(mode="json"),
             "stats": stats.model_dump(mode="json"),
             "identity": skill_identity(ver, stats),
+            "live_mix": live_mix_view(
+                ver, status, stats, consecutive_field_failures=streak
+            ),
         }
 
     @app.post("/v1/skills/search")
@@ -961,7 +987,12 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             target=f"skill:{skill_id}@v{version}",
             evidence={"kind": "console_promote", "job_run_id": job.job_run_id},
         )
-        return {"job_run_id": job.job_run_id, "status": "succeeded", "lifecycle": "approved"}
+        return {
+            "job_run_id": job.job_run_id,
+            "status": "succeeded",
+            "lifecycle": "approved",
+            "active": status.active,
+        }
 
     # ----- C0 metrics -----
     @app.get("/v1/metrics/report")
@@ -1190,17 +1221,22 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                         budget=budget,
                     )
             elif name == "recertify":
-                result = runner.run(
-                    "recertify",
-                    lambda: recertify_with_revokes(
-                        store,
-                        lineage_index=lineage.index,
-                        revoke_queue=lineage.queue,
-                        max_writes=runner.quota.max_status_writes_per_tick,
-                        tool_upgraded=body.tool_upgraded,
-                    ),
-                    budget=budget,
-                )
+                eval_store = EvalStore(runs_root / "evals.db")
+                try:
+                    result = runner.run(
+                        "recertify",
+                        lambda: recertify_with_revokes(
+                            store,
+                            lineage_index=lineage.index,
+                            revoke_queue=lineage.queue,
+                            max_writes=runner.quota.max_status_writes_per_tick,
+                            tool_upgraded=body.tool_upgraded,
+                            eval_store=eval_store,
+                        ),
+                        budget=budget,
+                    )
+                finally:
+                    eval_store.close()
             elif name == "shadow":
                 result = runner.run(
                     "shadow", lambda: schedule_shadow_evaluations(store), budget=budget

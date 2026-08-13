@@ -50,3 +50,5 @@ def test_console_identity_split(tmp_path: Path) -> None:
     )
     assert identity["applications"]["floor"] == expected["applications"]["floor"]
     assert "version" in body and "stats" in body
+    assert body["live_mix"]["reason"] == "live"
+    assert body["live_mix"]["active"] is True
