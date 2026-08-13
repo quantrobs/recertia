@@ -102,16 +102,23 @@ def test_og9_openrouter_error_json_includes_gateway_code() -> None:
     payload = json.dumps(
         {"error": {"message": "Provider returned error", "code": "insufficient_quota"}}
     ).encode()
-    err = urllib.error.HTTPError(
-        "https://openrouter.ai/api/v1/chat/completions",
-        400,
-        "Bad Request",
-        hdrs=Message(),
-        fp=io.BytesIO(payload),
-    )
+
+    class _GatewayHTTPError(urllib.error.HTTPError):
+        def __init__(self) -> None:
+            super().__init__(
+                "https://openrouter.ai/api/v1/chat/completions",
+                400,
+                "Bad Request",
+                hdrs=Message(),
+                fp=io.BytesIO(payload),
+            )
+            self._payload = payload
+
+        def read(self, n: int = -1) -> bytes:  # noqa: ARG002
+            return self._payload
 
     def _raise(*_args: object, **_kwargs: object) -> None:
-        raise err
+        raise _GatewayHTTPError()
 
     with patch("urllib.request.urlopen", side_effect=_raise):
         client = OpenAIModelClient(
