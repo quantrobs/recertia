@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import typer
 
+from recertia.cli.eval_cmd import register_eval_commands
 from recertia.cli.gc import gc_cmd, register_gc_commands
 from recertia.cli.jobs import jobs_run, register_jobs_commands
 from recertia.cli.keys import keys_issue, keys_list, keys_revoke, register_keys_commands
 from recertia.cli.lift import lift_cmd, register_lift_commands
+from recertia.cli.memory_cmd import register_memory_commands
 from recertia.cli.metrics_cmd import metrics_cmd, register_metrics_commands
+from recertia.cli.policy_cmd import register_policy_commands
+from recertia.cli.probes import register_probes_commands
 from recertia.cli.runs import (
     ledger_verify,
     register_run_commands,
@@ -34,6 +38,10 @@ register_skills_commands(app)
 register_keys_commands(app)
 register_lift_commands(app)
 register_metrics_commands(app)
+register_probes_commands(app)
+register_eval_commands(app)
+register_policy_commands(app)
+register_memory_commands(app)
 register_jobs_commands(app)
 register_gc_commands(app)
 register_workspaces_commands(app)

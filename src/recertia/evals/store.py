@@ -84,6 +84,16 @@ class EvalStore:
                     ON observations(suppressed_skill_id, suppressed_skill_version, task_class, arm);
                 CREATE INDEX IF NOT EXISTS idx_obs_arm ON observations(task_class, arm, is_eval_fixture);
                 CREATE INDEX IF NOT EXISTS idx_base_class ON baselines(task_class, created_at);
+                CREATE TABLE IF NOT EXISTS probe_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_class TEXT NOT NULL,
+                    snapshot_id TEXT NOT NULL,
+                    precision_at_3 REAL NOT NULL,
+                    skill_count INTEGER NOT NULL,
+                    recorded_at TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_probe_class ON probe_snapshots(task_class, recorded_at);
                 """
             )
             existing = {
@@ -364,6 +374,56 @@ class EvalStore:
                 successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
             )
         return {key: (pair[0], pair[1]) for key, pair in out.items()}
+
+    def record_probe_snapshot(
+        self,
+        *,
+        task_class: str,
+        snapshot_id: str,
+        precision_at_3: float,
+        skill_count: int,
+        payload: dict | None = None,
+        recorded_at: datetime | None = None,
+    ) -> None:
+        """Persist a labelled probe run for ``retrieval_precision_at_3`` / decay."""
+
+        at = recorded_at or datetime.now(timezone.utc)
+        body = json.dumps(payload or {}, sort_keys=True)
+        with self._lock, self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO probe_snapshots (
+                    task_class, snapshot_id, precision_at_3, skill_count, recorded_at, payload
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (task_class, snapshot_id, precision_at_3, skill_count, at.isoformat(), body),
+            )
+
+    def list_probe_snapshots(
+        self, *, task_class: str, limit: int = 8
+    ) -> list[dict]:
+        rows = self._conn.execute(
+            """
+            SELECT snapshot_id, precision_at_3, skill_count, recorded_at, payload
+            FROM probe_snapshots
+            WHERE task_class = ?
+            ORDER BY recorded_at DESC, id DESC
+            LIMIT ?
+            """,
+            (task_class, limit),
+        ).fetchall()
+        out: list[dict] = []
+        for row in rows:
+            out.append(
+                {
+                    "snapshot_id": row["snapshot_id"],
+                    "precision_at_3": float(row["precision_at_3"]),
+                    "skill_count": int(row["skill_count"]),
+                    "recorded_at": row["recorded_at"],
+                    "payload": json.loads(row["payload"] or "{}"),
+                }
+            )
+        return out
 
     def field_failure_streaks(self) -> dict[tuple[str, int], int]:
         """Trailing treatment-arm failure counts per applied skill (non-fixture).

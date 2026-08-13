@@ -26,42 +26,20 @@ def metrics_cmd(
 ) -> None:
     """Build a MetricReport from the eval store (honest unavailable reasons when sparse)."""
 
-    from recertia.evals.canary import run_judge_canary
-    from recertia.evals.metrics import build_metric_report
+    from recertia.evals.report import assemble_metric_report
     from recertia.evals.store import EvalStore
-    from recertia.memory.procedural.active_set import recompute_active_set
-    from recertia.memory.procedural.composition import mean_composition_depth
     from recertia.memory.procedural.store import SkillStore
-    from recertia.review.autonomy_config import DEFAULT_AUTONOMY
 
     store = EvalStore(eval_db)
     try:
-        rows = store.metric_rows(task_class=task_class, snapshot_id=snapshot_id)
-        snap = snapshot_id or (rows[0]["snapshot_id"] if rows else "none")
         skill_store = SkillStore(skills_root)
-        _updated, pressure = recompute_active_set(skill_store, config=DEFAULT_AUTONOMY)
-        mean_pressure = sum(pressure.values()) / len(pressure) if pressure else 0.0
-        canary = run_judge_canary(root=canary_root, model_version=model_version)
-        ever_benched = sum(
-            1
-            for _v, status, _s in skill_store.iter_loaded()
-            if status.retirement.benched_at is not None or status.lifecycle == "benched"
-        )
-        restored = sum(
-            1
-            for _v, status, _s in skill_store.iter_loaded()
-            if status.retirement.restored_at is not None
-        )
-        report = build_metric_report(
-            rows,
-            snapshot_id=snap,
+        report = assemble_metric_report(
+            store,
+            skill_store=skill_store,
             task_class=task_class,
+            snapshot_id=snapshot_id,
             model_version=model_version,
-            active_cap_pressure=mean_pressure,
-            judge_false_pass_rate=canary.false_pass_rate,
-            mean_composition_depth=mean_composition_depth(skill_store),
-            retirement_benched=ever_benched if ever_benched else None,
-            retirement_restored=restored if ever_benched else None,
+            canary_root=canary_root,
         )
     finally:
         store.close()

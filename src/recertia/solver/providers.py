@@ -37,6 +37,19 @@ def _http_json(
             raw = resp.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:2000]
+        gateway_code = None
+        try:
+            parsed_err = json.loads(detail)
+            err = parsed_err.get("error") if isinstance(parsed_err, dict) else None
+            if isinstance(err, dict):
+                gateway_code = err.get("code")
+                message = str(err.get("message") or detail)
+                suffix = f" (code={gateway_code})" if gateway_code is not None else ""
+                raise ProviderError(f"HTTP {exc.code} from {url}: {message}{suffix}") from exc
+        except ProviderError:
+            raise
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            pass
         raise ProviderError(f"HTTP {exc.code} from {url}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise ProviderError(f"network error calling {url}: {exc}") from exc
@@ -85,17 +98,23 @@ def openai_compat_extra_body() -> dict[str, Any]:
     """Optional Chat Completions body fields (temperature, provider prefs, …)."""
 
     raw = os.environ.get("RECERTIA_OPENAI_EXTRA_BODY", "").strip()
-    if not raw:
-        return {}
-    try:
-        extra = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object") from exc
-    if not isinstance(extra, dict):
-        raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object")
-    # Never let env override the core chat turn.
-    blocked = {"model", "messages"}
-    return {str(k): v for k, v in extra.items() if str(k) not in blocked}
+    extra: dict[str, Any] = {}
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object") from exc
+        if not isinstance(parsed, dict):
+            raise ProviderError("RECERTIA_OPENAI_EXTRA_BODY must be a JSON object")
+        blocked = {"model", "messages"}
+        extra = {str(k): v for k, v in parsed.items() if str(k) not in blocked}
+    max_raw = os.environ.get("RECERTIA_OPENAI_MAX_TOKENS", "").strip()
+    if max_raw and "max_tokens" not in extra:
+        try:
+            extra["max_tokens"] = int(max_raw)
+        except ValueError as exc:
+            raise ProviderError("RECERTIA_OPENAI_MAX_TOKENS must be an integer") from exc
+    return extra
 
 
 class AnthropicModelClient(ModelClient):
@@ -241,13 +260,29 @@ def _anthropic_text(payload: dict[str, Any]) -> str:
 
 
 def _openai_text(payload: dict[str, Any]) -> str:
+    if isinstance(payload.get("error"), dict):
+        err = payload["error"]
+        code = err.get("code")
+        message = str(err.get("message") or "openai error")
+        suffix = f" (code={code})" if code is not None else ""
+        raise ProviderError(f"{message}{suffix}")
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
         raise ProviderError("openai response missing choices")
-    message = choices[0].get("message") if isinstance(choices[0], dict) else None
-    if not isinstance(message, dict):
+    choice_message = choices[0].get("message") if isinstance(choices[0], dict) else None
+    if not isinstance(choice_message, dict):
         raise ProviderError("openai response missing message")
-    text = str(message.get("content") or "").strip()
+    content = choice_message.get("content")
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                parts.append(str(part.get("text") or ""))
+            elif isinstance(part, str):
+                parts.append(part)
+        text = "".join(parts).strip()
+    else:
+        text = str(content or "").strip()
     if not text:
         raise ProviderError("openai response contained no text")
     return text

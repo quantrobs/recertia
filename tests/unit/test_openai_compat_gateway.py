@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from recertia.solver.pricing import cost_is_vendor_exact
 from recertia.solver.providers import (
     OpenAIModelClient,
     ProviderError,
@@ -75,3 +76,83 @@ def test_openai_extra_headers_must_be_object(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("RECERTIA_OPENAI_EXTRA_HEADERS", "[1,2]")
     with pytest.raises(ProviderError, match="JSON object"):
         openai_compat_headers()
+
+
+def test_og7_unknown_slug_is_not_vendor_exact() -> None:
+    assert cost_is_vendor_exact(provider="openai", model_id="moonshotai/kimi-k2") is False
+    assert cost_is_vendor_exact(provider="openai", model_id="gpt-4o") is True
+
+
+def test_og8_max_tokens_env_fills_when_extra_body_omits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RECERTIA_OPENAI_EXTRA_BODY", raising=False)
+    monkeypatch.setenv("RECERTIA_OPENAI_MAX_TOKENS", "128")
+    assert openai_compat_extra_body()["max_tokens"] == 128
+    monkeypatch.setenv("RECERTIA_OPENAI_EXTRA_BODY", '{"max_tokens":9}')
+    assert openai_compat_extra_body()["max_tokens"] == 9
+
+
+def test_og9_openrouter_error_json_includes_gateway_code() -> None:
+    import io
+    import json
+    import urllib.error
+    from email.message import Message
+
+    payload = json.dumps(
+        {"error": {"message": "Provider returned error", "code": "insufficient_quota"}}
+    ).encode()
+
+    class _GatewayHTTPError(urllib.error.HTTPError):
+        def __init__(self) -> None:
+            super().__init__(
+                "https://openrouter.ai/api/v1/chat/completions",
+                400,
+                "Bad Request",
+                hdrs=Message(),
+                fp=io.BytesIO(payload),
+            )
+            self._payload = payload
+
+        def read(self, n: int = -1) -> bytes:  # noqa: ARG002
+            return self._payload
+
+    def _raise(*_args: object, **_kwargs: object) -> None:
+        raise _GatewayHTTPError()
+
+    with patch("urllib.request.urlopen", side_effect=_raise):
+        client = OpenAIModelClient(
+            api_key="sk-or-test",
+            model_id="moonshotai/kimi-k2",
+            base_url="https://openrouter.ai/api/v1/chat/completions",
+        )
+        with pytest.raises(ProviderError, match=r"code=insufficient_quota"):
+            client.complete("hi")
+
+
+def test_og10_concatenates_list_text_content_parts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del monkeypatch
+
+    def _fake_http(url: str, *, headers: dict, body: dict, timeout_s: float) -> dict:
+        del url, headers, body, timeout_s
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": [
+                            {"type": "text", "text": "hel"},
+                            {"type": "image_url", "image_url": {"url": "x"}},
+                            {"type": "text", "text": "lo"},
+                        ]
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        }
+
+    with patch("recertia.solver.providers._http_json", side_effect=_fake_http):
+        client = OpenAIModelClient(api_key="sk-test", model_id="gpt-4o-mini")
+        response = client.complete("hi")
+    assert response.text == "hello"

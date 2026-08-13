@@ -21,7 +21,7 @@ def jobs_run(
         ...,
         help=(
             "Job name: mine | curator | practice | recertify | shadow | "
-            "parallelise | serialise | correction"
+            "parallelise | serialise | correction | hex | compress"
         ),
     ),
     skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
@@ -58,6 +58,7 @@ def jobs_run(
 
     from recertia.evals.store import EvalStore
     from recertia.jobs import JobBudget, build_job_runner
+    from recertia.jobs.enablement import attach_enablement
     from recertia.jobs.workers import (
         correction_miner_from_reviewer_edits,
         curator_active_set_and_dedup,
@@ -67,6 +68,8 @@ def jobs_run(
         mine_from_repo_hints,
         practice_from_fail_clusters,
         practice_from_one_offs,
+        propose_compress,
+        propose_hex_search,
         propose_parallelise,
         propose_serialise,
         recertify_with_revokes,
@@ -86,6 +89,11 @@ def jobs_run(
         revoke_queue=lineage.queue,
     )
     runner = build_job_runner(store, runs_root=runs_root / "jobs", policy=policy)
+    attach_enablement(
+        runner,
+        eval_db=runs_root / "evals.db",
+        skills_root=skills_root,
+    )
     budget = JobBudget(max_proposals=max_proposals)
     name = job.strip().lower()
     traj_store = TrajectoryStore(runs_root / "trajectories")
@@ -180,17 +188,22 @@ def jobs_run(
             lambda: correction_miner_from_reviewer_edits(edits),
             budget=budget,
         )
+    elif name in {"hex", "practice_hex"}:
+        result = runner.run("practice_hex", propose_hex_search, budget=budget)
+    elif name == "compress":
+        result = runner.run("compress", propose_compress, budget=budget)
     else:
         typer.echo(
             "unknown job "
             f"{job!r}; expected mine|curator|practice|recertify|shadow|"
-            "parallelise|serialise|correction",
+            "parallelise|serialise|correction|hex|compress",
             err=True,
         )
         raise typer.Exit(code=2)
 
     payload = {
         "job": result.job,
+        "skipped": result.skipped,
         "proposals": [
             {
                 "kind": p.kind,

@@ -33,45 +33,26 @@ def main() -> int:
     args = parser.parse_args()
 
     from recertia.evals.canary import run_judge_canary
-    from recertia.evals.metrics import build_metric_report
+    from recertia.evals.report import assemble_metric_report, weekly_claim
     from recertia.evals.store import EvalStore
-    from recertia.memory.procedural.active_set import recompute_active_set
-    from recertia.memory.procedural.composition import mean_composition_depth
     from recertia.memory.procedural.store import SkillStore
-    from recertia.review.autonomy_config import DEFAULT_AUTONOMY
 
     store = EvalStore(args.eval_db)
     try:
-        rows = store.metric_rows(task_class=args.task_class, snapshot_id=args.snapshot_id)
-        snap = args.snapshot_id or (rows[0]["snapshot_id"] if rows else "none")
         skill_store = SkillStore(args.skills_root)
-        _u, pressure = recompute_active_set(skill_store, config=DEFAULT_AUTONOMY)
-        mean_pressure = sum(pressure.values()) / len(pressure) if pressure else 0.0
-        canary = run_judge_canary(root=args.canary_root, model_version=args.model_version)
-        ever_benched = sum(
-            1
-            for _v, status, _s in skill_store.iter_loaded()
-            if status.retirement.benched_at is not None or status.lifecycle == "benched"
-        )
-        restored = sum(
-            1
-            for _v, status, _s in skill_store.iter_loaded()
-            if status.retirement.restored_at is not None
-        )
-        report = build_metric_report(
-            rows,
-            snapshot_id=snap,
+        report = assemble_metric_report(
+            store,
+            skill_store=skill_store,
             task_class=args.task_class,
+            snapshot_id=args.snapshot_id,
             model_version=args.model_version,
-            active_cap_pressure=mean_pressure,
-            judge_false_pass_rate=canary.false_pass_rate,
-            mean_composition_depth=mean_composition_depth(skill_store),
-            retirement_benched=ever_benched or None,
-            retirement_restored=restored if ever_benched else None,
+            canary_root=args.canary_root,
         )
     finally:
         store.close()
 
+    canary = run_judge_canary(root=args.canary_root, model_version=args.model_version)
+    claim = weekly_claim(report)
     payload = {
         "report": report.model_dump(mode="json"),
         "canary": {
@@ -80,17 +61,16 @@ def main() -> int:
             "false_pass_rate": canary.false_pass_rate,
             "model_version": canary.model_version,
         },
-        "claim": (
-            "not established"
-            if report.causal_lift is not None and report.causal_lift.status == "not_established"
-            else (report.causal_lift.status if report.causal_lift else "insufficient_data")
-        ),
+        "causal_lift_status": report.causal_lift.status if report.causal_lift else None,
+        "claim": claim,
     }
     text = json.dumps(payload, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text, encoding="utf-8")
     sys.stdout.write(text)
+    if claim == "not established":
+        sys.stderr.write("claim=not established (interval includes zero)\n")
     return 0
 
 

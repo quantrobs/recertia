@@ -1,7 +1,9 @@
 # Recertia Specifications: Remaining work
 
-Normative requirements for work that is **not yet implemented** (or is ops-gated on
-shipped code). Architecture and sequencing:
+Normative requirements for work that is **ops-gated** or still blocked on research /
+Phase-4 gates. Engineering slices RW-M2/LY, RW-HY, RW-SUR (except C5), RW-HEX gating,
+and OR1–OR2 are implemented; this file remains the source of truth for enablement
+predicates and ops closeout. Architecture and sequencing:
 [`../architecture/remaining-work.md`](../architecture/remaining-work.md). This file
 does not replace shipped contracts in
 [`promotion-api-and-observability.md`](promotion-api-and-observability.md),
@@ -227,5 +229,6 @@ structural change required is a defect in the shared layer, not a domain fork.
 | RW-9 | OG-7…OG-10 (when OR2 lands); OG-11 when OR3 lands |
 | RW-10 | After portfolio expiry, `RECERTIA_PORTFOLIO_CONTROLLER` is not read |
 
-Tests RW-1…RW-4 are the first merge slice of RW-M2. RW-6–RW-10 land with their
-milestones. Until a test exists, the ID is a specification, not a green check.
+Tests RW-1…RW-8 live in `tests/unit/test_remaining_work.py`. OG-7…OG-10 live in
+`tests/unit/test_openai_compat_gateway.py` (RW-9). RW-10 waits on portfolio expiry
+(`docs/architecture/portfolio-measurement.md`). RW-GA remains an ops gate, not CI.

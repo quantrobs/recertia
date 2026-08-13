@@ -507,6 +507,42 @@
       "default": null,
       "title": "Off Intent Activation"
     },
+    "library_yield": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Library Yield"
+    },
+    "retrieval_precision_at_3": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retrieval Precision At 3"
+    },
+    "retrieval_decay": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retrieval Decay"
+    },
     "unavailable": {
       "additionalProperties": {
         "type": "string"
