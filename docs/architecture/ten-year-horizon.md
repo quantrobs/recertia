@@ -6,6 +6,7 @@
 - **Committed plan:** remains [`one-year-roadmap.md`](one-year-roadmap.md)
 - **Narrowing instrument:** [`ten-year-horizon-narrowing.md`](ten-year-horizon-narrowing.md)
 - **Objectives (worked run):** [`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md)
+- **UX review:** [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md)
 
 This is an answer to a question, not a schedule. The one-year roadmap is still the only
 document that may create engineering gates. Nothing here moves [`assumptions.md`](../assumptions.md)
@@ -245,7 +246,7 @@ explained** next to the run — "this skill applies at T1 (auto-promote, zero-re
 gate); this Goal pack step requires T2 sign-off because it touches the retrieval
 threshold" — rather than leaving tier as something you infer from source code.
 
-### 4.4 Never show one number where three are owed
+### 4.4 Never show one opaque number
 
 Lee and See's synthesis of trust-in-automation research names the three properties an
 interface must support for a person to calibrate trust correctly: **calibration** (does the
@@ -257,16 +258,26 @@ number?) (**Trust in Automation: Designing for Appropriate Reliance**, *Human Fa
 undertrust from a system that hides its own resolution causes disuse — both are interface
 failures, not just modeling failures.
 
+These are properties of trust, not a mandate to render three widgets on every row.
+Amershi et al. (2019 **[F]**) warn that over-disclosure is itself a failure mode: a list
+of fifty skills needs a scannable primary. The house rule is **progressive disclosure**:
+the list/summary shows **one honestly calibrated primary** (contribution or lift with
+interval — or `"not established"` when the interval spans zero, never a rounded point
+estimate, star, or composite that hides the interval), and the detail view discloses
+calibration (lift trend by task class over time), resolution (does this skill's score
+separate wins from losses on held-out probes), and specificity (per task class, per
+model version — never one library-wide star rating). A single *opaque* trust score for
+a skill is exactly the interface failure mode the trust literature predicts will be
+misused. Showing three numbers on every list row is the complementary failure
+([`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F1).
+
 Recertia's own measurement discipline already refuses a single opaque confidence: skill
 trust is contribution-scored per outcome, causal lift is reported with a Wilson interval and
 an honest "not established," and evidence sits below a floor until enough certification
 trials accumulate (ADR-0006, [`measurement-integrity.md`](measurement-integrity.md)). The
 Lee & See framework is worth naming explicitly because it turns "show your evidence" from
-this project's house style into a citable requirement: **a decade-scale library browser
-must show calibration (lift trend by task class over time), resolution (does this skill's
-score actually separate wins from losses on held-out probes), and specificity (per task
-class, per model version — never one library-wide star rating)**. A single trust score for
-a skill is exactly the interface failure mode the trust literature predicts will be misused.
+this project's house style into a citable requirement for that progressive-disclosure
+shape, not for display width.
 
 ### 4.5 Chat is linear; the work underneath it is not, and shouldn't pretend to be
 
@@ -355,13 +366,17 @@ None of these papers change §3's claims. What they add is falsifiable design vo
 the interface layer specifically, and two concrete gaps worth tracking alongside `a1`/`a2`/
 `a4`:
 
-- **Autonomy tiers are enforced but not yet legible** (§4.3) — a console gap, not an
-  engineering gate, but a real one before Layer C's "other systems emit Goals" picture holds
-  together for a human reviewer.
-- **Trust display defaults to a single number wherever a dashboard is sketched informally**
-  (§4.4) — worth a house rule: any UI mock that shows one skill-quality number without
-  calibration, resolution, and specificity is a design review finding, the same way an
-  untiered mutable surface is (ADR-0005).
+- **Autonomy tiers are enforced but not yet legible at the decision** (§4.3) — a console
+  gap, not an engineering gate. A detail-page badge does not close Norman's gulf of
+  evaluation; the T2 approval interstitial is the surface that matters
+  ([`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F3).
+- **Trust display defaults to a single opaque number wherever a dashboard is sketched
+  informally** (§4.4) — worth a house rule: any UI mock that shows one skill-quality
+  number without a calibrated primary (interval or `"not established"`) is a design
+  review finding, the same way an untiered mutable surface is (ADR-0005). Requiring
+  calibration, resolution, and specificity as co-equal list figures is the complementary
+  finding. Progressive disclosure (calibrated primary + detail breakdown) is the shape
+  ([`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F1).
 
 ## 5. Horizon layers (not a second roadmap)
 
@@ -411,7 +426,9 @@ Layer C is the 2036 picture. It is not a 2027 milestone.
 - Judge bias (`a4`)
 - The option that compounding does not show up on our traffic (`a1`)
 - A single opaque trust number per skill (§4.4) — the interface failure mode the trust
-  literature predicts, not a shortcut this design should reach for
+  literature predicts, not a shortcut this design should reach for. Progressive
+  disclosure (calibrated primary + detail breakdown) is the house rule, not "always
+  render three."
 
 ## 7. What would falsify this picture
 
@@ -450,7 +467,8 @@ answer — in our domain, with our harness — to "does it get better, and can y
 A reusable auditor prompt that turns this file into a supportable position and a
 checkable objectives list is
 [`ten-year-horizon-narrowing.md`](ten-year-horizon-narrowing.md). One worked run is
-[`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md). Neither is a
+[`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md), fine-tuned against
+[`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md). None of these is a
 remaining-work milestone.
 
 If that answer is yes, 2036 looks like Goals, libraries, and programs. If that answer is

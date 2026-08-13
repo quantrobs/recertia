@@ -3,11 +3,14 @@
 - **Status:** exploration output — **not an engineering gate**, not remaining-work
 - **Date:** 2026-08-13
 - **Produced by:** one application of [`ten-year-horizon-narrowing.md`](ten-year-horizon-narrowing.md) §2
+- **UX review:** [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) (F1–F5 applied)
 - **Goal:** [`ten-year-horizon-narrowing-goal.json`](ten-year-horizon-narrowing-goal.json)
 
 Re-running the narrowing prompt may replace this file. It MUST NOT edit
 [`remaining-work.md`](remaining-work.md), [`one-year-roadmap.md`](one-year-roadmap.md),
-[`../assumptions.md`](../assumptions.md), or any ADR.
+[`../assumptions.md`](../assumptions.md), or any ADR. A re-run MUST keep the
+UX-accepted constraints in [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md):
+no "precedent as default", no "three numbers on every row", no "tier only on detail".
 
 ## 1. Supportable position
 
@@ -18,12 +21,14 @@ What will *likely* change without needing `a1` is evidence, not shape: operator-
 closeout (soak, tabletop, cost), live probe cadence, and honest intervals on `a1` / `a2` /
 `a4` — including the honest result `"not established"`. Independently of whether memory
 compounds, two interface properties the architecture already implies and the HCI record
-independently requires will likely need to be *surfaced*: autonomy-tier legibility (T0–T3
-readable next to a run or skill, not only in ADRs) and multi-dimensional trust display
-(calibration, resolution, specificity — never one skill-quality number). Goal authoring
-will remain the residual hard problem (the instruction gap); the likely mitigation is
-task-class DesiredState templates plus authoring-from-precedent as the default Pilot path,
-not a better prompt box.
+independently requires will likely need to be *surfaced*: autonomy-tier legibility at the
+decision (T0–T3 readable in the T2 approval interstitial, not only in ADRs or on a detail
+page) and calibrated trust display (one honest primary that may read `"not established"`,
+with calibration, resolution, and specificity on detail — never an opaque composite).
+Goal authoring will remain the residual hard problem (the instruction gap); the likely
+mitigation is task-class DesiredState templates plus a first-class retrieved-case path,
+not a better prompt box and not an unmeasured "precedent is the default" landing. These
+four interface properties remain untested until observed; citation is not validation.
 
 What will *likely* change *if* `a1` is `supported` on real `repo-chore` traffic is Phase 3–4
 of remaining-work as already written: curator-from-replay, composition on live traffic, a
@@ -51,9 +56,9 @@ graph grows; that HEX, auto-advance, or learned rankers enable themselves.
 | Layer A — contracts replace prompts | inherited | `OBJ-RW-GA` and console C0–C4 (shipped) |
 | Layer B — libraries replace folklore | contingent | Inherit Phase 3–4; predicate `a1.supported` |
 | Layer C — programs replace tickets | speculative | Drop (§4) |
-| T0–T3 enforced but not console-legible (§4.3, §4.8) | interface-gap | `OBJ-IF-TIER` |
-| Trust display collapses to one number (§4.4, §4.8) | interface-gap | `OBJ-IF-TRUST` |
-| Instruction gap survives (§4.2) | interface-gap | `OBJ-IF-PRECEDENT`, `OBJ-IF-TEMPLATES` |
+| T0–T3 enforced but not console-legible at the decision (§4.3, §4.8) | interface-gap | `OBJ-IF-TIER` (approval interstitial; detail-only fails) |
+| Trust display collapses to one opaque number (§4.4, §4.8) | interface-gap | `OBJ-IF-TRUST` (calibrated primary + detail breakdown) |
+| Instruction gap survives (§4.2) | interface-gap | `OBJ-IF-PRECEDENT` (first-class, not default), `OBJ-IF-TEMPLATES` (versioned library) |
 | Tower/run view flattened back to chat (§4.5) | interface-gap / freeze | `OBJ-FZ-GRAPHVIEW` |
 | `Goal.context` squeezed out as legacy (§4.6 secondary notation) | interface-gap / freeze | `OBJ-FZ-CONTEXT` |
 | Locked-Goal viscosity / amend-in-place (§4.6) | speculative-as-objective | Drop until a lock-preserving design exists (§4) |
@@ -65,7 +70,9 @@ graph grows; that HEX, auto-advance, or learned rankers enable themselves.
 ## 3. Objectives
 
 Candidate `OBJ-IF-*` rows are **not** remaining-work. Promoting any of them into
-[`remaining-work.md`](remaining-work.md) is a separate, explicit decision.
+[`remaining-work.md`](remaining-work.md) is a separate, explicit decision. Each
+`OBJ-IF-*` carries `not_established_until`: literature support is a prior, not a pass
+([`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F4).
 
 ### OBJ-RW-GA
 
@@ -157,81 +164,108 @@ Candidate `OBJ-IF-*` rows are **not** remaining-work. Promoting any of them into
 
 ### OBJ-IF-TIER
 
-- **title:** Make T0–T3 autonomy legible on the operator surface
+- **title:** Make T0–T3 autonomy legible at the decision, not only on a detail page
 - **kind:** candidate
 - **likelihood:** unconditional
 - **source:** horizon §4.3, §4.8; ADR-0005; Horvitz 1999 **[F]**; Amershi et al. 2019 **[F]**;
-  Levels of Autonomy for AI Agents, arXiv:2506.12469 **[F]**
-- **why_supportable:** T0–T3 is already enforced. The gap is that it is readable in ADRs
-  and import-boundary tests, not next to a run or skill. Mixed-initiative HCI treats
-  autonomy as a *user-legible* property orthogonal to model capability. This does not
-  depend on `a1` and is not a remaining-work row today.
+  Levels of Autonomy for AI Agents, arXiv:2506.12469 **[F]**;
+  [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F3
+- **why_supportable:** T0–T3 is already enforced (`POST /v1/proposals/{id}/decision`
+  403s T2 without reviewer). Mixed-initiative HCI treats autonomy as a *user-legible*
+  property at the act, orthogonal to model capability. Norman's gulf of evaluation is
+  at the decision, not on a page the operator must remember to open. Independent of `a1`.
 - **depends_on:** none
-- **done_when:** Run detail and skill detail (CLI `skills show` and/or Tower) display the
-  applicable tier plus one operator-language sentence of *why* (e.g. "T1: auto-promote
-  behind a zero-regression golden gate"; "T2: retrieval-threshold change, human approval
-  required"; "T3: sandbox policy, not reachable from this run"). Existing T3
-  unreachability tests still pass.
+- **not_established_until:** an operator (or fixture acting as one) completes a T2
+  approve/reject from the interstitial copy, not from a detail-page badge alone
+- **done_when:** T2 and any other human-gated action show the applicable tier plus one
+  operator-language sentence of *why* **in the approval interstitial** (e.g. "T2:
+  retrieval-threshold change, human approval required"; "T3: sandbox policy, not
+  reachable from this action"). Run detail and skill detail MAY repeat the same
+  sentence. A detail-only badge **fails** this objective. Existing T3 unreachability
+  tests still pass.
 - **must_not:** Let a run or job *change* its own tier; collapse T0–T3 into a single
-  "autonomy slider" the solver can request; grow the graph to display this.
+  "autonomy slider" the solver can request; grow the graph to display this; treat a
+  run/skill-detail badge as this objective passing.
 
 ### OBJ-IF-TRUST
 
-- **title:** Show calibration, resolution, and specificity — never one skill-quality number
+- **title:** Calibrated primary on lists; calibration, resolution, specificity on detail
 - **kind:** candidate
 - **likelihood:** unconditional
-- **source:** horizon §4.4, §4.8; Lee & See 2004 **[F]**; measurement-integrity.md
+- **source:** horizon §4.4, §4.8; Lee & See 2004 **[F]**; Amershi et al. 2019 **[F]**;
+  measurement-integrity.md; [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F1
 - **why_supportable:** Contribution scores, Wilson intervals, and `"not established"`
-  already exist in the metrics pipeline. The gap is display: a library browser that
-  leads with one scalar will be misused (overtrust) or ignored (undertrust) regardless
-  of compounding. Independent of `a1`.
+  already exist in the metrics pipeline (`GET /v1/skills` already returns
+  `contribution`). The gap is display calibration, not a missing field. Lee & See
+  constrain trust *properties*; they do not require three widgets on every row.
+  Independent of `a1`.
 - **depends_on:** none (numbers may honestly be `unavailable`)
-- **done_when:** Skill show / Tower skill panel renders at least: (1) contribution or lift
-  **with interval or `unavailable` reason**, (2) a probe-level win/loss or
-  selected-vs-suppressed split when observations exist, (3) a breakdown by task class
-  and/or model id — not a single primary "quality" / star / percentage. A fixture whose
-  interval spans zero displays `"not established"` as the lead figure, not a rounded
-  point estimate.
+- **not_established_until:** a list-view fixture whose interval spans zero leads with
+  `"not established"` (not a rounded point estimate), and a detail view of the same
+  skill discloses calibration, resolution, and specificity
+- **done_when:** Skill list / summary shows **one** honestly calibrated primary:
+  contribution or lift with interval, or `"not established"` when the interval spans
+  zero, or an `unavailable` reason — never a star, percentage, or rounded point
+  estimate as the lead. Skill show / Tower skill **detail** discloses (1) that same
+  calibrated primary, (2) a probe-level win/loss or selected-vs-suppressed split when
+  observations exist (resolution), (3) a breakdown by task class and/or model id
+  (specificity). `"not established"` is the list primary whenever the interval spans
+  zero.
 - **must_not:** Invent a composite score that hides `"not established"`; show one
-  library-wide rating; treat this as a reason to change contribution math.
+  library-wide rating; require three numbers on every list row; treat this as a reason
+  to change contribution math.
 
 ### OBJ-IF-PRECEDENT
 
-- **title:** Make retrieved-case edit the default Goal-authoring path in Pilot
+- **title:** Offer retrieved-case edit as a first-class Goal-authoring path in Pilot
 - **kind:** candidate
 - **likelihood:** unconditional
 - **source:** horizon §4.2, §4.6; Zamfirescu-Pereira et al. 2023 **[B]**; Subramonyam et
-  al. 2024 **[F]**; Cypher et al. 1993 **[F]**
+  al. 2024 **[F]**; Cypher et al. 1993 **[F]**;
+  [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F2
 - **why_supportable:** Compilation already closes capability and intentionality gaps.
-  The surviving instruction gap is authoring a DesiredState. HCI's finding is that
-  blank-page prose produces opportunistic, human-to-human instructions. Suggest/Compose
-  already exist; making *precedent-first* the default (empty form as escape hatch) is
-  the interface move, not a new node.
+  The surviving instruction gap is authoring a DesiredState. HCI supports
+  retrieval/example against a blank page; it does not license defaulting every author
+  into the nearest past Goal (anchoring). Suggest/Compose already exist; the gap is a
+  retrieve-similar-Goal path, not inventing Compose. Independent of `a1`.
 - **depends_on:** none
-- **done_when:** Pilot Compose's primary path is: retrieve similar Goals/cases → present
-  a diffable draft → human edits → preview `compile_goal` → submit. A blank Goal form
-  remains reachable as an explicit advanced/escape control, not the landing state.
-  Drafts still never lock (ADR-0003).
+- **not_established_until:** time-to-lock, criteria-rework rate, or blank-form escape
+  rate is observed on real Pilot traffic. Literature citations do not close this.
+  Default-vs-blank is not this objective passing.
+- **done_when:** Pilot Compose exposes retrieve similar Goals/cases → present a
+  diffable draft → human edits → preview `compile_goal` → submit as a reachable
+  first-class control (not buried behind Suggest-only heuristics). A blank Goal form
+  remains. When a golden task class has a reviewed template, that template is the
+  suggested start; the precedent path is for "no template matches." Drafts still
+  never lock (ADR-0003). Making precedent the landing state is **not** this
+  objective passing.
 - **must_not:** Auto-lock a suggested Goal; skip `compile_goal` preview; replace
-  DesiredState fields with a prompt box.
+  DesiredState fields with a prompt box; make retrieved-case edit the default Pilot
+  path without the `not_established_until` measurement.
 
 ### OBJ-IF-TEMPLATES
 
 - **title:** Versioned DesiredState templates per golden task class
 - **kind:** candidate
 - **likelihood:** unconditional
-- **source:** horizon §4.2; ADR-0010 "task-class templates"; product-console.md Pilot templates
-- **why_supportable:** The instruction gap is reduced by narrowing the blank page to an
-  edit of a reviewed template, the same way skills are reviewed. Console architecture
-  already mentions templates for common `repo-chore` chores; they are not a bounded,
-  linted library. Independent of `a1`.
+- **source:** horizon §4.2; ADR-0010 "task-class templates"; product-console.md Pilot templates;
+  [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) F5
+- **why_supportable:** Three hardcoded templates already ship
+  (`src/recertia/console_templates.py`: gitignore, EditorConfig, pytest.ini). The
+  instruction-gap mitigation is a *reviewed, versioned, linted* library per golden
+  task class, the same way skills are reviewed — not inventing templates. Independent
+  of `a1`.
 - **depends_on:** none
+- **not_established_until:** an operator authors a new golden-class Goal from a
+  reviewed template that is not one of the three hardcoded dict entries, and
+  `compile_goal` plus the template lint both pass
 - **done_when:** Each golden task class under `evals/golden/` has at least one reviewed
   Goal template (DesiredState + Constraint skeletons) that `compile_goal` accepts; a
   lint equivalent to `recertia skills lint` exists for templates; templates are
-  versioned artifacts (not only SPA hardcoding).
+  versioned artifacts (not only SPA / `TEMPLATES` dict hardcoding).
 - **must_not:** Treat templates as executable skills; silently mutate a locked run's
-  criteria from a template update; add judge-only templates.
+  criteria from a template update; add judge-only templates; treat the three existing
+  hardcoded templates as this objective passing.
 
 ### OBJ-FZ-GRAPHVIEW
 
@@ -316,6 +350,10 @@ when:
 
 - `a1`, `a2`, or `a4` changes status in `docs/assumptions.md`, or
 - a new **[F]** HCI paper names a third interface gap that is not already `OBJ-IF-TIER`,
-  `OBJ-IF-TRUST`, `OBJ-IF-PRECEDENT`, or `OBJ-IF-TEMPLATES`.
+  `OBJ-IF-TRUST`, `OBJ-IF-PRECEDENT`, or `OBJ-IF-TEMPLATES`, or
+- [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md) marks a finding
+  `accepted` that this file still contradicts.
 
-A re-run that wants more than six `OBJ-IF-*` ids is minting product; stop.
+A re-run that wants more than six `OBJ-IF-*` ids is minting product; stop. A re-run
+MUST NOT restore "precedent as default", "three numbers on every row", or "tier only
+on detail".

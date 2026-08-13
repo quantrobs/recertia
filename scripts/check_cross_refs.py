@@ -31,6 +31,7 @@ SPLIT_DOCS: dict[str, tuple[str, ...]] = {
         "architecture/ten-year-horizon.md",
         "architecture/ten-year-horizon-narrowing.md",
         "architecture/ten-year-horizon-objectives.md",
+        "architecture/ten-year-horizon-ux-review.md",
         "architecture/remaining-work.md",
         "architecture/incident-tabletop.md",
         "architecture/threat-model-deltas.md",

@@ -4,7 +4,8 @@
 - **Date:** 2026-08-13
 - **Inputs:** [`ten-year-horizon.md`](ten-year-horizon.md), [`one-year-roadmap.md`](one-year-roadmap.md),
   [`remaining-work.md`](remaining-work.md), [`../assumptions.md`](../assumptions.md),
-  [`../references.md`](../references.md) §10
+  [`../references.md`](../references.md) §10,
+  [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md)
 - **Output of a successful run:** [`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md)
 - **Recertia Goal:** [`ten-year-horizon-narrowing-goal.json`](ten-year-horizon-narrowing-goal.json)
 
@@ -21,7 +22,7 @@ A 10-year picture mixes five kinds of sentence that do not have the same evident
 | --- | --- | --- | --- |
 | **Architectural fact** | Already decided, on `main` | Goal is primary input (ADR-0010); T3 is unreachable | Freeze. Not an objective to "achieve" |
 | **Inherited ops / research** | Already planned; not yet evidenced | Soak weeks, probe cadence, resolve `a1` | Cite the existing `RW-*` id. Do not rewrite |
-| **Interface gap** | Architecture implies it; console does not surface it; HCI literature independently requires it | T0–T3 not visible; one-number trust | *Candidate* objective. Independent of `a1` |
+| **Interface gap** | Architecture implies it; console does not surface it; HCI literature independently requires it | T0–T3 not visible at the decision; opaque trust primary | *Candidate* objective. Independent of `a1`. UX review may rewrite `done_when` |
 | **Contingent claim** | True only if a named assumption holds | Libraries replace folklore (Layer B) | Keep as objective **with the predicate attached** |
 | **Speculative / market** | No Recertia evidence, no HCI requirement, no remaining-work id | Prompt engineering dies; programs replace tickets industry-wide | Drop. Record in "explicitly not objectives" |
 
@@ -44,26 +45,32 @@ Three further traps the filter is built to catch:
 3. **The instruction gap is the residual.** Goal compilation closes the capability and
    intentionality gaps (horizon §4.2). Writing a DesiredState that is both true and
    checkable remains hard. That is the only prompt-shaped problem that survives, and it
-   is an *authoring* problem (templates, precedent), not a prompting-skill problem.
+   is an *authoring* problem (templates, a first-class precedent path — not an unmeasured
+   default), not a prompting-skill problem.
 
 **Supportable position (the filter's conclusion, restated in the objectives file):**
 
 Recertia in the next honest slice of the future is still a Goal-compiled, retrieval-first,
 T3-bounded cyclic graph with a console control plane. What will *likely* change, without
 needing `a1`, is operational evidence (soak, probes, assumption intervals) and two
-interface properties the architecture already implies: autonomy-tier legibility and
-multi-dimensional trust display. Goal authoring will remain hard; the likely mitigation is
-task-class templates plus authoring-from-precedent, not a better chat box. What will
-*likely* change *if* `a1` is supported is Phase 3–4 of remaining-work as already written.
-What is *not* supportable: that prompts, tickets, or chat disappear as industry defaults
-by 2036.
+interface properties the architecture already implies: autonomy-tier legibility **at the
+decision** (approval interstitial, not detail-only) and calibrated trust display (one
+honest primary plus detail breakdown — not three numbers on every row). Goal authoring
+will remain hard; the likely mitigation is task-class templates plus a first-class
+retrieved-case path, not a better chat box and not an unmeasured "precedent is the
+default" landing. What will *likely* change *if* `a1` is supported is Phase 3–4 of
+remaining-work as already written. What is *not* supportable: that prompts, tickets, or
+chat disappear as industry defaults by 2036. A UX-lead review of the first worked run
+([`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md)) is an input: accepted
+findings F1–F5 MUST survive a re-run.
 
 ## 2. The prompt
 
 Copy the block below into a capable model (or into Recertia as `Goal.context`). The
 machine-checkable contract is the Goal JSON, not this prose. Re-running the prompt should
 regenerate [`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md), not edit
-remaining-work, the roadmap, or the assumptions register.
+remaining-work, the roadmap, or the assumptions register, and not reverse accepted
+findings in [`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md).
 
 ````markdown
 You are a claims auditor, not a futurist. Your job is to narrow
@@ -80,6 +87,7 @@ invent architecture, grow the graph, or open remaining-work milestones.
 - docs/references.md §1 and §10
 - docs/adr/0003, 0005, 0010, 0012, 0014
 - docs/architecture/product-console.md (what the console already is)
+- docs/architecture/ten-year-horizon-ux-review.md (accepted findings F1–F5; do not reverse)
 
 # What "supportable" and "likely" mean here
 
@@ -149,6 +157,8 @@ sentence that would mark a1/a2/a4 `supported` without real traffic.
 - **why_supportable:** 2–4 sentences. Name the evidence. If inherited, say
   "already remaining-work" and stop.
 - **depends_on:** none | a1.supported | a2.supported | a4.instrumented | other
+- **not_established_until:** (OBJ-IF-* only) an observable on operator
+  traffic, or "n/a — freeze/display rule". Citation is not validation.
 - **done_when:** a checkable state. Prefer: file/field/test/ops-log exists
   and has property P. Must be fail-able.
 - **must_not:** at least one concrete reversal (grow the graph, single
@@ -174,6 +184,14 @@ candidates, `OBJ-FZ-*` freezes.
 - The output file is `docs/architecture/ten-year-horizon-objectives.md`
   and only that file (plus this classification, which may live in the
   same file above the list).
+- Do not restore any of: "precedent as default" / "precedent-first as the
+  default Pilot path"; "three numbers on every row" / simultaneous
+  calibration+resolution+specificity as the list view; "tier only on
+  detail" / a detail-page badge as OBJ-IF-TIER passing. These are
+  accepted findings in ten-year-horizon-ux-review.md (F1–F3).
+- Do not treat the three hardcoded templates in
+  `src/recertia/console_templates.py` as OBJ-IF-TEMPLATES passing (F5).
+- Each OBJ-IF-* MUST include `not_established_until` (F4).
 
 # Output shape
 
@@ -182,8 +200,8 @@ candidates, `OBJ-FZ-*` freezes.
 3. Objectives (schema above)
 4. Explicitly not objectives (dropped speculative/contradicted claims)
 5. A one-paragraph note: what would force a re-run of this prompt
-   (a1/a2/a4 status change, or a new [F] HCI paper that names a third
-   interface gap)
+   (a1/a2/a4 status change, a new [F] HCI paper that names a third
+   interface gap, or an accepted UX finding this file still contradicts)
 
 End of prompt.
 ````
@@ -198,6 +216,8 @@ never constitutes the success contract by itself (ADR-0010).
 
 ## 4. Worked run
 
-The prompt was applied once in-tree. Result:
+The prompt was applied once in-tree, then fine-tuned against
+[`ten-year-horizon-ux-review.md`](ten-year-horizon-ux-review.md). Result:
 [`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md). Re-running it is
-allowed; editing remaining-work as a side effect of a re-run is not.
+allowed; editing remaining-work as a side effect of a re-run is not; reversing
+accepted UX findings F1–F5 is not.

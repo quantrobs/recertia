@@ -92,6 +92,7 @@ failure clusters. Details: [`docs/architecture/go-live.md`](docs/architecture/go
 | [`docs/architecture/ten-year-horizon.md`](docs/architecture/ten-year-horizon.md) | Exploration (~2036): Goals, libraries, and programs replace prompts; not a roadmap |
 | [`docs/architecture/ten-year-horizon-narrowing.md`](docs/architecture/ten-year-horizon-narrowing.md) | Auditor prompt that narrows the horizon to a supportable position |
 | [`docs/architecture/ten-year-horizon-objectives.md`](docs/architecture/ten-year-horizon-objectives.md) | Worked objectives list (not remaining-work) |
+| [`docs/architecture/ten-year-horizon-ux-review.md`](docs/architecture/ten-year-horizon-ux-review.md) | UX-lead critique of the objectives; F1–F5 applied, not a gate |
 | [`docs/architecture/remaining-work.md`](docs/architecture/remaining-work.md) | Implementation plan for what remains (RW-* milestones; engineering vs ops vs research) |
 | [`docs/specifications/remaining-work.md`](docs/specifications/remaining-work.md) | Normative remaining-work specs: MetricReport holes, probe cadence, OR1–OR3, HTTP/CLI remainder |
 | [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |

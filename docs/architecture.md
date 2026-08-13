@@ -18,6 +18,7 @@
 - [Ten-year horizon: beyond prompts (exploration, ~2036)](architecture/ten-year-horizon.md)
 - [Narrowing the horizon to a supportable position (prompt + analysis)](architecture/ten-year-horizon-narrowing.md)
 - [Horizon objectives (worked narrowing run)](architecture/ten-year-horizon-objectives.md)
+- [UX-lead review of the horizon plan](architecture/ten-year-horizon-ux-review.md)
 - [Remaining work: implementation plan](architecture/remaining-work.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Threat-model deltas (principal review §5, single-operator)](architecture/threat-model-deltas.md)
@@ -32,7 +33,9 @@ A non-normative 2036 exploration lives in the
 [ten-year horizon](architecture/ten-year-horizon.md); it does not create gates.
 A narrowing prompt and the resulting objectives list are
 [ten-year-horizon-narrowing.md](architecture/ten-year-horizon-narrowing.md) and
-[ten-year-horizon-objectives.md](architecture/ten-year-horizon-objectives.md).
+[ten-year-horizon-objectives.md](architecture/ten-year-horizon-objectives.md),
+fine-tuned against
+[ten-year-horizon-ux-review.md](architecture/ten-year-horizon-ux-review.md).
 Completed M0–M9 sequencing is archived at
 [archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md).
 The August 2026 principal review is archived at
