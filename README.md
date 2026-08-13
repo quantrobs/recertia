@@ -106,6 +106,7 @@ failure clusters. Details: [`docs/architecture/go-live.md`](docs/architecture/go
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims tracked separately from engineering acceptance gates (B7) |
 | [`docs/references.md`](docs/references.md) | Literature grounding, and the findings that contradicted an earlier draft |
 | [`research/`](research/) (Git LFS) | Scored preprint survey + score-10 extracts; see [`research/README.md`](research/README.md) |
+| [`research/loops-and-graphs-horizon.md`](research/loops-and-graphs-horizon.md) | Non-normative ~10-year note on loops vs graphs (not an ADR) |
 | [`research/score10-references/`](research/score10-references/) | Bibliographies extracted from the four score-10 papers |
 | [`docs/archive/2026-Q3/`](docs/archive/2026-Q3/) | **Historical** completed plans (M0–M9, console, OpenRouter, workspaces, refactor) and principal review |
 

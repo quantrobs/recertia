@@ -356,3 +356,13 @@ argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), 
 | **Watch What I Do: Programming by Demonstration**, Cypher et al. (eds.), MIT Press, 1993 **[F]** | Precedent for specifying desired behaviour by example rather than describing it in prose; motivates authoring-from-precedent over blank-page Goal writing |
 | **End-User Programming**, Myers & Ko, invited research overview, 2006 **[F]** | Survey of end-user programming as a field distinct from professional programming; frames Goal authoring as an end-user-programming problem |
 | **Malleable Software: Restoring User Agency in a World of Locked-Down Apps**, Litt, Horowitz, van Hardenberg & Matthews, Ink & Switch, 2025 **[F, practitioner]** | Names the "editable, not appliance" property the diffable, versioned memory plane (ADR-0002) already has, and the gentle-slope pattern a library browser still owes |
+
+## 11. Loops-and-graphs horizon note (not a design change)
+
+[`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md) is a
+dated research essay (August 2026) on **runtime topology**, complementary to
+[`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md) (Goals / interface).
+Inner / outer / meta loops stay distinct; “graphs supersede loops” remains the overlay
+already ignored in §1.7; the scarce 10-year good is a falsifiable loop, not a larger graph.
+It cites primaries already in this file. It is **not** an ADR, not remaining work, and it
+does not update `a1`–`a4`. No topology, engine, HEX, or C5 change follows from it.
