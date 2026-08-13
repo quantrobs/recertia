@@ -26,6 +26,12 @@ def main() -> int:
         action="store_true",
         help="Only check DSN / dialect without applying SQL.",
     )
+    parser.add_argument(
+        "--recertia-root",
+        type=Path,
+        default=Path(".recertia"),
+        help="Optional .recertia/ snapshot to note alongside the Postgres soak.",
+    )
     args = parser.parse_args()
 
     dsn = os.environ.get("DATABASE_URL", "")
@@ -53,6 +59,12 @@ def main() -> int:
             cur.execute("SELECT 1")
             assert cur.fetchone()[0] == 1
         print("soak=ok")
+        recertia_root = Path(args.recertia_root)
+        if recertia_root.is_dir() and any(recertia_root.iterdir()):
+            files = sum(1 for p in recertia_root.rglob("*") if p.is_file())
+            print(f"recertia_snapshot=present files={files} root={recertia_root}")
+        else:
+            print("recertia_snapshot=absent (CI empty DB is allowed; ops soak should pass a snapshot)")
     finally:
         backend.close()
     return 0

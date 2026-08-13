@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import typer
 
+from recertia.cli.backup_cmd import register_backup_commands
+from recertia.cli.canary_cmd import register_canary_commands
 from recertia.cli.cases_cmd import register_cases_commands
 from recertia.cli.eval_cmd import register_eval_commands
 from recertia.cli.facts_cmd import register_facts_commands
@@ -34,6 +36,7 @@ from recertia.cli.skills import (
     skills_promote,
     skills_search,
 )
+from recertia.cli.tabletop_cmd import register_tabletop_commands
 from recertia.cli.workspaces import register_workspaces_commands
 
 app = typer.Typer(help="Recertia: a self-improving agent system.")
@@ -53,6 +56,9 @@ register_proposals_commands(app)
 register_jobs_commands(app)
 register_gc_commands(app)
 register_workspaces_commands(app)
+register_backup_commands(app)
+register_tabletop_commands(app)
+register_canary_commands(app)
 
 __all__ = [
     "app",

@@ -32,8 +32,8 @@ time.
 
 | ID | Kind | Item | Status |
 | --- | --- | --- | --- |
-| **RW-GA** | ops | Four consecutive soak weeks; tabletop log; baseline traffic metrics | open |
-| **RW-M2** | engineering + ops | Scheduled probe + golden + ablation cadence; fill `MetricReport` holes | open |
+| **RW-GA** | ops | Four consecutive soak weeks; tabletop log; baseline traffic metrics | open (backup/tabletop/canary tooling shipped) |
+| **RW-M2** | engineering + ops | Scheduled probe + golden + ablation cadence; fill `MetricReport` holes | engineering shipped; live eval DB is ops |
 | **RW-A** | research | Resolve `a1`, `a2`; instrument `a4` on live verifier versions | harness ready |
 | **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
 | **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | gated (JobRunner no-op without predicates) |
@@ -42,7 +42,7 @@ time.
 | **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | shipped (C5 UI still gated) |
 | **RW-GP3** | deferred | Goal-pack auto-advance, DAG, `copy_forward` | explicit non-goal |
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
-| **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | open |
+| **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | single-operator §5 deltas accepted-with-owner; tenant signature open |
 | **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
 
 Deliberately out of scope for this year (unchanged from
@@ -107,9 +107,11 @@ container backend, and truthful spend. Engineering P0-1…P0-5 already landed; t
 milestone is the **ops gate** in [one-year-roadmap.md](one-year-roadmap.md) §2.
 
 Shipped (do not rebuild): cost table + `ModelResponse.cost_usd`; command policy +
-untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins; 
+untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins;
 `docker-compose.soak.yml` + `.github/workflows/weekly-ops.yml`;
-[incident-tabletop.md](incident-tabletop.md).
+[incident-tabletop.md](incident-tabletop.md); `recertia backup` / `recertia restore`;
+`recertia tabletop`; `recertia canary` (synthetic + optional `--live`);
+`scripts/backup_recertia.py`.
 
 ### Remaining work
 
@@ -117,10 +119,10 @@ untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins;
 | --- | --- | --- |
 | Soak log | ops | Four consecutive Monday `weekly-ops` runs (or equivalent self-hosted cadence) with artifacts retained. Empty-eval-DB JSON is **not** a soak week. |
 | Live traffic | ops | Operator runs against a real repo with `RECERTIA_EXECUTION_BACKEND=container` and a non-stub model. Record `reuse_rate`, `first_attempt_success`, `attempts_to_success`, `cost_per_solved_task`. |
-| Tabletop | ops | Execute [incident-tabletop.md](incident-tabletop.md); store the log (date, run id, restore source, TTR, follow-up) under the operator's runbook — not necessarily this git repo. |
-| Postgres soak | ops | `scripts/soak_postgres.py` against compose Postgres **with** a snapshot of `.recertia/` if one exists. CI already migrates an empty DB. |
-| Backup | ops | Nightly tar/volume of `.recertia/`; RPO ≤ 24h as in [go-live.md](go-live.md). |
-| Verifier split | ops | Distinct `RECERTIA_VERIFIER_MODEL_ID` (and credential if possible) on the soak host. |
+| Tabletop log | ops | Run `recertia tabletop <run_id> --restore-from <backup.tar.gz>` and keep the JSON (date, run id, restore source, TTR, follow-up). Tooling is shipped; the filled log is ops. |
+| Postgres soak | ops | `scripts/soak_postgres.py --recertia-root .recertia` against compose Postgres **with** a snapshot if one exists. CI already migrates an empty DB and reports `recertia_snapshot=absent`. |
+| Backup cron | ops | Nightly `python3 scripts/backup_recertia.py` (or volume snapshot); target RPO ≤ 24h. |
+| Verifier split | ops | Distinct `RECERTIA_VERIFIER_MODEL_ID` on the soak host; `recertia canary --live` when that env is set. |
 
 **Done when (ops gate, not CI):** four consecutive soak weeks green; tabletop log
 exists; baseline metrics exist as numbers-or-unavailable on real traffic; zero open P0
@@ -137,29 +139,17 @@ an empty checkout, and every §11 / §23 metric that is already on `MetricReport
 either a number or an honest `unavailable` reason.
 
 Shipped: `recertia metrics`, `scripts/weekly_metrics_report.py`, judge canary
-fixtures, `curation_gap` / `practice_conversion` / `retirement_reversal_rate` /
-`active_cap_pressure` / `judge_false_pass_rate` / `mean_composition_depth` fields.
+fixtures, `recertia probes run`, `recertia canary` / `--live`, weekly-ops golden
+suite + synthetic canary, `curation_gap` / `practice_conversion` /
+`retirement_reversal_rate` / `active_cap_pressure` / `judge_false_pass_rate` /
+`mean_composition_depth` / yield / decay fields.
 
 ### Remaining engineering
 
-1. **Probe runner.** A CLI (or `recertia metrics --probes`) that loads
-   [`evals/probes/repo-chore.json`](../../evals/probes/repo-chore.json), runs retrieve
-   against the live library snapshot, and records `retrieval_precision_at_3` per probe
-   plus the mean. Persist observations in the eval store so weeks are comparable.
-2. **Golden + ablation cadence.** Weekly job (workflow or operator cron) that runs the
-   `repo-chore` golden suite with the governed `ablation_rate` control arm and appends
-   `EvalObservation` rows. The current `weekly-ops` job must stop treating
-   `|| true` on a missing DB as success when `RECERTIA_EVAL_DB` / soak secrets exist.
-3. **`library_yield` and `retrieval_decay`.** Specified in
-   [`promotion-api-and-observability.md`](../specifications/promotion-api-and-observability.md)
-   §11 and
-   [`evaluation-improvement-and-governance.md`](../specifications/evaluation-improvement-and-governance.md)
-   §23, **absent from** `contracts.eval.MetricReport` and `build_metric_report`. Add
-   the fields, compute them, put `unavailable` reasons when the window has no
-   applications or fewer than two probe snapshots. See spec RW-M2-* tests.
-4. **Canary on the real verifier.** Keep the synthetic planted-failure CI. Add an ops
-   path that scores the same fixtures with the configured verifier model and attributes
-   `judge_false_pass_rate` to `provider × model_version`.
+Engineering is shipped. Remaining is **ops**: weekly report against live
+eval rows; `causal_lift` prints `"not established"` whenever the Wilson interval
+spans zero; live verifier canary rates attributed to `provider × model_version`
+without updating `a4` from CI.
 
 **Done when (engineering):** CI synthetic observations produce `library_yield` and
 `retrieval_decay` (or `unavailable`); probe runner fails CI if labelled precision
@@ -255,7 +245,9 @@ endpoint writes the same `EvalObservation` rows as `recertia lift`; `/v1`
 Do not start C5 UI until [production-readiness.md](production-readiness.md) go/defer
 criteria hold. Remaining:
 
-1. Threat-model re-review of principal-review §5 deltas — **open**.
+1. Threat-model re-review of principal-review §5 deltas — **accepted-with-owner** for
+   single-operator ([threat-model-deltas.md](threat-model-deltas.md)); second-party
+   signature still required before tenant GA.
 2. NIST AI RMF Govern/Map — **open**, tenant-only.
 3. Console C5: `GET /v1/me` multi-tenant switcher; cross-tenant leakage tests
    (planted-secret e2e already exists).

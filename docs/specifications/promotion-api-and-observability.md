@@ -110,6 +110,10 @@ recertia eval run --task-class repo-chore
 recertia policy
 recertia policy propose retrieval.min_score=0.60 --eval-compare "note"
 recertia memory query "dependency bump"
+recertia backup [--root .recertia] [--output backups/recertia.tar.gz]
+recertia restore backups/recertia.tar.gz --dest .recertia-restore
+recertia tabletop <run_id> [--restore-from backups/recertia.tar.gz]
+recertia canary [--live]
 recertia skills list [--task-class repo-chore] [--lifecycle candidate]
 recertia skills show bump-python-dep@3
 recertia review queue
