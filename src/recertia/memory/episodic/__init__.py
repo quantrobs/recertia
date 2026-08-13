@@ -220,6 +220,14 @@ class EpisodicStore:
     def cases_for_run(self, run_id: str) -> list[CaseRecord]:
         return [self.get(r["hash"]) for r in self.list_index() if r["run_id"] == run_id]
 
+    def get_by_case_id(self, case_id: str) -> CaseRecord | None:
+        """Look up a case by ``case_id`` (index scan; newest match wins)."""
+
+        for row in reversed(self.list_index()):
+            if row.get("case_id") == case_id:
+                return self.get(row["hash"])
+        return None
+
     def approach_still_applies(self, dead_end: DeadEnd, *, current_approach: str) -> bool:
         """Whether ``evolve`` should suppress ``current_approach`` given this dead end."""
 

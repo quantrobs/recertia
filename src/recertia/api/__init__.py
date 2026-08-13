@@ -20,6 +20,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, model_validator
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from contracts.budget import Budget
 from contracts.common import Arm
@@ -28,10 +29,11 @@ from contracts.goal import Goal
 from contracts.run import Task
 from recertia.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
 from recertia.api.console_routes import ConsoleContext, register_console_routes
-from recertia.api.errors import V1HTTPError, v1_error
+from recertia.api.errors import V1HTTPError, envelope_http_exception, v1_error
 from recertia.api.quotas import QuotaExceeded, QuotaStore
 from recertia.api.remaining_routes import register_remaining_routes
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
+from recertia.config import ModelConfig
 from recertia.graph.engine import GraphOrchestrator
 from recertia.ids import InvalidIdError, validate_run_id
 from recertia.paths import HostRootError, looks_absolute, resolve_under_host_root
@@ -236,6 +238,26 @@ def _load_persisted_workdir(
     return stored
 
 
+def _model_config_for_run(model: str | None) -> ModelConfig | None:
+    """Apply a console-selected slug after the server allowlist (OG-11). Omitted → env."""
+
+    if model is None or not str(model).strip():
+        return None
+    from recertia.solver.model_allowlist import (
+        ModelAllowlistError,
+        config_for_allowed_model,
+        ensure_model_allowed,
+    )
+
+    try:
+        ensure_model_allowed(model)
+        return config_for_allowed_model(model)
+    except ModelAllowlistError as exc:
+        raise V1HTTPError(400, code=exc.code, message=str(exc)) from exc
+    except ValueError as exc:
+        raise V1HTTPError(400, code="invalid_model", message=str(exc)) from exc
+
+
 class RunCreate(BaseModel):
     goal: Goal | None = None
     request: str | None = None
@@ -248,6 +270,7 @@ class RunCreate(BaseModel):
     run_id: str | None = None
     arm: Arm = "treatment"
     mode: str = "sync"  # sync | async (console C2)
+    model: str | None = None  # console-selected provider:slug; omitted → process env
 
     @model_validator(mode="after")
     def _require_goal_or_request(self) -> "RunCreate":
@@ -323,6 +346,10 @@ def create_app(
     async def _v1_http_error(_request: Any, exc: V1HTTPError) -> Any:
         return exc.response()
 
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception(request: Any, exc: StarletteHTTPException) -> Any:
+        return envelope_http_exception(request, exc)
+
     console_dir = Path(__file__).resolve().parents[3] / "console" / "static"
     if console_dir.is_dir():
         app.mount("/console/assets", StaticFiles(directory=console_dir), name="console-assets")
@@ -350,6 +377,8 @@ def create_app(
                 status_code=403,
                 detail="script requires the 'exec' scope (or admin)",
             )
+
+        model_config = _model_config_for_run(body.model)
 
         run_id = _validate_run_id(body.run_id or f"run-{uuid4().hex[:12]}")
         run_key = (principal.tenant_id, run_id)
@@ -419,6 +448,7 @@ def create_app(
                     facts_root=facts_root,
                     runs_root=root / "runs" / principal.tenant_id,
                     index_path=root / "runs" / principal.tenant_id / "skill_index.db",
+                    model_config=model_config,
                 )
             )
             from fastapi.responses import JSONResponse
@@ -474,6 +504,7 @@ def create_app(
             facts_root=facts_root,
             index_path=root / "runs" / principal.tenant_id / "skill_index.db",
             approve_default_tools=approve_tools,
+            model_config=model_config,
         )
         cost_usd = 0.0
         succeeded = False

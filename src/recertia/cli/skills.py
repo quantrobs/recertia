@@ -144,3 +144,69 @@ def skills_promote(
     typer.echo(f"live_mix={live_mix_reason(ver, status, stats)}")
     if status.certification.golden_set_ref:
         typer.echo(f"golden_set_ref={status.certification.golden_set_ref}")
+
+
+@skills_app.command("list")
+def skills_list(
+    skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
+    task_class: Optional[str] = typer.Option(None, "--task-class"),
+    lifecycle: Optional[str] = typer.Option(None, "--lifecycle"),
+) -> None:
+    """List skill versions, optionally filtered by task class and lifecycle."""
+
+    from recertia.memory.procedural.store import SkillStore
+
+    store = SkillStore(skills_root)
+    for ver, status, _stats in store.iter_loaded():
+        if task_class and ver.task_class != task_class:
+            continue
+        if lifecycle and status.lifecycle != lifecycle:
+            continue
+        typer.echo(
+            f"{ver.skill_id}@{ver.version} lifecycle={status.lifecycle} "
+            f"task_class={ver.task_class} active={status.active}"
+        )
+
+
+def _parse_skill_ref(ref: str) -> tuple[str, int]:
+    if "@" not in ref:
+        raise typer.BadParameter("expected skill_id@version (example: bump-python-dep@3)")
+    skill_id, _, raw_ver = ref.rpartition("@")
+    raw_ver = raw_ver.lstrip("vV")
+    try:
+        version = int(raw_ver)
+    except ValueError as exc:
+        raise typer.BadParameter("version must be an integer") from exc
+    if not skill_id or version < 1:
+        raise typer.BadParameter("expected skill_id@version with version >= 1")
+    return skill_id, version
+
+
+@skills_app.command("show")
+def skills_show(
+    ref: str = typer.Argument(..., help="skill_id@version, e.g. bump-python-dep@3"),
+    skills_root: Path = typer.Option(Path("skills"), "--skills-root"),
+) -> None:
+    """Print one skill version, status, and stats as JSON."""
+
+    from recertia.memory.procedural.store import SkillStore
+
+    skill_id, version = _parse_skill_ref(ref)
+    store = SkillStore(skills_root)
+    try:
+        ver = store.get_version(skill_id, version)
+        status = store.get_status(skill_id, version)
+        stats = store.get_stats(skill_id, version)
+    except FileNotFoundError as exc:
+        typer.echo(f"skill not found: {skill_id}@{version}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        json.dumps(
+            {
+                "version": ver.model_dump(mode="json"),
+                "status": status.model_dump(mode="json"),
+                "stats": stats.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )

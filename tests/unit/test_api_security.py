@@ -13,6 +13,7 @@ from recertia.api import create_app
 from recertia.api.auth import ApiKeyStore
 from recertia.solver.container import ensure_api_execution_ready
 from recertia.solver.sandbox import SandboxError
+from tests.support.http import error_text
 from tests.support.platform import skip_posix_mode_bits
 
 
@@ -42,14 +43,14 @@ def test_runs_key_cannot_promote_or_trigger_jobs(
         headers={"X-API-Key": runs_only.secret},
     )
     assert denied_promote.status_code == 403
-    assert "promote" in denied_promote.json()["detail"]
+    assert "promote" in error_text(denied_promote)
     denied_job = client.post(
         "/v1/jobs/practice/run",
         headers={"X-API-Key": runs_only.secret},
         json={"dry_run": True},
     )
     assert denied_job.status_code == 403
-    assert "jobs" in denied_job.json()["detail"]
+    assert "jobs" in error_text(denied_job)
 
 
 def test_dev_login_disabled_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,7 +79,7 @@ def test_script_requires_exec_scope(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         headers={"X-API-Key": runs_only.secret},
     )
     assert denied.status_code == 403
-    assert "exec" in denied.json()["detail"]
+    assert "exec" in error_text(denied)
 
 
 def test_blob_upload_rejects_oversized_payload(

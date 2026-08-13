@@ -10,6 +10,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
 from recertia.api import create_app
+from tests.support.http import error_text
 
 
 def _proven_output_criterion() -> dict:
@@ -97,7 +98,7 @@ def test_create_run_rejects_absolute_and_escaped_workdir(tmp_path: Path) -> None
         headers=headers,
     )
     assert absolute.status_code == 400
-    assert "absolute" in absolute.json()["detail"].lower()
+    assert "absolute" in error_text(absolute).lower()
 
     escaped = client.post(
         "/v1/runs",
@@ -110,7 +111,7 @@ def test_create_run_rejects_absolute_and_escaped_workdir(tmp_path: Path) -> None
         headers=headers,
     )
     assert escaped.status_code == 400
-    assert "escape" in escaped.json()["detail"].lower()
+    assert "escape" in error_text(escaped).lower()
 
 
 def test_relative_workdir_persists_for_resume(tmp_path: Path) -> None:
