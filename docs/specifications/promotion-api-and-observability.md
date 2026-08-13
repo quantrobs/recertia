@@ -41,7 +41,7 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness |
-| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync; optional `mode=async`). Body: `request` or `goal`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Quota exhaustion returns the error envelope (`budget_exhausted` / `worker_busy`). |
+| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync; optional `mode=async`). Body: `request` or `goal`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`, `model` (console slug; allowlisted server-side). Quota exhaustion and other `/v1` `HTTPException`s return the error envelope. |
 | `GET` | `/v1/runs` | List/filter runs (console C0) |
 | `GET` | `/v1/runs/{run_id}` | Status / terminal / route log (memory + checkpoint fallback) |
 | `POST` | `/v1/runs/{run_id}/resume` | Resume from last checkpoint |
@@ -59,9 +59,10 @@ Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `b
 | `GET` | `/v1/reviews` · `POST` `/v1/reviews/{decision_id}` | Alias of pending proposals until distill-review volume splits |
 | `GET` | `/v1/jobs` · `POST` `/v1/jobs/{job}/run` | Improvement-plane job status and manual trigger (§20). HEX/compress remain gated (RW-6). |
 | `POST` | `/v1/evals/runs` | Golden set against a library snapshot (eval firewall; no candidate writes) |
-| `GET` | `/v1/facts` · `/v1/cases` · `/v1/affordances` | Tenant-scoped non-procedural memory reads |
+| `GET` | `/v1/facts` · `/v1/cases` · `/v1/cases/{case_id}` · `/v1/affordances` | Tenant-scoped non-procedural memory reads |
 | `POST` | `/v1/memory/query` | Federated retrieve debug across planes; does not start a run |
 | `GET` | `/v1/policy` · `POST` `/v1/policy/proposals` | Read Policy (no secrets); T2 proposal only — does not apply |
+| `GET` | `/v1/models` | Server-side console model allowlist (OG-11). Not shipped in `console/static/`. |
 | `GET` | `/v1/ledger/verify` | Verify the integrity chain (§21) |
 | `GET` | `/v1/workspaces` · `POST`/`PATCH`/`DELETE` | Registered workspaces (console) |
 | `GET` | `/v1/me` · `POST` `/v1/auth/*` | Console session (dev login / OIDC). C5 tenant-switcher **UI** is not shipped. |
@@ -76,9 +77,8 @@ Console-oriented behaviour is specified normatively in [`product-console.md`](pr
 | Method | Path | Purpose |
 | --- | --- | --- |
 | C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
-| OG-11 | console model slug allowlist | Optional OR3: unknown slug on `POST /v1/runs` → 400; allowlist not in `console/static/` |
 
-Error envelope (used on budget/in-flight `POST /v1/runs` and new remaining-work routes; FastAPI `{detail: ...}` MAY remain on `/health` and 422):
+Error envelope (used on `/v1/*` `HTTPException` including budget/in-flight `POST /v1/runs`; FastAPI `{detail: ...}` MAY remain on `/health` and 422):
 
 ```json
 { "error": { "code": "budget_exhausted", "message": "...", "run_id": "01JD...", "retryable": false } }
@@ -108,21 +108,12 @@ recertia metrics --task-class repo-chore
 recertia probes run --probes evals/probes/repo-chore.json
 recertia eval run --task-class repo-chore
 recertia policy
+recertia policy propose retrieval.min_score=0.60 --eval-compare "note"
 recertia memory query "dependency bump"
 recertia backup [--root .recertia] [--output backups/recertia.tar.gz]
 recertia restore backups/recertia.tar.gz --dest .recertia-restore
 recertia tabletop <run_id> [--restore-from backups/recertia.tar.gz]
 recertia canary [--live]
-```
-
-Policy is `policy/default.json` (`RECERTIA_POLICY_PATH`). `practice` without `--one-off`
-prefers eligible failure clusters. `recertify` drains the lineage-revoke queue.
-`metrics` preserves `unavailable` holes (PC-5). HEX/compress refuse without numeric
-`practice_conversion` even if policy flags are true.
-
-### Aspirational (not implemented)
-
-```bash
 recertia skills list [--task-class repo-chore] [--lifecycle candidate]
 recertia skills show bump-python-dep@3
 recertia review queue
@@ -130,8 +121,18 @@ recertia review approve <decision_id> --note "..."
 recertia facts list --scope project
 recertia cases show <case_id>
 recertia proposals queue
-recertia policy propose retrieval.min_score=0.60 --eval-compare
 ```
+
+Policy is `policy/default.json` (`RECERTIA_POLICY_PATH`). `practice` without `--one-off`
+prefers eligible failure clusters. `recertify` drains the lineage-revoke queue.
+`metrics` preserves `unavailable` holes (PC-5). HEX/compress refuse without numeric
+`practice_conversion` even if policy flags are true. `policy propose` files a T2
+proposal and MUST NOT write `policy/default.json`. `review approve` MUST NOT write
+`lifecycle=approved`.
+
+### Aspirational (not implemented)
+
+None. C5 is console UI, not CLI.
 
 ## 11. Metrics definitions
 

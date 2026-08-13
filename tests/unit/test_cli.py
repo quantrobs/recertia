@@ -147,3 +147,190 @@ def test_skills_promote_via_cli(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "lifecycle=approved" in result.output
     assert store.get_status("add-gitignore-entry", 1).lifecycle == "approved"
+
+
+def test_policy_show_without_subcommand() -> None:
+    result = runner.invoke(app, ["policy"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert "version" in payload
+    assert "improvement" in payload
+
+
+def test_skills_list_and_show(tmp_path: Path) -> None:
+    from recertia.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft
+    from recertia.memory.procedural.store import SkillStore
+
+    version = next(s for s in SEED_SKILLS if s.skill_id == "add-gitignore-entry")
+    store = SkillStore(tmp_path / "skills")
+    store.write_version(version)
+    store.write_status(seed_status_draft(version))
+    store.write_stats(seed_stats(version))
+
+    listed = runner.invoke(
+        app, ["skills", "list", "--skills-root", str(tmp_path / "skills"), "--lifecycle", "draft"]
+    )
+    assert listed.exit_code == 0, listed.output
+    assert "add-gitignore-entry@1" in listed.output
+    assert "lifecycle=draft" in listed.output
+
+    shown = runner.invoke(
+        app,
+        [
+            "skills",
+            "show",
+            "add-gitignore-entry@1",
+            "--skills-root",
+            str(tmp_path / "skills"),
+        ],
+    )
+    assert shown.exit_code == 0, shown.output
+    payload = json.loads(shown.output)
+    assert payload["version"]["skill_id"] == "add-gitignore-entry"
+    assert payload["status"]["lifecycle"] == "draft"
+
+
+def test_policy_propose_does_not_apply(tmp_path: Path) -> None:
+    from recertia.proposals.store import ProposalStore
+
+    repo_policy = Path(__file__).resolve().parents[2] / "policy" / "default.json"
+    before = repo_policy.read_bytes()
+    runs_root = tmp_path / "root"
+    result = runner.invoke(
+        app,
+        [
+            "policy",
+            "propose",
+            "retrieval.min_score=0.60",
+            "--eval-compare",
+            "synthetic compare",
+            "--runs-root",
+            str(runs_root),
+            "--tenant",
+            "default",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    body = json.loads(result.output)
+    assert body["kind"] == "policy"
+    assert body["payload"]["applied"] is False
+    assert body["payload"]["policy_diff"]["retrieval"]["min_score"] == 0.6
+    store = ProposalStore(runs_root / "proposals.sqlite")
+    pending = store.list(tenant_id="default", status="pending")
+    assert any(p.proposal_id == body["proposal_id"] for p in pending)
+    store.close()
+    assert repo_policy.read_bytes() == before
+
+
+def test_review_approve_does_not_write_lifecycle_approved(tmp_path: Path) -> None:
+    from recertia.memory.procedural.seeds import SEED_SKILLS, seed_stats, seed_status_draft
+    from recertia.memory.procedural.store import SkillStore
+    from recertia.proposals.store import ProposalRecord, ProposalStore
+
+    version = next(s for s in SEED_SKILLS if s.skill_id == "add-gitignore-entry")
+    skills = SkillStore(tmp_path / "skills")
+    skills.write_version(version)
+    skills.write_status(seed_status_draft(version))
+    skills.write_stats(seed_stats(version))
+
+    runs_root = tmp_path / "root"
+    store = ProposalStore(runs_root / "proposals.sqlite")
+    rec = store.add(
+        ProposalRecord(
+            proposal_id="dec1",
+            kind="skill",
+            skill_id="add-gitignore-entry",
+            version=1,
+            rationale="review",
+            tenant_id="default",
+        )
+    )
+    store.close()
+
+    queued = runner.invoke(
+        app, ["review", "queue", "--runs-root", str(runs_root), "--tenant", "default"]
+    )
+    assert queued.exit_code == 0, queued.output
+    assert "dec1" in queued.output
+
+    approved = runner.invoke(
+        app,
+        [
+            "review",
+            "approve",
+            rec.proposal_id,
+            "--note",
+            "looks good",
+            "--runs-root",
+            str(runs_root),
+            "--tenant",
+            "default",
+        ],
+    )
+    assert approved.exit_code == 0, approved.output
+    assert json.loads(approved.output)["status"] == "approved"
+    assert skills.get_status("add-gitignore-entry", 1).lifecycle == "draft"
+
+
+def test_facts_list_cases_show_proposals_queue(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    from contracts.fact import Fact, FactProvenance
+    from recertia.memory.episodic import CaseRecord, EpisodicStore
+    from recertia.memory.semantic import FactStore
+    from recertia.proposals.store import ProposalRecord, ProposalStore
+
+    runs_root = tmp_path / "root"
+    tenant = "default"
+    facts = FactStore(runs_root / "runs" / tenant / "facts")
+    facts.write(
+        Fact(
+            fact_id="uses-python",
+            scope="project",
+            slug="uses-python",
+            assertion="This repository uses Python 3.12",
+            provenance=FactProvenance(asserting_human="test"),
+            authored_at=datetime.now(timezone.utc),
+        )
+    )
+    listed = runner.invoke(
+        app,
+        ["facts", "list", "--scope", "project", "--runs-root", str(runs_root), "--tenant", tenant],
+    )
+    assert listed.exit_code == 0, listed.output
+    assert "uses-python" in listed.output
+
+    cases = EpisodicStore(runs_root / "runs" / tenant / "episodic")
+    cases.write(
+        CaseRecord(
+            case_id="case-demo",
+            run_id="run-1",
+            attempt_no=1,
+            outcome="solved",
+            request_excerpt="hello world",
+        )
+    )
+    shown = runner.invoke(
+        app,
+        ["cases", "show", "case-demo", "--runs-root", str(runs_root), "--tenant", tenant],
+    )
+    assert shown.exit_code == 0, shown.output
+    assert json.loads(shown.output)["case_id"] == "case-demo"
+
+    store = ProposalStore(runs_root / "proposals.sqlite")
+    store.add(
+        ProposalRecord(
+            proposal_id="p1",
+            kind="policy",
+            skill_id="policy",
+            version=0,
+            rationale="t2",
+            tenant_id=tenant,
+        )
+    )
+    store.close()
+    queue = runner.invoke(
+        app, ["proposals", "queue", "--runs-root", str(runs_root), "--tenant", tenant]
+    )
+    assert queue.exit_code == 0, queue.output
+    assert "p1" in queue.output

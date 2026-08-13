@@ -2,7 +2,7 @@
 
 Normative requirements for work that is **ops-gated** or still blocked on research /
 Phase-4 gates. Engineering slices RW-M2/LY, RW-HY, RW-SUR (except C5), RW-HEX gating,
-and OR1–OR2 are implemented; this file remains the source of truth for enablement
+and OR1–OR3 are implemented; this file remains the source of truth for enablement
 predicates and ops closeout. Architecture and sequencing:
 [`../architecture/remaining-work.md`](../architecture/remaining-work.md). This file
 does not replace shipped contracts in
@@ -128,7 +128,7 @@ Extends [`openai-compat-gateways.md`](openai-compat-gateways.md).
 | OG-8 | When `RECERTIA_OPENAI_MAX_TOKENS` is set and EXTRA_BODY does not include `max_tokens`, the client MUST send that integer |
 | OG-9 | OpenRouter-style `{error: {message, code}}` bodies MUST raise `ProviderError` whose message includes the gateway `code` when present |
 | OG-10 | If `choices[0].message.content` is a list of `{type: text, text}` parts, the client MUST concatenate `text` fields; other part types MAY be ignored |
-| OG-11 (OR3, optional) | `POST /v1/runs` with a console-selected model slug not on the server allowlist MUST return 400; the allowlist MUST NOT be shipped in `console/static/` |
+| OG-11 (OR3) | `POST /v1/runs` with a console-selected model slug not on the server allowlist MUST return 400; the allowlist MUST NOT be shipped in `console/static/` |
 
 OR0 tests OG-1…OG-6 remain required.
 
@@ -136,7 +136,7 @@ OR0 tests OG-1…OG-6 remain required.
 
 ### 6.1 Error envelope
 
-JSON error responses under `/v1/*` SHOULD use:
+JSON error responses under `/v1/*` MUST use:
 
 ```json
 { "error": { "code": "budget_exhausted", "message": "...", "run_id": "01J…", "retryable": false } }
@@ -144,7 +144,7 @@ JSON error responses under `/v1/*` SHOULD use:
 
 `code` MUST be a stable snake_case token. `retryable` MUST be true only for
 rate-limit / lock-timeout / worker-busy. FastAPI `{detail: ...}` MAY remain on
-`/health` and on 422 validation until this milestone; new routes MUST use the
+`/health` and on 422 validation. `HTTPException` on `/v1/*` is rewritten to the
 envelope.
 
 ### 6.2 Remaining routes
@@ -159,14 +159,14 @@ envelope.
 | `GET` | `/v1/policy` | Return loaded `Policy` (no secrets). |
 | `POST` | `/v1/policy/proposals` | T2 proposal only; MUST NOT apply without human approval + eval-compare. |
 
-CLI twins SHOULD exist for eval-run, policy show, and memory query. Other CLI twins
-are SHOULD, not a gate.
+CLI twins exist for eval-run, policy show/propose, memory query, skills list/show,
+review queue/approve, facts list, cases show, and proposals queue.
 
 ### 6.3 Promotion-api drift (RW-HY)
 
 [`promotion-api-and-observability.md`](promotion-api-and-observability.md) §9 MUST
 list as implemented every route that `src/recertia/api/` currently serves, including
-console C0–C4. The aspirational table MUST contain only §6.2 plus C5.
+console C0–C4. The aspirational table MUST contain only C5.
 
 README license text MUST match `LICENSE` (PolyForm Noncommercial).
 
@@ -230,9 +230,9 @@ structural change required is a defect in the shared layer, not a domain fork.
 | RW-6 | HEX job with flags true but `practice_conversion` unavailable does not emit HEX proposals |
 | RW-7 | `POST /v1/evals/runs` on a fixture task does not write a candidate skill |
 | RW-8 | Budget-exhausted `POST /v1/runs` body matches the error envelope (`error.code`) |
-| RW-9 | OG-7…OG-10 (when OR2 lands); OG-11 when OR3 lands |
+| RW-9 | OG-7…OG-11 |
 | RW-10 | After portfolio expiry, `RECERTIA_PORTFOLIO_CONTROLLER` is not read |
 
-Tests RW-1…RW-8 live in `tests/unit/test_remaining_work.py`. OG-7…OG-10 live in
+Tests RW-1…RW-8 live in `tests/unit/test_remaining_work.py`. OG-7…OG-11 live in
 `tests/unit/test_openai_compat_gateway.py` (RW-9). RW-10 waits on portfolio expiry
 (`docs/architecture/portfolio-measurement.md`). RW-GA remains an ops gate, not CI.

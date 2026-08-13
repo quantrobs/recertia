@@ -24,6 +24,7 @@ from recertia.programs.materialize import (
     preview_hash,
 )
 from recertia.programs.stress import stress_step
+from tests.support.http import error_text
 
 
 def _step(
@@ -529,7 +530,7 @@ def test_git_tip_unbound_blocked_by_stress_and_accept(tmp_path: Path) -> None:
         json={"ack_disclaimer": True},
     )
     assert denied.status_code == 400
-    assert "repo_binding" in denied.json()["detail"]
+    assert "repo_binding" in error_text(denied)
 
 
 def test_git_tip_seed_workdir_and_checkout_failure(tmp_path: Path) -> None:
@@ -634,7 +635,7 @@ def test_git_tip_rejects_unregistered_seed(tmp_path: Path) -> None:
         json={"run_id": "r1"},
     )
     assert denied.status_code == 400
-    assert "unregistered" in denied.json()["detail"] or "repo_binding" in denied.json()["detail"]
+    assert "unregistered" in error_text(denied) or "repo_binding" in error_text(denied)
     blocked = client.get(f"/v1/programs/{pid}", headers=headers).json()["program"]
     assert blocked["status"] == "blocked"
 

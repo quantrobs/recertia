@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -156,3 +157,82 @@ def test_og10_concatenates_list_text_content_parts(
         client = OpenAIModelClient(api_key="sk-test", model_id="gpt-4o-mini")
         response = client.complete("hi")
     assert response.text == "hello"
+
+
+def test_og11_unknown_slug_returns_400(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from recertia.api import create_app
+
+    monkeypatch.setenv("RECERTIA_MODEL_ALLOWLIST", "openai:moonshotai/kimi-k2")
+    monkeypatch.delenv("RECERTIA_MODEL_ALLOWLIST_PATH", raising=False)
+    app = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    client = TestClient(app)
+    headers = {"X-API-Key": issued.secret}
+
+    listed = client.get("/v1/models", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()["models"] == ["openai:moonshotai/kimi-k2"]
+
+    denied = client.post(
+        "/v1/runs",
+        json={
+            "request": "x",
+            "run_id": "bad-model",
+            "model": "openai:evil/not-allowed",
+            "budget": {"max_attempts": 1},
+        },
+        headers=headers,
+    )
+    assert denied.status_code == 400, denied.text
+    body = denied.json()
+    assert body["error"]["code"] == "model_not_allowed"
+    assert "allowlist" in body["error"]["message"].lower()
+
+
+def test_og11_empty_allowlist_rejects_console_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from recertia.api import create_app
+
+    monkeypatch.delenv("RECERTIA_MODEL_ALLOWLIST", raising=False)
+    monkeypatch.delenv("RECERTIA_MODEL_ALLOWLIST_PATH", raising=False)
+    app = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    client = TestClient(app)
+    denied = client.post(
+        "/v1/runs",
+        json={"request": "x", "model": "openai:moonshotai/kimi-k2"},
+        headers={"X-API-Key": issued.secret},
+    )
+    assert denied.status_code == 400
+    assert denied.json()["error"]["code"] == "model_not_allowed"
+
+
+def test_og11_allowlist_not_in_console_static() -> None:
+    from pathlib import Path
+
+    from recertia.solver.model_allowlist import canonical_model_ref, model_is_allowed
+
+    static = Path(__file__).resolve().parents[2] / "console" / "static"
+    assert static.is_dir()
+    forbidden = ("RECERTIA_MODEL_ALLOWLIST", "MODEL_ALLOWLIST", "openai:moonshotai/")
+    for path in static.rglob("*"):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for token in forbidden:
+            assert token not in text, f"{path} must not ship {token}"
+
+    allowed = ("openai:moonshotai/kimi-k2",)
+    assert model_is_allowed("openai:moonshotai/kimi-k2", allowed)
+    assert model_is_allowed("moonshotai/kimi-k2", allowed)
+    assert not model_is_allowed("openai:evil/slug", allowed)
+    assert canonical_model_ref("openai-compat:org/m") == "openai:org/m"

@@ -115,6 +115,15 @@ def register_remaining_routes(app: FastAPI, ctx: ConsoleContext) -> None:
     require_runs = ctx.require_scope("runs", ctx.key_store)
     require_metrics = ctx.require_scope("metrics", ctx.key_store)
 
+    @app.get("/v1/models")
+    def list_models(principal=Depends(require_runs)) -> dict[str, Any]:
+        """Server-side console model allowlist (OG-11). Never embed this in ``console/static/``."""
+
+        del principal
+        from recertia.solver.model_allowlist import load_model_allowlist
+
+        return {"models": list(load_model_allowlist())}
+
     @app.post("/v1/evals/runs")
     def evals_runs(
         body: EvalRunBody,
@@ -272,6 +281,20 @@ def register_remaining_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         tenant_id = _tenant(ctx, principal, request, x_recertia_tenant)
         store = EpisodicStore(ctx.tenant_runs_root(tenant_id) / "episodic")
         return {"items": store.list_index()}
+
+    @app.get("/v1/cases/{case_id}")
+    def get_case(
+        case_id: str,
+        request: Request,
+        principal=Depends(require_runs),
+        x_recertia_tenant: str | None = Header(default=None, alias="X-Recertia-Tenant"),
+    ) -> dict[str, Any]:
+        tenant_id = _tenant(ctx, principal, request, x_recertia_tenant)
+        store = EpisodicStore(ctx.tenant_runs_root(tenant_id) / "episodic")
+        rec = store.get_by_case_id(case_id)
+        if rec is None:
+            raise V1HTTPError(404, code="not_found", message="case not found")
+        return rec.model_dump(mode="json")
 
     @app.get("/v1/affordances")
     def list_affordances(

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from recertia.api import create_app
 from recertia.paths import looks_absolute, normalize_host_root, resolve_under_host_root, split_rel_subpath
+from tests.support.http import error_text
 
 
 def _proven_output_criterion() -> dict:
@@ -52,7 +53,7 @@ def test_rw1_absolute_workdir_without_workspace_still_rejected(tmp_path: Path) -
         headers=headers,
     )
     assert res.status_code == 400
-    assert "absolute" in res.json()["detail"].lower()
+    assert "absolute" in error_text(res).lower()
 
 
 def test_rw2_register_and_bind_run(tmp_path: Path) -> None:
@@ -115,7 +116,7 @@ def test_rw3_subpath_escape_rejected(tmp_path: Path) -> None:
         headers=headers,
     )
     assert res.status_code == 400
-    assert "escape" in res.json()["detail"].lower()
+    assert "escape" in error_text(res).lower()
 
 
 def test_rw4_cross_tenant_isolation(tmp_path: Path) -> None:
@@ -160,7 +161,7 @@ def test_rw5_disabled_workspace_blocks_create(tmp_path: Path) -> None:
         headers=headers,
     )
     assert res.status_code == 403
-    assert "disabled" in res.json()["detail"].lower()
+    assert "disabled" in error_text(res).lower()
 
 
 def test_rw6_resume_registered_and_host_root_drift(tmp_path: Path) -> None:
@@ -193,7 +194,7 @@ def test_rw6_resume_registered_and_host_root_drift(tmp_path: Path) -> None:
     meta_path.write_text(json.dumps(meta) + "\n")
     resumed = client.post("/v1/runs/resume-reg/resume", headers=headers)
     assert resumed.status_code == 409
-    assert "host_root" in resumed.json()["detail"].lower()
+    assert "host_root" in error_text(resumed).lower()
 
 
 def test_rw7_pilot_submit_body_builder_includes_workspace() -> None:
@@ -231,7 +232,7 @@ def test_rw8_non_admin_cannot_register(tmp_path: Path) -> None:
         headers={"X-API-Key": issued.secret},
     )
     assert res.status_code == 403
-    assert "admin" in res.json()["detail"].lower()
+    assert "admin" in error_text(res).lower()
 
 
 def test_rw9_mixed_separators_resolve_identically(tmp_path: Path) -> None:

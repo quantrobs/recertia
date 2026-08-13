@@ -16,6 +16,7 @@ from contracts.goal import Goal
 from contracts.run import Task
 from recertia.api.events import RunEventLog
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
+from recertia.config import ModelConfig
 from recertia.solver.container import configured_backend
 
 
@@ -36,6 +37,7 @@ class AsyncRunRequest:
     facts_root: Path
     runs_root: Path
     index_path: Path
+    model_config: ModelConfig | None = None
 
 
 class AsyncRunWorker:
@@ -107,6 +109,7 @@ class AsyncRunWorker:
             facts_root=req.facts_root,
             index_path=req.index_path,
             approve_default_tools=req.approve_tools or configured_backend() == "container",
+            model_config=req.model_config,
         )
         try:
             # Cooperative cancel is checked via cancel set; full mid-node cancel lands later.

@@ -38,7 +38,7 @@ time.
 | **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
 | **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | gated (JobRunner no-op without predicates) |
 | **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | Phase-2 expiry |
-| **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0–OR2 shipped; OR3 optional |
+| **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0–OR3 shipped |
 | **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | shipped (C5 UI still gated) |
 | **RW-GP3** | deferred | Goal-pack auto-advance, DAG, `copy_forward` | explicit non-goal |
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
@@ -216,9 +216,9 @@ OR0 is shipped. Remaining from
 | --- | --- | --- |
 | **OR1** | Docs gate: configuring a gateway MUST NOT be cited as evidence for `a1`. Price-override env already in go-live — add a CI check or test that `estimate_cost_usd` for an unknown slug uses defaults and `unavailable`/notes do not say "vendor-exact". | OG-7 (see spec) |
 | **OR2** | Default `max_tokens` via `RECERTIA_OPENAI_MAX_TOKENS` or EXTRA_BODY; map OpenRouter error JSON to `ProviderError`; tolerate list-shaped `message.content` text parts | OG-8…OG-10 |
-| **OR3** | Server-side allowlist of `provider:slug` for Pilot; unknown slug → 400; SPA never stores keys | optional; PC-7 |
+| **OR3** | Server-side allowlist of `provider:slug` for Pilot; unknown slug → 400; SPA never stores keys | shipped; PC-7 / OG-11 |
 
-OR3 is optional for single-operator GA (env-level model is enough).
+OR3 is optional for single-operator GA (env-level model is enough) but is implemented.
 
 ## 9. RW-SUR — Remaining HTTP and CLI
 
@@ -228,21 +228,17 @@ mostly **docs drift** (RW-HY) plus a smaller true remainder:
 
 | Surface | Status | Remaining |
 | --- | --- | --- |
-| `GET/POST /v1/reviews` | missing | Distill-review queue distinct from job `proposals` |
-| `POST /v1/evals/runs` | missing | Golden set against a library snapshot (CLI `recertia lift` exists) |
-| `GET /v1/facts` · `/v1/cases` · `/v1/affordances` | missing | Read non-procedural planes |
-| `POST /v1/memory/query` | missing | Federated retrieve debug (CLI `skills search --explain` is procedural-only) |
-| `GET /v1/policy` · `POST /v1/policy/proposals` | missing | T2 change proposals; human approval + ledger |
-| Unified error envelope | missing | `{error:{code,message,run_id,retryable}}` — handlers still use FastAPI `detail` |
-| CLI `skills list/show`, `review`, `eval run`, `memory query`, `facts`, `cases`, `proposals`, `policy` | missing | Console twins; not a C0–C4 gate |
+| `GET/POST /v1/reviews` | shipped | Alias of proposals until distill-review volume justifies a split |
+| `POST /v1/evals/runs` | shipped | Golden set against a library snapshot |
+| `GET /v1/facts` · `/v1/cases` · `/v1/affordances` | shipped | Read non-procedural planes |
+| `POST /v1/memory/query` | shipped | Federated retrieve debug |
+| `GET /v1/policy` · `POST /v1/policy/proposals` | shipped | T2 change proposals; human approval + ledger |
+| Unified error envelope | shipped | `{error:{code,message,run_id,retryable}}` on `/v1/*` HTTPException; `{detail}` remains on `/health` and 422 |
+| CLI `skills list/show`, `review`, `eval run`, `memory query`, `facts`, `cases`, `proposals`, `policy` | shipped | Console twins; not a C0–C4 gate |
 
-**Priority:** error envelope and `POST /v1/evals/runs` (measurement). Policy HTTP
-before C5. Facts/cases/affordances after RW-M2. Review HTTP can alias proposals
-until distill-review volume justifies a split.
-
-**Done when:** envelope tests on `POST /v1/runs` budget exhaustion; eval-run
-endpoint writes the same `EvalObservation` rows as `recertia lift`; no new route
-skips tenant isolation (PC-1).
+**Shipped.** Envelope tests on `POST /v1/runs` budget exhaustion; eval-run
+endpoint writes the same `EvalObservation` rows as `recertia lift`; `/v1`
+`HTTPException` uses the envelope; CLI twins exist. C5 UI remains gated.
 
 ## 10. RW-C5 / RW-TM — Phase 4 remainder
 

@@ -10,7 +10,9 @@ import typer
 
 from recertia.cli.backup_cmd import register_backup_commands
 from recertia.cli.canary_cmd import register_canary_commands
+from recertia.cli.cases_cmd import register_cases_commands
 from recertia.cli.eval_cmd import register_eval_commands
+from recertia.cli.facts_cmd import register_facts_commands
 from recertia.cli.gc import gc_cmd, register_gc_commands
 from recertia.cli.jobs import jobs_run, register_jobs_commands
 from recertia.cli.keys import keys_issue, keys_list, keys_revoke, register_keys_commands
@@ -19,6 +21,8 @@ from recertia.cli.memory_cmd import register_memory_commands
 from recertia.cli.metrics_cmd import metrics_cmd, register_metrics_commands
 from recertia.cli.policy_cmd import register_policy_commands
 from recertia.cli.probes import register_probes_commands
+from recertia.cli.proposals_cmd import register_proposals_commands
+from recertia.cli.review_cmd import register_review_commands
 from recertia.cli.runs import (
     ledger_verify,
     register_run_commands,
@@ -45,6 +49,10 @@ register_probes_commands(app)
 register_eval_commands(app)
 register_policy_commands(app)
 register_memory_commands(app)
+register_review_commands(app)
+register_facts_commands(app)
+register_cases_commands(app)
+register_proposals_commands(app)
 register_jobs_commands(app)
 register_gc_commands(app)
 register_workspaces_commands(app)

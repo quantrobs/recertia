@@ -97,7 +97,9 @@ operator guide.
 2. Console SSE (`GET /v1/runs/{id}/events`) streams **run** events. It MUST NOT be
    confused with provider token streaming.
 3. A console model picker (if added) MUST only select allowlisted provider/slug pairs
-   resolved server-side — never paste keys into SPA storage.
+   resolved server-side — never paste keys into SPA storage. `GET /v1/models` is the
+   allowlist source; `POST /v1/runs` `model` is optional and fail-closed against
+   `RECERTIA_MODEL_ALLOWLIST` / `RECERTIA_MODEL_ALLOWLIST_PATH` when present.
 
 ## 9. Conformance tests (CI)
 
@@ -113,8 +115,9 @@ operator guide.
 | OG-8 | `RECERTIA_OPENAI_MAX_TOKENS` is sent unless EXTRA_BODY already has `max_tokens` |
 | OG-9 | OpenRouter `{error:{message,code}}` raises `ProviderError` including `code=` |
 | OG-10 | List-shaped `message.content` concatenates `{type:text,text}` parts |
+| OG-11 | `POST /v1/runs` with a console-selected slug not on the server allowlist returns 400; allowlist is not in `console/static/`; `GET /v1/models` returns the allowlist |
 
-Existing coverage: `tests/unit/test_openai_compat_gateway.py` (OR0–OR2). OG-11 (OR3) is optional.
+Existing coverage: `tests/unit/test_openai_compat_gateway.py` (OR0–OR3). OG-11 lives with those tests.
 
 ## 10. Explicit non-requirements
 

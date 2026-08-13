@@ -14,6 +14,7 @@ from recertia.api.console_auth import (
     resolve_session_secret,
 )
 from recertia.solver.registry import _host_allowed
+from tests.support.http import error_text
 
 pytest.importorskip("fastapi")
 
@@ -44,7 +45,7 @@ def test_oidc_state_must_match(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert "code_challenge_method=S256" in url
     bad = client.get("/v1/auth/oidc/callback", params={"code": "x", "state": "forged"})
     assert bad.status_code == 400
-    assert "state" in bad.json()["detail"]
+    assert "state" in error_text(bad)
 
 
 def test_oidc_pkce_challenge_is_s256(monkeypatch: pytest.MonkeyPatch) -> None:

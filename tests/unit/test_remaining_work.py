@@ -204,3 +204,32 @@ def test_rw8_budget_exhausted_uses_error_envelope(
     body = created.json()
     assert body["error"]["code"] == "budget_exhausted"
     assert body["error"]["retryable"] is False
+
+
+def test_v1_http_exception_uses_envelope(tmp_path: Path) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from recertia.api import create_app
+
+    app = create_app(root=tmp_path / "api-root", skills_root=tmp_path / "skills")
+    issued = app.state.api_keys.issue(tenant_id="t1", scopes={"runs"}, actor="test")
+    client = TestClient(app)
+    missing = client.get("/v1/runs/run-missing1", headers={"X-API-Key": issued.secret})
+    assert missing.status_code == 404
+    body = missing.json()
+    assert body["error"]["code"] == "not_found"
+    assert body["error"]["retryable"] is False
+    assert "detail" not in body
+
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json() == {"status": "ok"}
+
+    invalid = client.post(
+        "/v1/runs",
+        json={},
+        headers={"X-API-Key": issued.secret},
+    )
+    assert invalid.status_code == 422
+    assert "detail" in invalid.json()
