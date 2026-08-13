@@ -199,6 +199,10 @@ established" is an acceptable, passing result per B7.
 
 ## 9. Engineering status (as of roadmap-remaining implementation)
 
+Implementation decomposition of what is still open:
+[`remaining-work.md`](remaining-work.md) (plan) and
+[`../specifications/remaining-work.md`](../specifications/remaining-work.md) (normative).
+
 Engineering gates that can land in CI are implemented; research outcomes stay harness-ready
 and must not be marked `supported` without real traffic (B7).
 

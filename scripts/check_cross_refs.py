@@ -28,6 +28,7 @@ SPLIT_DOCS: dict[str, tuple[str, ...]] = {
         "architecture/go-live.md",
         "architecture/openai-compat-gateways.md",
         "architecture/one-year-roadmap.md",
+        "architecture/remaining-work.md",
         "architecture/incident-tabletop.md",
         "architecture/production-readiness.md",
         "architecture/product-console.md",
@@ -43,6 +44,7 @@ SPLIT_DOCS: dict[str, tuple[str, ...]] = {
         "specifications/failure-isolation-and-fanout.md",
         "specifications/evaluation-improvement-and-governance.md",
         "specifications/library-authoring-and-concurrency.md",
+        "specifications/remaining-work.md",
     ),
 }
 
