@@ -48,9 +48,12 @@ def inspect_run(run_id: str, *, runs_root: Path, tenant: str = "default") -> dic
         "navigable": False,
     }
 
+    found_ledger = False
     for path in _ledger_paths(runs_root, tenant):
         if not path.exists():
             continue
+        found_ledger = True
+        # Only construct HashChainLedger when the file exists — __init__ mkdir's parents.
         ledger = HashChainLedger(path)
         try:
             ledger.verify()
@@ -66,6 +69,10 @@ def inspect_run(run_id: str, *, runs_root: Path, tenant: str = "default") -> dic
         payload["ledger_hits"] = len(hits)
         payload["ledger_path"] = str(path)
         break
+    if not found_ledger:
+        # Empty chain verifies (same as `recertia ledger verify` on a fresh root).
+        payload["ledger_ok"] = True
+        payload["ledger_hits"] = 0
 
     state = None
     for orch_root in _orchestrator_roots(runs_root, tenant):
@@ -98,9 +105,9 @@ def inspect_run(run_id: str, *, runs_root: Path, tenant: str = "default") -> dic
             transcripts_dir = orch_root / "transcripts"
             if not transcripts_dir.is_dir():
                 continue
-            store = TranscriptStore(transcripts_dir)
+            transcripts = TranscriptStore(transcripts_dir)
             try:
-                store.read(state.transcript_ref)
+                transcripts.read(state.transcript_ref)
                 payload["transcript_found"] = True
                 break
             except FileNotFoundError:
@@ -131,7 +138,9 @@ def run_tabletop(
         "restore_ok": None,
     }
     if restore_from is not None:
-        dest = restore_dest if restore_dest is not None else Path(runs_root).resolve().parent / "recertia-restore"
+        dest = restore_dest
+        if dest is None:
+            dest = Path(runs_root).resolve().parent / "recertia-restore"
         try:
             restore_tree(Path(restore_from), dest, overwrite=True)
             restore_meta["restore_ok"] = True

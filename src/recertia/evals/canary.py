@@ -148,7 +148,6 @@ def run_live_verifier_canary(
     """
 
     from contracts.criteria import TaskCriterion
-
     from recertia.config import load_model_config
     from recertia.solver.factory import build_solver_and_verifier
     from recertia.validation.judge import evaluate_judge
