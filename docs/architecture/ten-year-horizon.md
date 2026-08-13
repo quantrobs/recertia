@@ -4,6 +4,8 @@
 - **Date:** 2026-08-13
 - **Horizon:** ~2036
 - **Committed plan:** remains [`one-year-roadmap.md`](one-year-roadmap.md)
+- **Narrowing instrument:** [`ten-year-horizon-narrowing.md`](ten-year-horizon-narrowing.md)
+- **Objectives (worked run):** [`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md)
 
 This is an answer to a question, not a schedule. The one-year roadmap is still the only
 document that may create engineering gates. Nothing here moves [`assumptions.md`](../assumptions.md)
@@ -444,6 +446,12 @@ Negative results are not project failure. They are the B7 machinery working.
 
 The next honest step is still the one-year roadmap: operator-mode GA, then a defensible
 answer — in our domain, with our harness — to "does it get better, and can you prove it?"
+
+A reusable auditor prompt that turns this file into a supportable position and a
+checkable objectives list is
+[`ten-year-horizon-narrowing.md`](ten-year-horizon-narrowing.md). One worked run is
+[`ten-year-horizon-objectives.md`](ten-year-horizon-objectives.md). Neither is a
+remaining-work milestone.
 
 If that answer is yes, 2036 looks like Goals, libraries, and programs. If that answer is
 no, 2036 looks like better chat, and this file was a clean miss.
