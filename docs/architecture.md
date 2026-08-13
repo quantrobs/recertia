@@ -17,6 +17,7 @@
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
 - [Remaining work: implementation plan](architecture/remaining-work.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
+- [Threat-model deltas (principal review §5, single-operator)](architecture/threat-model-deltas.md)
 - [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
 - [Product console architecture](architecture/product-console.md)
 - [Goal packs (migration programs)](architecture/goal-packs.md)

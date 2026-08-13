@@ -109,6 +109,10 @@ recertia probes run --probes evals/probes/repo-chore.json
 recertia eval run --task-class repo-chore
 recertia policy
 recertia memory query "dependency bump"
+recertia backup [--root .recertia] [--output backups/recertia.tar.gz]
+recertia restore backups/recertia.tar.gz --dest .recertia-restore
+recertia tabletop <run_id> [--restore-from backups/recertia.tar.gz]
+recertia canary [--live]
 ```
 
 Policy is `policy/default.json` (`RECERTIA_POLICY_PATH`). `practice` without `--one-off`

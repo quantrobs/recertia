@@ -6,7 +6,7 @@ Companion to [`one-year-roadmap.md`](one-year-roadmap.md) §5 and
 
 | Item | Status | Owner / notes |
 | --- | --- | --- |
-| Threat-model deltas from principal review §5 | open | Re-review before tenant GA; single-operator mode may accept residual risk |
+| Threat-model deltas from principal review §5 | accepted-with-owner (single-operator) | See [`threat-model-deltas.md`](threat-model-deltas.md). Re-review + second-party signature before tenant GA. C5 UI still must not ship. |
 | Break-glass procedure | accepted-with-owner | Operator retains host access to `.recertia/` and `DATABASE_URL`; document in runbook |
 | Key rotation | closed (scaffold) | `recertia keys revoke` + re-issue; rotate provider keys out-of-band |
 | Deployment topology | accepted-with-owner | Single-operator: CLI + optional API on loopback; container backend preferred |
