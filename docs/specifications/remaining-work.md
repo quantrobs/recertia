@@ -174,9 +174,12 @@ README license text MUST match `LICENSE` (PolyForm Noncommercial).
 
 Engineering MUST keep:
 
-- `docker-compose.soak.yml` + `scripts/soak_postgres.py`
-- `.github/workflows/weekly-ops.yml` (metrics JSON + canary + postgres migrations)
+- `docker-compose.soak.yml` + `scripts/soak_postgres.py` (`--recertia-root` notes snapshot presence)
+- `.github/workflows/weekly-ops.yml` (probes + golden + metrics JSON + canary + postgres)
 - [incident-tabletop.md](../architecture/incident-tabletop.md)
+- `recertia backup` / `recertia restore` / `scripts/backup_recertia.py`
+- `recertia tabletop`
+- `recertia canary` (synthetic; `--live` when `RECERTIA_VERIFIER_MODEL_ID` is set)
 
 Ops (not CI) MUST produce:
 
@@ -198,8 +201,9 @@ passes:
 - C5 UI MUST NOT ship.
 
 If the gate passes, [`product-console.md`](product-console.md) §7 applies in full.
-Threat-model deltas from the principal review MUST be closed or accepted-with-owner
-in production-readiness.md before C5.
+Single-operator threat-model deltas are accepted-with-owner in
+[`threat-model-deltas.md`](../architecture/threat-model-deltas.md). A second-party
+signed threat model is still required before C5 / tenant GA.
 
 `research-synthesis` real traffic MUST use the existing graph and contracts. Any
 structural change required is a defect in the shared layer, not a domain fork.

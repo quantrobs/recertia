@@ -23,26 +23,46 @@ jobs:
             --skills-root skills \
             --eval-db .recertia/evals.db \
             --output artifacts/probes.json
+      - name: Golden suite (eval firewall; local backend)
+        env:
+          RECERTIA_EXECUTION_BACKEND: local
+        run: |
+          recertia eval run \
+            --task-class repo-chore \
+            --golden-root evals/golden \
+            --skills-root skills \
+            --runs-root .recertia/eval-runs \
+            --eval-db .recertia/evals.db \
+            --snapshot-id weekly-ops
       - name: Weekly metrics report (honest unavailable when empty)
         run: |
           python3 scripts/weekly_metrics_report.py \
             --eval-db .recertia/evals.db \
             --output artifacts/weekly-metrics.json
-      - name: Judge canary (planted failures)
+      - name: Judge canary (planted failures, synthetic shell)
+        run: recertia canary --output artifacts/canary.json
+      - name: Live verifier canary (optional; does not update a4)
+        env:
+          RECERTIA_MODEL_PROVIDER: ${{ secrets.RECERTIA_MODEL_PROVIDER }}
+          RECERTIA_MODEL_ID: ${{ secrets.RECERTIA_MODEL_ID }}
+          RECERTIA_VERIFIER_MODEL_ID: ${{ secrets.RECERTIA_VERIFIER_MODEL_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          python3 - <<'PY'
-          from recertia.evals.canary import run_judge_canary
-          report = run_judge_canary()
-          assert report.trials >= 1
-          assert report.false_passes == 0, report
-          print(report)
-          PY
+          if [ -z "${RECERTIA_VERIFIER_MODEL_ID:-}" ]; then
+            echo "live canary skipped: RECERTIA_VERIFIER_MODEL_ID unset"
+            exit 0
+          fi
+          recertia canary --live --output artifacts/canary-live.json
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-metrics
+          if-no-files-found: warn
           path: |
             artifacts/weekly-metrics.json
             artifacts/probes.json
+            artifacts/canary.json
+            artifacts/canary-live.json
 
   postgres-soak:
     runs-on: ubuntu-latest
@@ -70,4 +90,4 @@ jobs:
       - name: Install
         run: pip install -e ".[dev,postgres]"
       - name: Soak migrations
-        run: python3 scripts/soak_postgres.py
+        run: python3 scripts/soak_postgres.py --recertia-root .recertia
