@@ -100,6 +100,8 @@ def test_rw5_weekly_claim_never_labels_spanning_interval_as_improvement(
 
     eval_db = tmp_path / "evals.db"
     output = tmp_path / "weekly.json"
+    skills_root = tmp_path / "skills"
+    skills_root.mkdir()
     proc = subprocess.run(
         [
             sys.executable,
@@ -107,7 +109,7 @@ def test_rw5_weekly_claim_never_labels_spanning_interval_as_improvement(
             "--eval-db",
             str(eval_db),
             "--skills-root",
-            str(REPO / "skills"),
+            str(skills_root),
             "--output",
             str(output),
         ],
@@ -126,7 +128,7 @@ def test_rw5_weekly_claim_never_labels_spanning_interval_as_improvement(
     if interval is not None and interval["low"] <= 0 <= interval["high"]:
         assert payload["claim"] == "not established"
     assert payload["claim"] != "improvement"
-    del proc
+    assert proc.returncode == 0
 
 
 def test_rw6_hex_skips_without_practice_conversion(tmp_path: Path) -> None:
