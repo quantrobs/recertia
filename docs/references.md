@@ -331,11 +331,38 @@ affiliated with Andrew Ng and not endorsed.” Restates Ng’s four patterns and
 HumanEval anecdote; the loop→graph ladder is the compiler’s overlay. Patterns already
 anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this compilation. No change.
 
-## 10. Horizon note (not a design change)
+## 10. Human-interface design for post-prompt systems
+
+New category. Grounds [`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md)
+§4 — an exploration, not a design-shaping input to the current milestone stack, but held to
+the same [F]/[B] discipline as §§1–5 because that document makes citable claims about what
+replaces a prompt as the point of contact between a person and this system. The full
+argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), lives in
+`ten-year-horizon.md` §4; this entry is the bibliography record.
+
+| Work | Relevance |
+| --- | --- |
+| **Direct Manipulation: A Step Beyond Programming Languages**, Shneiderman, *IEEE Computer* 16(8), 1983 **[F]** | Names the property — continuous representation, reversible action, gesture instead of command syntax — that a prompt box regresses from |
+| **Direct Manipulation Interfaces**, Hutchins, Hollan & Norman, *Human–Computer Interaction* 1(4), 1985 **[F]** | Origin of the gulf of execution / gulf of evaluation; a chat window makes both gulfs linguistic instead of closing them with visible state |
+| **Bridging the Gulf of Envisioning**, Subramonyam, Pondoc, Seifert, Agrawala & Pea, CHI 2024, arXiv:2309.14459 **[F]** | Extends Norman's gulfs with an LLM-specific one — capability / instruction / intentionality gaps; Goal compilation (ADR-0010) answers two of three by construction |
+| **Why Johnny Can't Prompt: How Non-AI Experts Try (and Fail) to Design LLM Prompts**, Zamfirescu-Pereira, Wong, Hartmann & Yang, CHI 2023 **[B]** | Non-experts design prompts opportunistically and default to treating them as human-to-human instructions, because the interface offers no other vocabulary |
+| **Principles of Mixed-Initiative User Interfaces**, Horvitz, CHI 1999 **[F]** | Coupling automated services with direct manipulation; efficient invoke / dismiss / correct as design requirements, not afterthoughts |
+| **Guidelines for Human-AI Interaction**, Amershi, Weld, Vorvoreanu et al., CHI 2019 **[F]** | 18 guidelines across the interaction lifecycle; several map onto T0–T3 (ADR-0005) as an enforcement mechanism not yet surfaced as a console-legible control |
+| **Levels of Autonomy for AI Agents**, arXiv:2506.12469, 2025 **[F]** | Five user roles — operator, collaborator, consultant, approver, observer — that nearly reproduce T0–T3 independently, as a user-facing rather than backend property |
+| **Trust in Automation: Designing for Appropriate Reliance**, Lee & See, *Human Factors* 46(1), 2004 **[F]** | Calibration / resolution / specificity as the three properties a trust display owes; the argument against ever showing one opaque skill-quality number |
+| **Graphologue: Exploring Large Language Model Responses with Interactive Diagrams**, Jiang, Rayan, Dow & Xia, UIST 2023, arXiv:2305.11473 **[F]** | Retrofits node-link diagrams onto linear LLM chat; Recertia's graph runtime (ADR-0001) produces the same structure natively |
+| **Sensecape: Enabling Multilevel Exploration and Sensemaking with Large Language Models**, Suh, Min, Palani & Xia, UIST 2023, arXiv:2305.11483 **[F]** | Retrofits hierarchy/abstraction-level views onto linear chat for the same underlying reason |
+| **Usability Analysis of Visual Programming Environments: A 'Cognitive Dimensions' Framework**, Green & Petre, *J. Visual Languages & Computing* 7(2), 1996 **[F]** | Vocabulary — viscosity, closeness of mapping, premature commitment, secondary notation — for evaluating Goal/DesiredState/Constraint authoring as a notation |
+| **Watch What I Do: Programming by Demonstration**, Cypher et al. (eds.), MIT Press, 1993 **[F]** | Precedent for specifying desired behaviour by example rather than describing it in prose; motivates authoring-from-precedent over blank-page Goal writing |
+| **End-User Programming**, Myers & Ko, invited research overview, 2006 **[F]** | Survey of end-user programming as a field distinct from professional programming; frames Goal authoring as an end-user-programming problem |
+| **Malleable Software: Restoring User Agency in a World of Locked-Down Apps**, Litt, Horowitz, van Hardenberg & Matthews, Ink & Switch, 2025 **[F, practitioner]** | Names the "editable, not appliance" property the diffable, versioned memory plane (ADR-0002) already has, and the gentle-slope pattern a library browser still owes |
+
+## 11. Loops-and-graphs horizon note (not a design change)
 
 [`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md) is a
-dated research essay (August 2026): inner / outer / meta loops stay distinct; “graphs
-supersede loops” remains the overlay already ignored in §1.7; the scarce 10-year good is a
-falsifiable loop, not a larger graph. It cites primaries already in this file. It is **not**
-an ADR, not remaining work, and it does not update `a1`–`a4`. No topology, engine, HEX, or
-C5 change follows from it.
+dated research essay (August 2026) on **runtime topology**, complementary to
+[`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md) (Goals / interface).
+Inner / outer / meta loops stay distinct; “graphs supersede loops” remains the overlay
+already ignored in §1.7; the scarce 10-year good is a falsifiable loop, not a larger graph.
+It cites primaries already in this file. It is **not** an ADR, not remaining work, and it
+does not update `a1`–`a4`. No topology, engine, HEX, or C5 change follows from it.

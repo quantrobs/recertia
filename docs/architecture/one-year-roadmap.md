@@ -7,6 +7,10 @@ lets you **measure**, not by calendar appetite. Every phase lists engineering ga
 requirements) separately from research outcomes (never merge requirements, per
 [`../assumptions.md`](../assumptions.md) and refactor-plan B7).
 
+A non-normative 2036 exploration — Goals, libraries, and programs as what replaces
+prompts if compounding is real — is in [`ten-year-horizon.md`](ten-year-horizon.md).
+It does not create gates and does not change this sequence.
+
 ## 1. Strategic posture
 
 The build phase is complete: M0–M9 plus security hardening (#39) and go-live wiring (#40) are

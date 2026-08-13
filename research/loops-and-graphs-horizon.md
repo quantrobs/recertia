@@ -9,6 +9,8 @@ the same rule as the preprint survey ([`README.md`](README.md)).
 Written August 2026. Horizon: about ten years. The one-year deliverable remains
 evidence, not more architecture
 ([`docs/architecture/one-year-roadmap.md`](../docs/architecture/one-year-roadmap.md)).
+A sibling exploration — Goals and interfaces beyond prompts, not runtime topology —
+is [`docs/architecture/ten-year-horizon.md`](../docs/architecture/ten-year-horizon.md).
 
 ## Thesis
 
