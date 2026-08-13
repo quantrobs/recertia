@@ -450,9 +450,12 @@ no, 2036 looks like better chat, and this file was a clean miss.
 
 ## 9. References (human interface)
 
-Grounding for §4 only. Verification status per [`references.md`](../references.md)'s
-convention: **[F]** fetched and read, **[B]** from a citing paper's bibliography and not
-independently verified, **[F, practitioner]** non-academic, read directly.
+Grounding for §4 only. Filed in the repo's main bibliography as
+[`references.md` §10](../references.md#10-human-interface-design-for-post-prompt-systems)
+(new category); reproduced here for convenience. Verification status per
+[`references.md`](../references.md)'s convention: **[F]** fetched and read, **[B]** from a
+citing paper's bibliography and not independently verified, **[F, practitioner]**
+non-academic, read directly.
 
 | Ref | Citation | Status |
 | --- | --- | --- |
