@@ -41,8 +41,8 @@ already on `main`:
 | Console as control plane | [ADR-0012](../adr/0012-product-console-surfaces.md) | Chat is not the operator surface |
 
 The one-year roadmap's job is to find out whether those bets *compound* on real traffic
-(`a1`, `a2`, `a4`). The ten-year picture below assumes they can. Section 6 says what to
-believe instead if they cannot.
+(`a1`, `a2`, `a4`). The ten-year picture below assumes they can. §7 says what to believe
+instead if they cannot.
 
 ## 3. What I see in 2036
 
@@ -145,7 +145,223 @@ Failover and multi-provider are still a measurement-surface decision (one-year r
 §7), not a slogan. Two providers still double the judge-bias surface. The decade does not
 make that arithmetic go away; it just makes the canary cheaper to run.
 
-## 4. Horizon layers (not a second roadmap)
+## 4. The human interface, checked against the literature
+
+Section 3 is architecture. This section asks the narrower question a reader should ask of
+any "beyond prompts" claim: *what does a person actually look at and touch?* HCI has
+forty years of evidence about what happens when an interface is words in, words out, and
+this design should be checked against it rather than asserted against it. Citations follow
+[`references.md`](../references.md)'s convention: **[F]** = fetched and read directly,
+**[B]** = taken from a citing source's bibliography and not independently verified,
+**[F, practitioner]** = non-academic source read directly, carrying argument rather than
+measurement.
+
+### 4.1 The prompt is a regression, not an advance
+
+Shneiderman named *direct manipulation* — continuous representation of objects of interest,
+rapid reversible actions, physical gestures instead of command syntax — as the property
+that produced "glowing enthusiasm" instead of "grudging acceptance" (**Direct Manipulation:
+A Step Beyond Programming Languages**, Shneiderman, *IEEE Computer*, 1983 **[F]**). A prompt
+box is a step *back* toward the command-language interfaces that paper argued against: no
+continuous representation of the object being changed, no way to see partial progress, and
+recovery from a bad instruction means retyping, not undoing.
+
+Hutchins, Hollan, and Norman formalized *why* command languages cost more: the **gulf of
+execution** (translating a goal into system-legible actions) and the **gulf of evaluation**
+(translating system state back into a judgement about the goal) (**Direct Manipulation
+Interfaces**, *Human–Computer Interaction* 1(4), 1985 **[F]**). A chat window makes both
+gulfs *linguistic* — the user must phrase the goal in words the model will parse well, then
+re-read prose to judge whether it worked — instead of closing them with visible, manipulable
+state.
+
+**Design implication already taken:** a Goal's `DesiredState[]` is a continuous
+representation of the object of interest — what the world should look like when this is
+done — not a command. Criteria lock (ADR-0003) is the evaluation side closed *before*
+execution starts: the user does not read prose afterward to judge success, the machine
+checks it. The remaining gulf-of-evaluation surface is the walk itself, which is why Tower
+exists as a graph view, not a scrollback.
+
+### 4.2 Prompting has a name for its own failure, and it is not a skill issue
+
+Zamfirescu-Pereira, Wong, Hartmann, and Yang studied non-AI-experts designing LLM prompts
+and found they design *opportunistically* rather than systematically, and — the load-bearing
+finding — that they default to treating a prompt as a **human-to-human instruction** rather
+than a technical configuration, because the interface gives them no other vocabulary (**Why
+Johnny Can't Prompt: How Non-AI Experts Try (and Fail) to Design LLM Prompts**, CHI 2023
+**[B]**). This is not a training gap that better courses fix; it is what happens when the
+only available input modality is prose addressed to something that answers in prose.
+
+Subramonyam, Pondoc, Seifert, Agrawala, and Pea extend Norman's gulfs with a third,
+LLM-specific one: the **gulf of envisioning**, the distance between a goal and a prompt that
+successfully invokes it, decomposed into a *capability gap* (can this even be done?), an
+*instruction gap* (how do I say it so the model does that?), and an *intentionality gap*
+(what should I expect back, and how do I know it matches what I meant?) (**Bridging the Gulf
+of Envisioning: Cognitive Challenges in Prompt-Based Interactions with LLMs**, CHI 2024,
+arXiv:2309.14459 **[F]**).
+
+**Design implication already taken, and one still open:**
+
+- The capability gap is answered *before* the user writes anything: Goal compiles
+  deterministically to `TaskCriterion[]` (ADR-0010), so "can this be checked" is a compiler
+  error, not a guess.
+- The intentionality gap is answered by construction: locked criteria mean the user does not
+  have to predict the model's output and judge whether it matches an intention — the
+  validator does that against a pre-declared contract.
+- The **instruction gap survives** and is the honest remaining UI problem: writing a
+  DesiredState that is both true to the goal and machine-checkable is still an authoring
+  skill. Suggest/Compose proposing draft Goals from retrieved cases (§4.6 below) is the
+  mitigation the roadmap already has; a decade-scale answer is a *library of DesiredState
+  templates per task class*, reviewed the way skills are reviewed, so authoring narrows to
+  editing a diff instead of writing from a blank page.
+
+### 4.3 Autonomy is a negotiated interface property, not a backend flag
+
+Horvitz argued that the interesting design space is not "direct manipulation versus agents"
+but their coupling: an agent should add value beyond what direct manipulation already gets
+for free, reason about uncertainty in the user's goal, time its interventions to the user's
+attention, and — critically — give the user cheap ways to invoke, refine, dismiss, or
+terminate automated action (**Principles of Mixed-Initiative User Interfaces**, CHI 1999
+**[F]**). Amershi et al.'s 18 guidelines operationalize the same idea across the lifecycle:
+*make clear what the system can do*, *make clear how well it can do it*, *support efficient
+correction*, *notify users about changes*, and *provide global controls* recur across all
+four interaction phases (**Guidelines for Human-AI Interaction**, CHI 2019 **[F]**).
+
+Recertia's T0–T3 self-modification boundary (ADR-0005) is exactly a mixed-initiative
+contract, but as written it is an internal enforcement mechanism, not a surfaced interface
+property. A 2025 framework closes that gap directly: it defines agent autonomy as *the role
+the user plays* — operator, collaborator, consultant, approver, observer — and argues
+autonomy should be a deliberate, user-legible design choice orthogonal to model capability,
+not an emergent property of how capable the model happens to be (**Levels of Autonomy for AI
+Agents**, arXiv:2506.12469, 2025 **[F]**).
+
+**Design implication, not yet taken:** T0–T3 already *is* a five-tier autonomy ladder
+(autonomous / policy-gated / human-gated / never-autonomous, plus the T1 shadow-promotion
+boundary that turns a former human-gate into an autonomous one once evidenced). The gap is
+that it is legible to code and to a reviewer reading ADRs, not to an operator reading a
+console. A decade-scale interface makes each task class's current tier **visible and
+explained** next to the run — "this skill applies at T1 (auto-promote, zero-regression
+gate); this Goal pack step requires T2 sign-off because it touches the retrieval
+threshold" — rather than leaving tier as something you infer from source code.
+
+### 4.4 Never show one number where three are owed
+
+Lee and See's synthesis of trust-in-automation research names the three properties an
+interface must support for a person to calibrate trust correctly: **calibration** (does the
+displayed confidence match real performance?), **resolution** (does it discriminate
+situations where the system will succeed from ones where it will not?), and **specificity**
+(is the confidence broken down by the conditions it depends on, or reported as one global
+number?) (**Trust in Automation: Designing for Appropriate Reliance**, *Human Factors*
+46(1), 2004 **[F]**). Overtrust from an uncalibrated or non-specific number causes misuse;
+undertrust from a system that hides its own resolution causes disuse — both are interface
+failures, not just modeling failures.
+
+Recertia's own measurement discipline already refuses a single opaque confidence: skill
+trust is contribution-scored per outcome, causal lift is reported with a Wilson interval and
+an honest "not established," and evidence sits below a floor until enough certification
+trials accumulate (ADR-0006, [`measurement-integrity.md`](measurement-integrity.md)). The
+Lee & See framework is worth naming explicitly because it turns "show your evidence" from
+this project's house style into a citable requirement: **a decade-scale library browser
+must show calibration (lift trend by task class over time), resolution (does this skill's
+score actually separate wins from losses on held-out probes), and specificity (per task
+class, per model version — never one library-wide star rating)**. A single trust score for
+a skill is exactly the interface failure mode the trust literature predicts will be misused.
+
+### 4.5 Chat is linear; the work underneath it is not, and shouldn't pretend to be
+
+Two UIST 2023 systems independently diagnosed the same problem from the artifact side:
+Graphologue converts a linear LLM chat response into an interactive node-link diagram
+because "LLMs like ChatGPT present significant limitations in supporting complex information
+tasks due to the insufficient affordances of the text-based medium and linear conversational
+structure" (**Graphologue: Exploring Large Language Model Responses with Interactive
+Diagrams**, UIST 2023, arXiv:2305.11473 **[F]**); Sensecape adds a hierarchy view so users
+can move between foraging and sensemaking instead of scrolling a transcript (**Sensecape:
+Enabling Multilevel Exploration and Sensemaking with Large Language Models**, UIST 2023,
+arXiv:2305.11483 **[F]**). Both are retrofits: they impose structure onto a system whose
+underlying computation is a single linear generation.
+
+Recertia does not need the retrofit, because the underlying computation was never linear.
+The execution plane is already a graph with loops (ADR-0001) and the improvement plane is
+already scheduled, non-conversational jobs (ADR-0004). The decade-scale implication is
+narrow but real: **Tower's run view is the artifact Graphologue and Sensecape had to
+synthesize after the fact, available for free because the runtime is graph-shaped by
+construction.** The interface risk is the opposite one — flattening a walk *back* into a
+chat-shaped log for the sake of familiarity, which would spend this advantage for nothing.
+
+### 4.6 A Goal-authoring notation is a notation, and can be scored as one
+
+Green and Petre's Cognitive Dimensions of Notations gives a vocabulary for evaluating any
+artifact a person edits — not just visual programming languages — along axes like
+**viscosity** (how much has to change to make one small edit), **closeness of mapping**
+(does the notation read like the domain, not like implementation), **premature commitment**
+(does the notation force a decision before the user has enough information), and
+**secondary notation** (can the user attach meaning — layout, comments, rationale — the
+system does not itself execute) (**Usability Analysis of Visual Programming Environments: A
+'Cognitive Dimensions' Framework**, *J. Visual Languages & Computing* 7(2), 1996 **[F]**).
+
+Applied to `Goal`/`DesiredState`/`Constraint` as a notation rather than a data model:
+
+- **Premature commitment** is deliberately accepted at intake — criteria lock *is* a
+  premature-commitment tradeoff, made on purpose because ADR-0003 values a stable success
+  contract over mid-run negotiation. Goal packs (ADR-0014) exist specifically to lower this
+  cost at the *program* level by deferring lock to each step rather than one mega-Goal.
+- **Viscosity** is the open decade-scale question: how much of a locked Goal has to be
+  re-authored, versus edited, when one DesiredState turns out to be wrong mid-walk. The
+  current answer is "start a new run"; a gentler answer is closer to git — amend, don't
+  retype — without weakening the lock's guarantee for the criteria that did not change.
+- **Closeness of mapping** is the argument for DesiredState prose staying readable English
+  describing outcomes ("the CLI's `--help` output lists the new flag") rather than becoming
+  a query language only compiler authors can write.
+- **Secondary notation** — a place for "why" that the compiler does not execute — is what
+  keeps Goal authoring from degenerating into the same opaque-syntax problem prompts have;
+  today that lives informally in `Task.request` as optional context (ADR-0010) and should
+  stay a first-class, non-executable field rather than be squeezed out as legacy.
+
+Programming-by-demonstration research reached a parallel conclusion from a different
+direction: "if a user knows how to perform a task, that should be sufficient to create a
+program to perform the task... instead of learning a [command] language" (**Watch What I
+Do: Programming by Demonstration**, Cypher et al. (eds.), MIT Press, 1993 **[F]**; survey:
+Myers & Ko, **End-User Programming**, ACM overview, 2006 **[F]**). The decade-scale reading
+for Goal authoring is not "demonstrate a macro" — Recertia is not recording keystrokes — but
+the same instinct applied one level up: the fastest way to author a DesiredState should be
+picking the nearest retrieved case and editing its diff, not writing a fresh sentence
+against a blank compiler. This is Suggest/Compose's job today; a decade from now it is the
+default authoring path, not an assist feature bolted onto a text box.
+
+### 4.7 Memory that a person can hold, not just query
+
+Ink & Switch's practitioner argument for **malleable software** — systems users can reshape
+with minimal friction instead of "prefabricated applications built by developers far away,"
+via a gentle slope from consumer to co-creator, editable tools rather than fixed apps, and
+communal creation — is not academic HCI, but it names the interface property this
+architecture's memory plane already has by construction (**Malleable Software: Restoring
+User Agency in a World of Locked-Down Apps**, Litt, Horowitz, van Hardenberg & Matthews, Ink
+& Switch, 2025 **[F, practitioner]**). Skills, facts, cases, and policy are diffable,
+versioned, revertible data (ADR-0002), which is the "editable, not appliance" property the
+essay asks for, applied to an agent's competence instead of to a document.
+
+The gentle-slope pattern is the missing half: the essay's examples (spreadsheets, HyperCard)
+succeed because a novice can *use* the artifact with zero editing and *grow into* editing it
+without switching tools. A decade-scale library browser should offer the same slope —
+consuming a skill's outcomes requires nothing; disagreeing with one reviewer edit and having
+it become a Correction Miner proposal is the next rung; authoring a DesiredState template
+for a whole task class is the top rung — rather than a hard line between "user" and
+"curator" roles.
+
+### 4.8 Summary: what the literature adds that the architecture didn't already say
+
+None of these papers change §3's claims. What they add is falsifiable design vocabulary for
+the interface layer specifically, and two concrete gaps worth tracking alongside `a1`/`a2`/
+`a4`:
+
+- **Autonomy tiers are enforced but not yet legible** (§4.3) — a console gap, not an
+  engineering gate, but a real one before Layer C's "other systems emit Goals" picture holds
+  together for a human reviewer.
+- **Trust display defaults to a single number wherever a dashboard is sketched informally**
+  (§4.4) — worth a house rule: any UI mock that shows one skill-quality number without
+  calibration, resolution, and specificity is a design review finding, the same way an
+  untiered mutable surface is (ADR-0005).
+
+## 5. Horizon layers (not a second roadmap)
 
 These are capability layers, not calendar phases. Layer A is what the one-year plan already
 starts. Layers B and C are what becomes thinkable only if `a1` is supported in at least
@@ -171,7 +387,7 @@ criteria, and the memory versions — not a reconstructed chat.
 
 Layer C is the 2036 picture. It is not a 2027 milestone.
 
-## 5. What dies, what does not
+## 6. What dies, what does not
 
 **Dies, or is demoted to composition:**
 
@@ -192,8 +408,10 @@ Layer C is the 2036 picture. It is not a 2027 milestone.
   (`a2`)
 - Judge bias (`a4`)
 - The option that compounding does not show up on our traffic (`a1`)
+- A single opaque trust number per skill (§4.4) — the interface failure mode the trust
+  literature predicts, not a shortcut this design should reach for
 
-## 6. What would falsify this picture
+## 7. What would falsify this picture
 
 This document is allowed to be wrong. These are the cleanest ways it would be:
 
@@ -216,7 +434,7 @@ This document is allowed to be wrong. These are the cleanest ways it would be:
 
 Negative results are not project failure. They are the B7 machinery working.
 
-## 7. What this document must not become
+## 8. What this document must not become
 
 - An engineering gate, a staffing plan, or a reason to open a new milestone.
 - A license to grow the graph, add HEX, auto-advance, or learned rankers before their
@@ -229,3 +447,26 @@ answer — in our domain, with our harness — to "does it get better, and can y
 
 If that answer is yes, 2036 looks like Goals, libraries, and programs. If that answer is
 no, 2036 looks like better chat, and this file was a clean miss.
+
+## 9. References (human interface)
+
+Grounding for §4 only. Verification status per [`references.md`](../references.md)'s
+convention: **[F]** fetched and read, **[B]** from a citing paper's bibliography and not
+independently verified, **[F, practitioner]** non-academic, read directly.
+
+| Ref | Citation | Status |
+| --- | --- | --- |
+| Shneiderman 1983 | Shneiderman, B. *Direct Manipulation: A Step Beyond Programming Languages.* IEEE Computer 16(8), 1983. | **[F]** |
+| Hutchins, Hollan & Norman 1985 | Hutchins, E., Hollan, J., & Norman, D. *Direct Manipulation Interfaces.* Human–Computer Interaction 1(4), 311–338, 1985. | **[F]** |
+| Zamfirescu-Pereira et al. 2023 | Zamfirescu-Pereira, J.D., Wong, R.Y., Hartmann, B., & Yang, Q. *Why Johnny Can't Prompt: How Non-AI Experts Try (and Fail) to Design LLM Prompts.* CHI 2023. | **[B]** |
+| Subramonyam et al. 2024 | Subramonyam, H., Pondoc, C., Seifert, C., Agrawala, M., & Pea, R. *Bridging the Gulf of Envisioning: Cognitive Challenges in Prompt-Based Interactions with LLMs.* CHI 2024, arXiv:2309.14459. | **[F]** |
+| Horvitz 1999 | Horvitz, E. *Principles of Mixed-Initiative User Interfaces.* CHI 1999, 159–166. | **[F]** |
+| Amershi et al. 2019 | Amershi, S., Weld, D., Vorvoreanu, M., et al. *Guidelines for Human-AI Interaction.* CHI 2019. | **[F]** |
+| Levels of Autonomy 2025 | *Levels of Autonomy for AI Agents.* arXiv:2506.12469, 2025. | **[F]** |
+| Lee & See 2004 | Lee, J.D., & See, K.A. *Trust in Automation: Designing for Appropriate Reliance.* Human Factors 46(1), 50–80, 2004. | **[F]** |
+| Jiang et al. 2023 | Jiang, P., Rayan, J., Dow, S.P., & Xia, H. *Graphologue: Exploring Large Language Model Responses with Interactive Diagrams.* UIST 2023, arXiv:2305.11473. | **[F]** |
+| Suh et al. 2023 | Suh, S., Min, B., Palani, S., & Xia, H. *Sensecape: Enabling Multilevel Exploration and Sensemaking with Large Language Models.* UIST 2023, arXiv:2305.11483. | **[F]** |
+| Green & Petre 1996 | Green, T.R.G., & Petre, M. *Usability Analysis of Visual Programming Environments: A 'Cognitive Dimensions' Framework.* J. Visual Languages & Computing 7(2), 131–174, 1996. | **[F]** |
+| Cypher et al. 1993 | Cypher, A. (ed.), with Halbert, D.C., Kurlander, D., Lieberman, H., Maulsby, D., Myers, B.A., & Turransky, A. *Watch What I Do: Programming by Demonstration.* MIT Press, 1993. | **[F]** |
+| Myers & Ko 2006 | Myers, B.A., & Ko, A.J. *End-User Programming.* Invited research overview, 2006. | **[F]** |
+| Litt et al. 2025 | Litt, G., Horowitz, J., van Hardenberg, P., & Matthews, T. *Malleable Software: Restoring User Agency in a World of Locked-Down Apps.* Ink & Switch, 2025. | **[F, practitioner]** |
