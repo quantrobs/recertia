@@ -15,6 +15,7 @@
 - [Risk and governance](architecture/risk-and-governance.md)
 - [Measurement and domain scope](architecture/measurement-and-scope.md)
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
+- [Ten-year horizon: beyond prompts (exploration, ~2036)](architecture/ten-year-horizon.md)
 - [Remaining work: implementation plan](architecture/remaining-work.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Threat-model deltas (principal review §5, single-operator)](architecture/threat-model-deltas.md)
@@ -25,6 +26,8 @@
 Normative requirements are in the [specifications index](specifications.md).
 Forward work is in the [one-year roadmap](architecture/one-year-roadmap.md) and the
 [remaining-work implementation plan](architecture/remaining-work.md).
+A non-normative 2036 exploration lives in the
+[ten-year horizon](architecture/ten-year-horizon.md); it does not create gates.
 Completed M0–M9 sequencing is archived at
 [archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md).
 The August 2026 principal review is archived at
