@@ -266,8 +266,8 @@ def _predecessor_regressions(predecessor_dirs: list[Path], report: GoldenReport)
             key = str(pred_dir.resolve()) if pred_dir.exists() else str(pred_dir)
         except OSError:
             key = str(pred_dir)
-        result = by_path.get(key)
-        if result is None or not result.passed:
+        matched = by_path.get(key)
+        if matched is None or not matched.passed:
             failing.append(pred_dir.name or str(pred_dir))
     return failing
 
