@@ -130,6 +130,24 @@ class GraphOrchestrator:
         except Exception:  # noqa: BLE001 — trajectory must not fail runs
             return
 
+    def _record_eval_observation(self, state: RunState) -> None:
+        """Best-effort eval append for the field off-ramp; never fails the run."""
+
+        if state.terminal is None:
+            return
+        try:
+            from recertia.evals.store import EvalStore, ObservationError
+
+            store = EvalStore(self.runs_root / "evals.db")
+            try:
+                store.append_run(state)
+            except ObservationError:
+                return
+            finally:
+                store.close()
+        except Exception:  # noqa: BLE001 — eval recording must not fail runs
+            return
+
     def start(
         self,
         run_id: str,
@@ -251,6 +269,7 @@ class GraphOrchestrator:
                     note=outcome.note,
                 )
                 self.checkpoints.save(state.run_id, next_seq, node_name, None, new_state)
+                self._record_eval_observation(new_state)
                 return new_state
 
             legal = legal_routes(node_name, new_state)

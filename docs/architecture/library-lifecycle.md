@@ -36,12 +36,27 @@ the version back to `candidate` (`maybe_advance_shadow_to_candidate`); golden-ga
 `promote_to_approved` remains required before `approved`. The human gate relaxes on evidence
 rather than being absent from the start — shadow never writes `approved` directly.
 
-For `self_distilled` skills, `approved` also requires
-`SkillStats.apply_diversity.distinct_apply_sessions ≥ 2` (ADR-0015). The gate does not apply
-at `candidate` or `shadow`. Application sessions are counted on stats, not on `Provenance`.
+**Golden pass is a license to exist, not a ticket onto the live mix.** Human-authored and
+`mined_from_human_artifact` skills go `active` on approval. `self_distilled` skills are
+`approved` but stay inactive and use bounded shadow slots until contribution is non-negative.
+Below the evidence floor they are not dropped (Ratchet A4); they are also not retrieved for
+direct application. `recompute_active_set` will not place an ineligible self-distilled skill
+in the active cap.
 
-A transition into `quarantined` enqueues lineage revoke; the Recertifier drains it (§8.4).
-The task plane never marks a stored version quarantined.
+For `self_distilled` skills, `approved` also requires
+`SkillStats.apply_diversity.distinct_apply_sessions ≥ 2` when applications have been observed
+(ADR-0015). The gate does not apply at `candidate` or `shadow`. Application sessions are
+counted on stats, not on `Provenance`.
+
+Successor promotion is differential: `skill@vN` must pass every golden fixture `vN−1` passed,
+in addition to its own suite. A candidate that still "solves" its own fixture but fails a
+predecessor fixture is refused.
+
+A transition into `quarantined` enqueues lineage revoke; the Recertifier drains it (§8.4),
+including a **field off-ramp**: two consecutive treatment-arm failures where the skill was
+applied (eval fixtures and practice/shadow/control excluded). The task plane never marks a
+stored version quarantined. The console shows `live_mix.reason` (`live`, `shadow_trial`,
+`quarantined`, …) so an operator can see why a certified skill is not steering traffic.
 
 **Curation provenance affects the bar.** Skills carry `curation`: `human_authored`,
 `mined_from_human_artifact`, or `self_distilled`. The one benchmark that separated these found

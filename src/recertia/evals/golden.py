@@ -85,6 +85,17 @@ def discover_golden(golden_root: Path, skill_id: str, task_class: str = "repo-ch
     return path if has_task or has_goal else None
 
 
+def discover_version_golden(
+    golden_root: Path, skill_id: str, version: int, task_class: str = "repo-chore"
+) -> Path | None:
+    """Optional per-version fixture dir: ``<root>/<task_class>/<skill_id>/v<N>/``."""
+
+    path = golden_root / task_class / skill_id / f"v{version}"
+    has_task = path.is_dir() and (path / "task.json").exists()
+    has_goal = path.is_dir() and (path / "goal.json").exists()
+    return path if has_task or has_goal else None
+
+
 def run_golden_for_skill(
     version: SkillVersion,
     golden_dir: Path,
@@ -228,6 +239,7 @@ def select_and_run_gate(
     golden_dir: Path | None = None,
     require_task_class_gate: bool = False,
     require_fixture: bool = False,
+    extra_golden_dirs: list[Path] | None = None,
 ) -> GoldenReport:
     prefer_task_class = require_task_class_gate or (
         require_fixture and golden_root is not None and golden_dir is None
@@ -242,32 +254,92 @@ def select_and_run_gate(
             own = run_golden_for_skill(version, golden_dir, runs_root=runs_root)
             if not any(r.golden_path == own.golden_path for r in report.results):
                 report.results.append(own)
-        return report
+        return _append_extra_golden_dirs(
+            version, report, extra_golden_dirs or [], runs_root=runs_root
+        )
 
     if golden_dir is not None:
         result = run_golden_for_skill(version, golden_dir, runs_root=runs_root)
-        return GoldenReport(results=[result])
+        return _append_extra_golden_dirs(
+            version,
+            GoldenReport(results=[result]),
+            extra_golden_dirs or [],
+            runs_root=runs_root,
+        )
 
     if golden_root is not None:
         skill_dir = golden_root / version.task_class / version.skill_id
         if skill_dir.is_dir() and (
             (skill_dir / "task.json").exists() or (skill_dir / "goal.json").exists()
         ):
-            return GoldenReport(
+            report = GoldenReport(
                 results=[run_golden_for_skill(version, skill_dir, runs_root=runs_root)]
             )
+            return _append_extra_golden_dirs(
+                version, report, extra_golden_dirs or [], runs_root=runs_root
+            )
         if (golden_root / version.task_class / ".full_class").exists():
-            return run_task_class_gate(
+            report = run_task_class_gate(
                 version,
                 golden_root,
                 runs_root=runs_root,
                 task_class=version.task_class,
             )
-        return GoldenReport()
+            return _append_extra_golden_dirs(
+                version, report, extra_golden_dirs or [], runs_root=runs_root
+            )
+        return _append_extra_golden_dirs(
+            version, GoldenReport(), extra_golden_dirs or [], runs_root=runs_root
+        )
 
-    if require_fixture:
+    if require_fixture and not extra_golden_dirs:
         raise ValueError("promote_to_approved requires golden_dir or golden_root")
-    return GoldenReport()
+    return _append_extra_golden_dirs(
+        version, GoldenReport(), extra_golden_dirs or [], runs_root=runs_root
+    )
+
+
+def _append_extra_golden_dirs(
+    version: SkillVersion,
+    report: GoldenReport,
+    extra_golden_dirs: list[Path],
+    *,
+    runs_root: Path,
+) -> GoldenReport:
+    """Run predecessor (or other) fixtures not already in ``report``."""
+
+    seen: set[str] = set()
+    for result in report.results:
+        if result.golden_path:
+            try:
+                seen.add(str(Path(result.golden_path).resolve()))
+            except OSError:
+                seen.add(result.golden_path)
+    for extra in extra_golden_dirs:
+        try:
+            key = str(extra.resolve()) if extra.exists() else str(extra)
+        except OSError:
+            key = str(extra)
+        if key in seen:
+            continue
+        seen.add(key)
+        if not extra.is_dir() or not (
+            (extra / "task.json").exists() or (extra / "goal.json").exists()
+        ):
+            report.results.append(
+                GoldenResult(
+                    skill_id=version.skill_id,
+                    version=version.version,
+                    golden_path=str(extra),
+                    passed=False,
+                    terminal=None,
+                    run_id="",
+                    detail="predecessor golden fixture missing or unreadable",
+                )
+            )
+            continue
+        report.results.append(run_golden_for_skill(version, extra, runs_root=runs_root))
+    return report
 
 
 def run_seed_library_gate(

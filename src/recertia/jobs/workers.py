@@ -220,10 +220,30 @@ def recertify_with_revokes(
     revoke_queue=None,
     max_writes: int = 50,
     tool_upgraded: str | None = None,
+    eval_store: EvalStore | None = None,
 ) -> list[Proposal]:
-    """One Recertifier pass: stale certs + lineage revoke drain (ADR-0015)."""
+    """One Recertifier pass: stale certs + field off-ramp + lineage revoke drain."""
 
     proposals = recertify_stale(store, tool_upgraded=tool_upgraded)
+    if eval_store is not None:
+        from recertia.review.field_failures import recertify_field_failures
+
+        for off_ramp in recertify_field_failures(store, eval_store, config=DEFAULT_AUTONOMY):
+            proposals.append(
+                Proposal(
+                    kind="recertify",
+                    skill_id=off_ramp.skill_id,
+                    version=off_ramp.version,
+                    rationale=(
+                        f"field off-ramp: {off_ramp.consecutive_failures} consecutive "
+                        "treatment-arm failures"
+                    ),
+                    payload={
+                        "consecutive_field_failures": off_ramp.consecutive_failures,
+                        "reason": "field_failures",
+                    },
+                )
+            )
     if lineage_index is None or revoke_queue is None:
         return proposals
     from recertia.memory.procedural.lineage import drain_revokes

@@ -56,6 +56,7 @@ def jobs_run(
 ) -> None:
     """Run an offline improvement job under a proposal budget."""
 
+    from recertia.evals.store import EvalStore
     from recertia.jobs import JobBudget, build_job_runner
     from recertia.jobs.workers import (
         correction_miner_from_reviewer_edits,
@@ -128,17 +129,22 @@ def jobs_run(
                 budget=budget,
             )
     elif name == "recertify":
-        result = runner.run(
-            "recertify",
-            lambda: recertify_with_revokes(
-                store,
-                lineage_index=lineage.index,
-                revoke_queue=lineage.queue,
-                max_writes=runner.quota.max_status_writes_per_tick,
-                tool_upgraded=tool_upgraded,
-            ),
-            budget=budget,
-        )
+        eval_store = EvalStore(runs_root / "evals.db")
+        try:
+            result = runner.run(
+                "recertify",
+                lambda: recertify_with_revokes(
+                    store,
+                    lineage_index=lineage.index,
+                    revoke_queue=lineage.queue,
+                    max_writes=runner.quota.max_status_writes_per_tick,
+                    tool_upgraded=tool_upgraded,
+                    eval_store=eval_store,
+                ),
+                budget=budget,
+            )
+        finally:
+            eval_store.close()
     elif name == "shadow":
         result = runner.run(
             "shadow",

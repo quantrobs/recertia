@@ -20,8 +20,17 @@ across runs — never by a single run's task-plane graph (§4, ADR-0008). Shadow
 only to `candidate`; it MUST NOT write `approved`.
 
 Regression gate: before any promotion to `approved`, the golden set for the skill's
-`task_class` MUST run green against the candidate via `promote_to_approved`. A regression blocks
-promotion and is reported with the failing task ids.
+`task_class` MUST run green against the candidate via `promote_to_approved`. A regression
+blocks promotion and is reported with the failing task ids. When the candidate supersedes an
+approved predecessor, the gate MUST also re-run every golden fixture that predecessor passed
+(predecessor non-regression). Failing a predecessor fixture is a refusal even if the
+candidate still solves its own fixture.
+
+`promote_to_approved` writes `lifecycle=approved`. It sets `active=True` only for
+`human_authored` and `mined_from_human_artifact` skills. `self_distilled` versions remain
+`active=False` until contribution evidence is non-negative (bounded shadow slots gather that
+evidence). The Recertifier quarantines a version after two consecutive treatment-arm field
+failures where that skill was applied.
 
 ## 9. HTTP API
 

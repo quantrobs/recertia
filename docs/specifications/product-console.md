@@ -108,8 +108,8 @@ HTTP status `202` when `mode=async`. Sync mode keeps today's blocking semantics 
 
 | Method | Path | Purpose | Milestone |
 | --- | --- | --- | --- |
-| `GET` | `/v1/skills` | List summaries; filter `task_class`, `lifecycle`, `active` | C0 |
-| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full version + status + stats plus `identity` (`authoring` from `Provenance`, `applications` from `SkillStats.apply_diversity`) | C0 |
+| `GET` | `/v1/skills` | List summaries; filter `task_class`, `lifecycle`, `active`; each item includes `live_mix` (`reason`, `eligible`, `consecutive_field_failures`) | C0 |
+| `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full version + status + stats plus `identity` (`authoring` from `Provenance`, `applications` from `SkillStats.apply_diversity`) and `live_mix` | C0 |
 | `POST` | `/v1/skills/search` | Retrieval debug: query, top-k, scores, drop reasons | C1 |
 | `POST` | `/v1/skills/{skill_id}/versions/{version}/promote` | Enqueue golden-gated promote; returns `job_id` | C1 |
 
