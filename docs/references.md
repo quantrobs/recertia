@@ -330,3 +330,12 @@ not cite; cite primaries or §1.7. No change.
 affiliated with Andrew Ng and not endorsed.” Restates Ng’s four patterns and the Batch
 HumanEval anecdote; the loop→graph ladder is the compiler’s overlay. Patterns already
 anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this compilation. No change.
+
+## 10. Horizon note (not a design change)
+
+[`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md) is a
+dated research essay (August 2026): inner / outer / meta loops stay distinct; “graphs
+supersede loops” remains the overlay already ignored in §1.7; the scarce 10-year good is a
+falsifiable loop, not a larger graph. It cites primaries already in this file. It is **not**
+an ADR, not remaining work, and it does not update `a1`–`a4`. No topology, engine, HEX, or
+C5 change follows from it.

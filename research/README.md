@@ -1,11 +1,12 @@
 # Research artifacts
 
-Scored preprint surveys and score-10 bibliography extracts. **Not normative** — design
-impact is recorded in [`docs/references.md`](../docs/references.md) and
-[`docs/assumptions.md`](../docs/assumptions.md).
+Scored preprint surveys, score-10 bibliography extracts, and horizon notes.
+**Not normative** — design impact is recorded in [`docs/references.md`](../docs/references.md)
+and [`docs/assumptions.md`](../docs/assumptions.md).
 
 | Path | Contents |
 | --- | --- |
+| [`loops-and-graphs-horizon.md`](loops-and-graphs-horizon.md) | Non-normative ~10-year note: falsifiable loops stay scarce; graphs do not supersede them |
 | `preprints-self-improving-agents.xlsx` / `.scored.json` | ~117-paper applicability survey |
 | `preprints-score10-reference-lists.xlsx` / `.scored.json` | Score-10 paper reference-list extracts |
 | [`score10-references/`](score10-references/) | Per-paper bibliography markdown + combined JSON |
