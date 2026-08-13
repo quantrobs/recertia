@@ -36,53 +36,49 @@ failures where that skill was applied.
 
 Versioned under `/v1`. JSON only. Auth: `X-API-Key` with scoped keys (`runs`, `blobs`, `metrics`, `admin`).
 
-### Implemented (offline)
+### Implemented (offline + console C0–C4 + remaining-work HTTP)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Liveness |
-| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync, offline; same path as `recertia run`). Body: `request`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Returns terminal state + `route_log`. |
+| `POST` | `/v1/runs` | Execute a task via `GraphOrchestrator.start` (sync; optional `mode=async`). Body: `request` or `goal`, optional `task_class`, `criteria`, `script`, `budget`, `workdir`, `run_id`, `arm`. Quota exhaustion returns the error envelope (`budget_exhausted` / `worker_busy`). |
+| `GET` | `/v1/runs` | List/filter runs (console C0) |
 | `GET` | `/v1/runs/{run_id}` | Status / terminal / route log (memory + checkpoint fallback) |
 | `POST` | `/v1/runs/{run_id}/resume` | Resume from last checkpoint |
-| `POST` | `/v1/blobs` · `GET` `/v1/blobs/{digest}` | Content-addressed blob put/get |
-| `GET` | `/v1/metrics/dashboard` | Telemetry dashboard panels |
-
-`POST /v1/runs` is **not** enqueue-only: it drives the graph to a terminal (or error) before responding.
-
-### CLI-only today (not yet HTTP)
-
-`recertia skills search`, `recertia skills promote`, `recertia lift`, `recertia ledger verify` — use the CLI. Lift and skills search are intentionally not duplicated on HTTP yet.
-
-### Aspirational (not implemented)
-
-Console-oriented routes (list runs, async + SSE, proposals, jobs, promote enqueue, OIDC)
-are specified normatively in [`product-console.md`](product-console.md) and sequenced as
-milestones **C0–C5** in [`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md).
-The table below remains the short index; **product-console.md wins on conflicts** for those
-milestones.
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/v1/runs` | List/filter runs (console C0) |
 | `GET` | `/v1/runs/{run_id}/transcript` | Structured transcript |
 | `GET` | `/v1/runs/{run_id}/events` | SSE run event stream (console C2) |
 | `POST` | `/v1/runs/{run_id}/cancel` | Cooperative cancel at next node boundary |
-| `GET` | `/v1/skills` | List/filter by `task_class`, `lifecycle`, `tag` |
+| `POST` | `/v1/blobs` · `GET` `/v1/blobs/{digest}` | Content-addressed blob put/get |
+| `GET` | `/v1/metrics/dashboard` | Telemetry dashboard panels |
+| `GET` | `/v1/metrics/report` · `/v1/metrics/canary` | Compounding metrics (yield/precision/decay or `unavailable`) and judge canary |
+| `GET` | `/v1/skills` | List/filter by `task_class`, `lifecycle` |
 | `GET` | `/v1/skills/{skill_id}/versions/{version}` | Full skill version + `identity` split (console C0) |
-| `POST` | `/v1/skills/search` | Retrieval debug endpoint: scores and drop reasons |
-| `POST` | `/v1/skills/…/promote` | Enqueue golden-gated promote (console C1) |
-| `GET` | `/v1/reviews?status=pending` | Review queue |
-| `POST` | `/v1/reviews/{decision_id}` | `approve` / `reject` / `request_changes` |
-| `POST` | `/v1/evals/runs` | Run a golden set against a library snapshot |
-| `GET` | `/v1/metrics` · `/v1/metrics/report` | Compounding metrics by task class and snapshot |
-| `GET` | `/v1/facts` · `/v1/cases` · `/v1/affordances` | Read the non-procedural memory planes (§13) |
-| `POST` | `/v1/memory/query` | Federated retrieval debug across all planes with drop reasons |
-| `GET` | `/v1/jobs` · `POST` `/v1/jobs/{job}/run` | Improvement-plane job status and manual trigger (§20) |
-| `GET` | `/v1/proposals?status=pending` | Curator, Miner and Correction-miner proposals awaiting review |
-| `GET` | `/v1/policy` · `POST` `/v1/policy/proposals` | Read policy config; propose a T2 change, which requires human approval (§22) |
+| `POST` | `/v1/skills/search` | Retrieval debug: scores |
+| `POST` | `/v1/skills/{skill_id}/versions/{version}/promote` | Enqueue golden-gated promote (console C1) |
+| `GET` | `/v1/proposals` · `POST` `/v1/proposals/{id}/decision` | Improvement-plane proposals |
+| `GET` | `/v1/reviews` · `POST` `/v1/reviews/{decision_id}` | Alias of pending proposals until distill-review volume splits |
+| `GET` | `/v1/jobs` · `POST` `/v1/jobs/{job}/run` | Improvement-plane job status and manual trigger (§20). HEX/compress remain gated (RW-6). |
+| `POST` | `/v1/evals/runs` | Golden set against a library snapshot (eval firewall; no candidate writes) |
+| `GET` | `/v1/facts` · `/v1/cases` · `/v1/affordances` | Tenant-scoped non-procedural memory reads |
+| `POST` | `/v1/memory/query` | Federated retrieve debug across planes; does not start a run |
+| `GET` | `/v1/policy` · `POST` `/v1/policy/proposals` | Read Policy (no secrets); T2 proposal only — does not apply |
 | `GET` | `/v1/ledger/verify` | Verify the integrity chain (§21) |
+| `GET` | `/v1/workspaces` · `POST`/`PATCH`/`DELETE` | Registered workspaces (console) |
+| `GET` | `/v1/me` · `POST` `/v1/auth/*` | Console session (dev login / OIDC). C5 tenant-switcher **UI** is not shipped. |
+| `POST` | `/v1/goals/*` · `/v1/programs/*` · `/v1/templates` | Goal packs / programs (GP0–GP2) |
 
-Error envelope (target shape; current handlers may return FastAPI `{detail: ...}`):
+`POST /v1/runs` is **not** enqueue-only in sync mode: it drives the graph to a terminal (or error) before responding. Async mode returns 202 and streams via SSE.
+
+Console-oriented behaviour is specified normatively in [`product-console.md`](product-console.md). **product-console.md wins on conflicts** for C0–C4.
+
+### Aspirational (not implemented)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
+| OG-11 | console model slug allowlist | Optional OR3: unknown slug on `POST /v1/runs` → 400; allowlist not in `console/static/` |
+
+Error envelope (used on budget/in-flight `POST /v1/runs` and new remaining-work routes; FastAPI `{detail: ...}` MAY remain on `/health` and 422):
 
 ```json
 { "error": { "code": "budget_exhausted", "message": "...", "run_id": "01JD...", "retryable": false } }
@@ -107,10 +103,18 @@ recertia jobs run curator --dry-run
 recertia jobs run practice
 recertia jobs run recertify
 recertia jobs run mine --hint "docs/runbook.md" --submit
+recertia jobs run hex|compress   # no-op unless enablement predicates pass
+recertia metrics --task-class repo-chore
+recertia probes run --probes evals/probes/repo-chore.json
+recertia eval run --task-class repo-chore
+recertia policy
+recertia memory query "dependency bump"
 ```
 
 Policy is `policy/default.json` (`RECERTIA_POLICY_PATH`). `practice` without `--one-off`
 prefers eligible failure clusters. `recertify` drains the lineage-revoke queue.
+`metrics` preserves `unavailable` holes (PC-5). HEX/compress refuse without numeric
+`practice_conversion` even if policy flags are true.
 
 ### Aspirational (not implemented)
 
@@ -119,13 +123,9 @@ recertia skills list [--task-class repo-chore] [--lifecycle candidate]
 recertia skills show bump-python-dep@3
 recertia review queue
 recertia review approve <decision_id> --note "..."
-recertia eval run --task-class repo-chore --snapshot HEAD
-recertia metrics --task-class repo-chore --compare HEAD~5..HEAD
-recertia memory query "dependency bump" --planes skills,facts,cases --explain
 recertia facts list --scope project
 recertia cases show <case_id>
 recertia proposals queue
-recertia policy show
 recertia policy propose retrieval.min_score=0.60 --eval-compare
 ```
 

@@ -28,7 +28,9 @@ from contracts.goal import Goal
 from contracts.run import Task
 from recertia.api.auth import ApiKeyStore, Principal, require_scope, validate_tenant_id
 from recertia.api.console_routes import ConsoleContext, register_console_routes
+from recertia.api.errors import V1HTTPError, v1_error
 from recertia.api.quotas import QuotaExceeded, QuotaStore
+from recertia.api.remaining_routes import register_remaining_routes
 from recertia.bootstrap import build_default_orchestrator, resolve_task_class
 from recertia.graph.engine import GraphOrchestrator
 from recertia.ids import InvalidIdError, validate_run_id
@@ -315,6 +317,11 @@ def create_app(
         workspace_registry=workspace_registry,
     )
     register_console_routes(app, console_ctx)
+    register_remaining_routes(app, console_ctx)
+
+    @app.exception_handler(V1HTTPError)
+    async def _v1_http_error(_request: Any, exc: V1HTTPError) -> Any:
+        return exc.response()
 
     console_dir = Path(__file__).resolve().parents[3] / "console" / "static"
     if console_dir.is_dir():
@@ -380,7 +387,7 @@ def create_app(
             try:
                 quota_store.admit(principal.tenant_id)
             except QuotaExceeded as exc:
-                raise HTTPException(status_code=429, detail=str(exc)) from exc
+                return _quota_error(exc, run_id=run_id)
             placeholder = RunRecord(
                 run_id=run_id,
                 request=request,
@@ -448,11 +455,17 @@ def create_app(
         try:
             quota_store.admit(principal.tenant_id)
         except QuotaExceeded as exc:
-            raise HTTPException(status_code=429, detail=str(exc)) from exc
+            return _quota_error(exc, run_id=run_id)
 
         if not run_slots.acquire(blocking=False):
             quota_store.release_inflight(principal.tenant_id)
-            raise HTTPException(status_code=429, detail="too many in-flight runs")
+            return v1_error(
+                429,
+                code="worker_busy",
+                message="too many in-flight runs",
+                run_id=run_id,
+                retryable=True,
+            )
 
         # Container backend isolates tools; local API requires exec (or admin) for grants.
         bundle = build_default_orchestrator(
@@ -531,10 +544,10 @@ def create_app(
         runs[run_key] = loaded
         return loaded
 
-    @app.post("/v1/runs/{run_id}/resume", response_model=RunRecord)
+    @app.post("/v1/runs/{run_id}/resume", response_model=None)
     def resume_run(
         run_id: str, principal: Principal = Depends(require_scope("runs", key_store))
-    ) -> RunRecord:
+    ) -> Any:
         try:
             ensure_api_execution_ready()
         except SandboxError as exc:
@@ -551,7 +564,13 @@ def create_app(
         if not workdir.exists():
             raise HTTPException(status_code=404, detail="run workdir not found")
         if not run_slots.acquire(blocking=False):
-            raise HTTPException(status_code=429, detail="too many in-flight runs")
+            return v1_error(
+                429,
+                code="worker_busy",
+                message="too many in-flight runs",
+                run_id=run_id,
+                retryable=True,
+            )
         bundle = build_default_orchestrator(
             root / "runs" / principal.tenant_id,
             skills_root=skills_root,
@@ -642,6 +661,17 @@ def create_app(
     app.state.runs = runs
     app.state.console_ctx = console_ctx
     return app
+
+
+def _quota_error(exc: QuotaExceeded, *, run_id: str | None = None) -> Any:
+    message = str(exc)
+    if "max_in_flight" in message:
+        return v1_error(
+            429, code="worker_busy", message=message, run_id=run_id, retryable=True
+        )
+    return v1_error(
+        429, code="budget_exhausted", message=message, run_id=run_id, retryable=False
+    )
 
 
 def _record_from_state(

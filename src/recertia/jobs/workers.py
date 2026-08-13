@@ -188,6 +188,34 @@ def practice_from_one_offs(
     return proposals
 
 
+def propose_hex_search() -> list[Proposal]:
+    """Emit a HEX practice-search proposal. JobRunner still gates enablement (RW-6)."""
+
+    return [
+        Proposal(
+            kind="hex",
+            skill_id="hex-search",
+            version=1,
+            rationale="HEX practice search (enablement predicates passed)",
+            payload={"job": "practice_hex"},
+        )
+    ]
+
+
+def propose_compress() -> list[Proposal]:
+    """Emit a unit-level compress proposal. JobRunner still gates enablement (RW-6)."""
+
+    return [
+        Proposal(
+            kind="compress",
+            skill_id="compress-units",
+            version=1,
+            rationale="unit-level compress (enablement predicates passed)",
+            payload={"job": "compress"},
+        )
+    ]
+
+
 def enqueue_mined_candidate(store: SkillStore, proposal: Proposal) -> SkillVersion:
     """Persist a mined draft as ``candidate`` only — promotion stays behind the golden gate."""
 

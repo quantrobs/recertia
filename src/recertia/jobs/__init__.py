@@ -5,12 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 from contracts.policy import JOB_PRIORITY_ORDER, JobPriority, JobQuota, Policy
 from contracts.skill import SkillVersion
 from recertia.memory.procedural.store import SkillStore
 from recertia.review import ReviewService
+
+if TYPE_CHECKING:
+    from contracts.eval import MetricReport
 
 JOB_NAME_TO_PRIORITY: dict[str, JobPriority] = {
     "recertify": "recertifier",
@@ -48,6 +51,7 @@ ProposalKind = Literal[
     "correction",
     "compress",
     "fail_cluster",
+    "hex",
 ]
 
 
@@ -96,6 +100,8 @@ class JobRunner:
         self.runs_root = Path(runs_root) if runs_root is not None else Path("/tmp/recertia-jobs")
         self.quota_path = Path(quota_path) if quota_path is not None else None
         self.policy = policy
+        self.enablement_report: MetricReport | None = None
+        self.hex_recovery = False
         if quota is not None:
             self.quota = quota
         else:
@@ -107,6 +113,17 @@ class JobRunner:
     def run(self, job_name: str, fn: Callable[[], list[Proposal]], *, budget: JobBudget) -> JobResult:
         priority = resolve_job_priority(job_name)
         tokens = budget.max_tokens
+        if priority in {"practice_hex", "compress"}:
+            from recertia.jobs.enablement import hex_compress_skip_reason
+
+            skip = hex_compress_skip_reason(
+                self.policy,
+                self.enablement_report,
+                job=priority,
+                recovery=self.hex_recovery,
+            )
+            if skip:
+                return JobResult(job=job_name, proposals=[], skipped=skip)
         if priority is not None and not self.admit(priority, tokens=tokens):
             return JobResult(job=job_name, proposals=[], skipped=f"quota refused {job_name}")
         proposals = fn()

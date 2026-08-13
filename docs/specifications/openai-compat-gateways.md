@@ -109,9 +109,12 @@ operator guide.
 | OG-4 | `EXTRA_HEADERS` invalid JSON fails loud |
 | OG-5 | CLI/config accepts `openai:org/model` slugs with `/` |
 | OG-6 | Price override env for a slash slug affects `estimate_cost_usd` |
+| OG-7 | Unknown gateway slugs are not vendor-exact; `cost_is_vendor_exact` is false |
+| OG-8 | `RECERTIA_OPENAI_MAX_TOKENS` is sent unless EXTRA_BODY already has `max_tokens` |
+| OG-9 | OpenRouter `{error:{message,code}}` raises `ProviderError` including `code=` |
+| OG-10 | List-shaped `message.content` concatenates `{type:text,text}` parts |
 
-Existing coverage: `tests/unit/test_openai_compat_gateway.py` (OR0). Later milestones extend
-this table.
+Existing coverage: `tests/unit/test_openai_compat_gateway.py` (OR0–OR2). OG-11 (OR3) is optional.
 
 ## 10. Explicit non-requirements
 

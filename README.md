@@ -249,4 +249,4 @@ Research outcomes remain tracked in [`docs/assumptions.md`](docs/assumptions.md)
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+PolyForm Noncommercial — see [`LICENSE`](LICENSE). This is not an MIT-licensed project.

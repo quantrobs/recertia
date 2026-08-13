@@ -26,6 +26,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from contracts.budget import Budget
 from contracts.criteria import TaskCriterion
@@ -35,6 +36,9 @@ from contracts.skill import SkillVersion
 from recertia.graph.engine import GraphOrchestrator
 from recertia.memory.procedural.apply import script_from_skill
 from recertia.memory.procedural.store import SkillStore
+
+if TYPE_CHECKING:
+    from recertia.evals.store import EvalStore
 
 
 @dataclass
@@ -104,6 +108,7 @@ def run_golden_for_skill(
     use_skill_script: bool = True,
     snapshot_id: str | None = None,
     model_version: str | None = None,
+    eval_store: EvalStore | None = None,
 ) -> GoldenResult:
     """Execute one golden task against ``version``; return a :class:`GoldenResult`."""
 
@@ -192,6 +197,14 @@ def run_golden_for_skill(
             os.environ.pop("RECERTIA_EXECUTION_BACKEND", None)
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
+
+    if eval_store is not None:
+        from recertia.evals.store import ObservationError
+
+        try:
+            eval_store.append_run(state)
+        except ObservationError:
+            pass
 
     passed = state.terminal == expected_terminal
     return GoldenResult(
@@ -422,3 +435,74 @@ def _criteria_from_task(task_spec: dict, version: SkillVersion) -> list[TaskCrit
             "adapted task criteria failed sensitivity evidence verification"
         )
     return adapted
+
+
+def run_eval_suite(
+    *,
+    task_class: str,
+    golden_root: Path,
+    skills_root: Path,
+    runs_root: Path,
+    eval_store: EvalStore,
+    snapshot_id: str,
+    model_version: str | None = None,
+    golden_dir: Path | None = None,
+) -> GoldenReport:
+    """Run golden fixtures as eval (firewall on) and append observations."""
+
+    store = SkillStore(skills_root)
+    report = GoldenReport()
+    if golden_dir is not None:
+        skill_id = golden_dir.name
+        loaded = [
+            v
+            for v, _st, _stats in store.iter_loaded()
+            if v.skill_id == skill_id and v.task_class == task_class
+        ]
+        if not loaded:
+            from recertia.memory.procedural.seeds import SEED_SKILLS
+
+            loaded = [v for v in SEED_SKILLS if v.skill_id == skill_id]
+        if not loaded:
+            report.results.append(
+                GoldenResult(
+                    skill_id=skill_id,
+                    version=1,
+                    golden_path=str(golden_dir),
+                    passed=False,
+                    terminal=None,
+                    run_id="",
+                    detail="no skill version available for eval fixture",
+                )
+            )
+            return report
+        report.results.append(
+            run_golden_for_skill(
+                loaded[0],
+                golden_dir,
+                runs_root=runs_root,
+                snapshot_id=snapshot_id,
+                model_version=model_version,
+                eval_store=eval_store,
+            )
+        )
+        return report
+
+    for version, _status, _stats in store.iter_loaded():
+        if version.task_class != task_class:
+            continue
+        golden = discover_golden(golden_root, version.skill_id, task_class)
+        if golden is None:
+            continue
+        report.results.append(
+            run_golden_for_skill(
+                version,
+                golden,
+                runs_root=runs_root,
+                snapshot_id=snapshot_id,
+                model_version=model_version,
+                eval_store=eval_store,
+            )
+        )
+    return report
+

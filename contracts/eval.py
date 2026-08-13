@@ -145,5 +145,8 @@ class MetricReport(BaseModel):
     guide_used_rate: float | None = None
     compose_block_rate: float | None = None
     off_intent_activation: float | None = None
+    library_yield: float | None = None
+    retrieval_precision_at_3: float | None = None
+    retrieval_decay: float | None = None
     unavailable: dict[str, str] = Field(default_factory=dict)
     at: datetime

@@ -39,6 +39,11 @@ def build_metric_report(
     judge_false_pass_rate: float | None = None,
     mean_composition_depth: float | None = None,
     regression_rate: float | None = None,
+    approved_applied: int | None = None,
+    approved_total: int | None = None,
+    precision_at_3: float | None = None,
+    prior_precision_at_3: float | None = None,
+    skills_added: int | None = None,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
     # User-facing metrics and lift exclude fixtures and synthetic practice
@@ -151,6 +156,14 @@ def build_metric_report(
     if regression_rate is None:
         unavailable["regression_rate"] = "no golden regression window supplied"
 
+    library_yield = _library_yield(approved_applied, approved_total, unavailable)
+    retrieval_precision = precision_at_3
+    if retrieval_precision is None:
+        unavailable["retrieval_precision_at_3"] = "probe set empty or retrieve not run"
+    retrieval_decay = _retrieval_decay(
+        precision_at_3, prior_precision_at_3, skills_added, unavailable
+    )
+
     return MetricReport(
         snapshot_id=snapshot_id,
         model_version=model_version,
@@ -173,6 +186,9 @@ def build_metric_report(
         active_cap_pressure=pressure,
         judge_false_pass_rate=false_pass,
         mean_composition_depth=composition,
+        library_yield=library_yield,
+        retrieval_precision_at_3=retrieval_precision,
+        retrieval_decay=retrieval_decay,
         unavailable=unavailable,
         at=datetime.now(timezone.utc),
     )
@@ -217,3 +233,60 @@ def _retirement_reversal(
         unavailable["retirement_reversal_rate"] = "no benched versions in window"
         return None
     return restored / benched
+
+
+def _library_yield(
+    applied: int | None, total: int | None, unavailable: dict[str, str]
+) -> float | None:
+    if total is None or total <= 0:
+        unavailable["library_yield"] = "no approved skills"
+        return None
+    if applied is None:
+        unavailable["library_yield"] = "application events not recorded"
+        return None
+    return applied / total
+
+
+def _retrieval_decay(
+    precision: float | None,
+    prior: float | None,
+    skills_added: int | None,
+    unavailable: dict[str, str],
+) -> float | None:
+    if precision is None or prior is None:
+        unavailable["retrieval_decay"] = "fewer than two probe snapshots"
+        return None
+    if skills_added is None or skills_added <= 0:
+        unavailable["retrieval_decay"] = "skill-count denominator zero"
+        return None
+    return (precision - prior) * (100.0 / float(skills_added))
+
+
+def library_yield_inputs(
+    rows: Sequence[dict[str, Any]], *, approved_ids: set[str]
+) -> tuple[int | None, int]:
+    """Return ``(approved_applied | None, approved_total)`` for :func:`build_metric_report`.
+
+    ``approved_applied`` is ``None`` when the window has no application events (skill ids
+    on non-eval rows), so yield stays unavailable instead of a silent zero.
+    """
+
+    total = len(approved_ids)
+    if total <= 0:
+        return None, 0
+    app_rows = [
+        r
+        for r in rows
+        if not r.get("is_eval_fixture")
+        and r.get("arm") not in {"practice", "shadow"}
+        and r.get("skill_id")
+        and r.get("strategy") in {"apply", "adapt"}
+    ]
+    if not app_rows and not any(
+        r.get("skill_id")
+        for r in rows
+        if not r.get("is_eval_fixture") and r.get("arm") not in {"practice", "shadow"}
+    ):
+        return None, total
+    used = {str(r["skill_id"]) for r in app_rows if r.get("skill_id") in approved_ids}
+    return len(used), total

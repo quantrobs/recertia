@@ -34,9 +34,11 @@ from recertia.console_compose import suggest_criteria
 from recertia.console_templates import get_template_goal, list_templates
 from recertia.evals.canary import run_judge_canary
 from recertia.evals.metrics import build_metric_report
+from recertia.evals.report import assemble_metric_report
 from recertia.evals.store import EvalStore
 from recertia.graph.engine import GraphOrchestrator
 from recertia.jobs import JobBudget, build_job_runner
+from recertia.jobs.enablement import attach_enablement
 from recertia.jobs.workers import (
     correction_miner_from_reviewer_edits,
     curator_active_set_and_dedup,
@@ -45,6 +47,8 @@ from recertia.jobs.workers import (
     mine_from_repo_hints,
     practice_from_fail_clusters,
     practice_from_one_offs,
+    propose_compress,
+    propose_hex_search,
     propose_parallelise,
     propose_serialise,
     recertify_with_revokes,
@@ -1007,19 +1011,12 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
         eval_db = ctx.tenant_runs_root(tenant_id) / "evals.db"
         store = EvalStore(eval_db)
         try:
-            rows = store.metric_rows(task_class=task_class, snapshot_id=snapshot_id)
-            snap = snapshot_id or (rows[0]["snapshot_id"] if rows else "none")
             skill_store = SkillStore(ctx.tenant_skills_root(tenant_id))
-            _u, pressure = recompute_active_set(skill_store, config=DEFAULT_AUTONOMY)
-            mean_pressure = sum(pressure.values()) / len(pressure) if pressure else 0.0
-            canary = run_judge_canary()
-            report = build_metric_report(
-                rows,
-                snapshot_id=snap,
+            report = assemble_metric_report(
+                store,
+                skill_store=skill_store,
                 task_class=task_class,
-                active_cap_pressure=mean_pressure,
-                judge_false_pass_rate=canary.false_pass_rate,
-                mean_composition_depth=mean_composition_depth(skill_store),
+                snapshot_id=snapshot_id,
             )
         finally:
             store.close()
@@ -1172,6 +1169,11 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             revoke_queue=lineage.queue,
         )
         runner = build_job_runner(store, runs_root=runs_root / "jobs", policy=policy)
+        attach_enablement(
+            runner,
+            eval_db=runs_root / "evals.db",
+            skills_root=ctx.tenant_skills_root(tenant_id),
+        )
         budget = JobBudget(max_proposals=body.max_proposals)
         job_rec = ctx.job_runs.create(
             name, tenant_id=tenant_id, dry_run=body.dry_run
@@ -1272,6 +1274,10 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
                     lambda: correction_miner_from_reviewer_edits(edits),
                     budget=budget,
                 )
+            elif name in {"hex", "practice_hex"}:
+                result = runner.run("practice_hex", propose_hex_search, budget=budget)
+            elif name == "compress":
+                result = runner.run("compress", propose_compress, budget=budget)
             else:
                 raise HTTPException(status_code=404, detail=f"unknown job {job}")
         except HTTPException:

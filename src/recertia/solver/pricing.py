@@ -77,3 +77,16 @@ def estimate_cost_usd(
                 out_rate = table[1]
     cost = (prompt_tokens / 1_000_000.0) * in_rate + (completion_tokens / 1_000_000.0) * out_rate
     return max(0.0, cost)
+
+
+def cost_is_vendor_exact(*, provider: str, model_id: str) -> bool:
+    """True only when a built-in table rate matched (not blanket defaults).
+
+    Gateway slugs without a table match MUST NOT be treated as vendor-exact spend
+    (remaining-work OG-7). Operator env overrides are still operator-supplied, not
+    vendor invoices.
+    """
+
+    if _env_rate(provider, model_id, "IN") is not None or _env_rate(provider, model_id, "OUT") is not None:
+        return False
+    return _lookup_table(model_id) is not None

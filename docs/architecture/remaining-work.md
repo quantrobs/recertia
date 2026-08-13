@@ -35,15 +35,15 @@ time.
 | **RW-GA** | ops | Four consecutive soak weeks; tabletop log; baseline traffic metrics | open |
 | **RW-M2** | engineering + ops | Scheduled probe + golden + ablation cadence; fill `MetricReport` holes | open |
 | **RW-A** | research | Resolve `a1`, `a2`; instrument `a4` on live verifier versions | harness ready |
-| **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | specified, not computed |
-| **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | blocked on lift interval |
+| **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
+| **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | gated (JobRunner no-op without predicates) |
 | **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | Phase-2 expiry |
-| **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0 shipped |
-| **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | partial (console shipped) |
+| **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0–OR2 shipped; OR3 optional |
+| **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | shipped (C5 UI still gated) |
 | **RW-GP3** | deferred | Goal-pack auto-advance, DAG, `copy_forward` | explicit non-goal |
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
 | **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | open |
-| **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | open |
+| **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
 
 Deliberately out of scope for this year (unchanged from
 [measurement-and-scope.md](measurement-and-scope.md) §18): fine-tuning, learned retrieval
