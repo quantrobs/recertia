@@ -100,14 +100,33 @@ Policy defaults live in [`policy/default.json`](policy/default.json).
 
 ## How a run works
 
-```
-intake (lock criteria)
-  -> retrieve
-  -> plan
-  -> solve
-  -> validate
-       |-- pass -> distill -> review -> memory
-       |-- fail -> evolve (if budget left) or record dead end
+```text
+                    ┌─────────────┐
+                    │  Goal / API │
+                    └──────┬──────┘
+                           │
+                           v
+┌─────────────────────────────────────────────────────────┐
+│  EXECUTION (one request)                                 │
+│  intake → retrieve → plan → solve → validate             │
+│              │                         │                 │
+│              │                    pass / fail            │
+│              │                         │                 │
+│              │              distill or dead end          │
+└──────────────┬─────────────────────────┬────────────────┘
+               │                         │
+               v                         v
+┌─────────────────────────┐   ┌──────────────────────────┐
+│  MEMORY (durable)        │   │  IMPROVEMENT (scheduled)  │
+│  skills · facts · cases  │◀──│  curate · practice        │
+│  utterances · policy     │──▶│  re-certify → quality gate│
+│  versioned, reversible   │   └──────────────────────────┘
+└───────────┬────────────┘
+             │
+             v
+      ┌─────────────┐
+      │ control arm │  same tasks, memory off → measure lift
+      └─────────────┘
 ```
 
 Compounding happens **across** runs, through durable memory that later runs read before inventing. Offline jobs (refine, evolve, practice, distill) reorganize and re-certify that memory on a schedule. Promotion always passes a quality gate.
