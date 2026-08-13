@@ -15,13 +15,15 @@
 - [Risk and governance](architecture/risk-and-governance.md)
 - [Measurement and domain scope](architecture/measurement-and-scope.md)
 - [One-year technical roadmap (2026–2027)](architecture/one-year-roadmap.md)
+- [Remaining work: implementation plan](architecture/remaining-work.md)
 - [Incident tabletop (operator GA)](architecture/incident-tabletop.md)
 - [Production readiness assessment (Phase 4 gate)](architecture/production-readiness.md)
 - [Product console architecture](architecture/product-console.md)
 - [Goal packs (migration programs)](architecture/goal-packs.md)
 
 Normative requirements are in the [specifications index](specifications.md).
-Forward work is in the [one-year roadmap](architecture/one-year-roadmap.md).
+Forward work is in the [one-year roadmap](architecture/one-year-roadmap.md) and the
+[remaining-work implementation plan](architecture/remaining-work.md).
 Completed M0–M9 sequencing is archived at
 [archive/2026-Q3/implementation-plan.md](archive/2026-Q3/implementation-plan.md).
 The August 2026 principal review is archived at

@@ -14,5 +14,6 @@
 - [Failure taxonomy, isolation, and fan-out](specifications/failure-isolation-and-fanout.md)
 - [Evaluation, improvement jobs, ledger, and governance](specifications/evaluation-improvement-and-governance.md)
 - [Library capacity, authoring, and concurrency](specifications/library-authoring-and-concurrency.md)
+- [Remaining work (RW-* / OR1–OR3 / MetricReport holes)](specifications/remaining-work.md)
 
 Architecture rationale is in the [architecture index](architecture.md). Structural contracts are defined by [`contracts/`](../contracts) per [ADR-0009](adr/0009-contracts-as-code.md).

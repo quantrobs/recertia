@@ -89,6 +89,8 @@ failure clusters. Details: [`docs/architecture/go-live.md`](docs/architecture/go
 | [`docs/specifications/openai-compat-gateways.md`](docs/specifications/openai-compat-gateways.md) | Gateway URL, headers, EXTRA_BODY, cost, OG-* tests |
 | [`docs/adr/0013-openai-compat-gateways.md`](docs/adr/0013-openai-compat-gateways.md) | ADR: OpenRouter as openai + base URL |
 | [`docs/architecture/one-year-roadmap.md`](docs/architecture/one-year-roadmap.md) | 2026–2027 roadmap: operator GA → measured compounding → library economics → second domain + tenant gate |
+| [`docs/architecture/remaining-work.md`](docs/architecture/remaining-work.md) | Implementation plan for what remains (RW-* milestones; engineering vs ops vs research) |
+| [`docs/specifications/remaining-work.md`](docs/specifications/remaining-work.md) | Normative remaining-work specs: MetricReport holes, probe cadence, OR1–OR3, HTTP/CLI remainder |
 | [`docs/architecture/incident-tabletop.md`](docs/architecture/incident-tabletop.md) | Operator-GA tabletop: ledger → transcript → restore |
 | [`docs/architecture/production-readiness.md`](docs/architecture/production-readiness.md) | Phase-4 multi-tenant readiness gate checklist |
 | [`docs/architecture/product-console.md`](docs/architecture/product-console.md) | Product console (Pilot / Tower) architecture |
