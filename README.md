@@ -1,9 +1,5 @@
 # Recertia
 
-<p align="center">
-  <img src="assets/logo.svg" alt="Recertia" width="280" />
-</p>
-
 **Only memory that still works gets kept.**
 
 Public homepage for this project is this repository:
