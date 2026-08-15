@@ -41,6 +41,9 @@ from contracts.stats import RetrievalAblationEffect, SkillStats  # noqa: E402
 from contracts.status import SkillStatus  # noqa: E402
 from contracts.workspace import RegisteredWorkspace  # noqa: E402
 
+# Canonical JSON Schema $id prefix (must match the public GitHub org/repo).
+SCHEMA_ID_BASE = "https://github.com/recertia/recertia/schema"
+
 MODELS: dict[str, type] = {
     "skill_version.schema.json": SkillVersion,
     "skill_status.schema.json": SkillStatus,
@@ -78,7 +81,7 @@ def render(model: type) -> str:
     schema = model.model_json_schema()
     schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": f"https://github.com/quantrobs/recertia/schema/{model.__name__}",
+        "$id": f"{SCHEMA_ID_BASE}/{model.__name__}",
         **schema,
     }
     return json.dumps(schema, indent=2, sort_keys=False) + "\n"

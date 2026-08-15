@@ -8,7 +8,7 @@ Build order after principal review of ADR-0014. Normative:
 **Public API name:** `/v1/programs` (`MigrationProgram`). Product copy may say “Goal pack”.
 Distinct from Tower `ReplayPack`.
 
-Shipped on `main` via [#50](https://github.com/quantrobs/fandea/pull/50) (`da90e7e`).
+Shipped on `main` via [#50](https://github.com/recertia/recertia/pull/50) (`3dda7dc`).
 
 ## Guiding rules (revised)
 
