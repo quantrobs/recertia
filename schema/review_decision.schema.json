@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/recertia/schema/ReviewDecision",
+  "$id": "https://github.com/recertia/recertia/schema/ReviewDecision",
   "additionalProperties": false,
   "properties": {
     "decision_id": {

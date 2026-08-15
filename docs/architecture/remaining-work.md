@@ -80,23 +80,17 @@ flowchart LR
 
 ## 4. RW-HY — Spec and README drift
 
-**Goal:** living docs match `main`. A reviewer must not be told the console HTTP is
-unimplemented, or that the license is MIT.
-
-### Scope
+**Shipped.** Living docs match `main` for the original drift items:
 
 1. [`promotion-api-and-observability.md`](../specifications/promotion-api-and-observability.md)
-   §9–10: split **shipped** (including console C0–C4 routes) from **still missing**.
-   Today the "Aspirational" table still lists `GET /v1/runs`, SSE, promote, jobs,
-   proposals, and `recertia metrics` — all implemented.
-2. README Status / License: `LICENSE` is PolyForm Noncommercial; README still says MIT.
-3. Index this document from [`architecture.md`](../architecture.md),
-   [`specifications.md`](../specifications.md), and the README documents table
-   (this PR).
+   §9–10 lists shipped console C0–C4 routes. The aspirational table is C5 only.
+2. README License matches `LICENSE` (PolyForm Noncommercial; explicitly not MIT).
+3. This document is indexed from [`architecture.md`](../architecture.md),
+   [`specifications.md`](../specifications.md), and the README documents table.
 
-**Done when (engineering):** `python3 scripts/check_cross_refs.py --check` passes;
-the promotion-api table does not list a shipped route as unimplemented; README license
-line matches `LICENSE`.
+**Done when (engineering):** already met — `python3 scripts/check_cross_refs.py --check`
+passes; the promotion-api table does not list a shipped route as unimplemented; README
+license line matches `LICENSE`.
 
 **Out of scope:** rewriting archived Q3 plans.
 
@@ -223,8 +217,8 @@ OR3 is optional for single-operator GA (env-level model is enough) but is implem
 ## 9. RW-SUR — Remaining HTTP and CLI
 
 Console C0–C4 already expose runs list, SSE, cancel, skills, promote, proposals,
-jobs, metrics, ledger, programs. The promotion-api "aspirational" list is therefore
-mostly **docs drift** (RW-HY) plus a smaller true remainder:
+jobs, metrics, ledger, programs. The promotion-api "aspirational" list is C5 only
+(RW-HY). Remaining HTTP/CLI:
 
 | Surface | Status | Remaining |
 | --- | --- | --- |

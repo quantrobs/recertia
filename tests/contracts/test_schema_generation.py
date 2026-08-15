@@ -20,6 +20,60 @@ def test_schema_directory_has_no_drift_from_contracts():
     )
 
 
+def test_schema_ids_use_public_github_org():
+    sys.path.insert(0, str(REPO_ROOT))
+    from scripts.generate_schemas import MODELS, SCHEMA_ID_BASE
+
+    assert SCHEMA_ID_BASE == "https://github.com/recertia/recertia/schema"
+    assert ("quant" + "robs") not in SCHEMA_ID_BASE
+    for filename, model in MODELS.items():
+        text = (REPO_ROOT / "schema" / filename).read_text(encoding="utf-8")
+        assert f'"$id": "{SCHEMA_ID_BASE}/{model.__name__}"' in text
+
+
+def test_tracked_sources_have_no_quantrobs_identity():
+    """Old GitHub org leftovers must not reappear in public-facing sources."""
+    skip_dir_names = {
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".recertia",
+        "node_modules",
+    }
+    # This file names the forbidden tokens on purpose.
+    skip_files = {REPO_ROOT / "tests" / "contracts" / "test_schema_generation.py"}
+    suffixes = {".md", ".py", ".json", ".toml", ".html", ".yml", ".yaml", ".txt"}
+    needle = "quant" + "robs"
+    old_repo = "fan" + "dea"
+    hits: list[str] = []
+    for path in REPO_ROOT.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in suffixes:
+            continue
+        if path in skip_files:
+            continue
+        if any(part in skip_dir_names for part in path.parts):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace").lower()
+        if needle in text or old_repo in text:
+            hits.append(str(path.relative_to(REPO_ROOT)))
+    assert hits == [], f"old-org leftovers in: {', '.join(hits)}"
+
+
+def test_readme_and_pyproject_declare_polyform_license():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    license_text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")
+    assert "PolyForm Noncommercial" in readme
+    assert "PolyForm Noncommercial" in license_text
+    assert 'license = { file = "LICENSE" }' in pyproject
+    assert (REPO_ROOT / "SECURITY.md").is_file()
+    assert (REPO_ROOT / "CONTRIBUTING.md").is_file()
+
+
 def test_canonical_examples_have_no_drift_from_contracts_examples():
     result = subprocess.run(
         [sys.executable, str(REPO_ROOT / "scripts" / "export_examples.py"), "--check"],

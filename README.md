@@ -185,3 +185,5 @@ Copyright (c) 2026 Robert Schmidt.
 | [`contracts/`](contracts) | Normative Pydantic models |
 | [`docs/references.md`](docs/references.md) | Literature grounding |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims still under test |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, CI checks, how to send a change |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability reporting |

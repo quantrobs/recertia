@@ -142,7 +142,7 @@ unchanged (`X-Recertia-Tenant` / active tenant / key tenant).
 ```json
 {
   "workspace_id": "recertia",
-  "display_name": "quantrobs/recertia",
+  "display_name": "example/recertia",
   "host_root": "D:\\src\\recertia",
   "notes": "main checkout"
 }

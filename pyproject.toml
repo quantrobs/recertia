@@ -2,11 +2,19 @@
 name = "recertia"
 version = "0.1.0"
 description = "Recertia: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/recertia/ implements M0–M9 (docs/archive/2026-Q3/implementation-plan.md)."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Robert Schmidt" }]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.9,<3",
     "typer>=0.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/recertia/recertia"
+Repository = "https://github.com/recertia/recertia"
+Issues = "https://github.com/recertia/recertia/issues"
 
 [project.optional-dependencies]
 api = [
