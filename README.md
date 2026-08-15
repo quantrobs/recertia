@@ -176,6 +176,7 @@ Copyright (c) 2026 Robert Schmidt.
 
 | Doc | When you need it |
 | --- | --- |
+| [`docs/architecture2.md`](docs/architecture2.md) | All-in-one architecture + specifications (downloadable compilation) |
 | [`docs/architecture/overview.md`](docs/architecture/overview.md) | Planes, memory taxonomy, governance |
 | [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, jobs, retention |
 | [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup and hardening |
