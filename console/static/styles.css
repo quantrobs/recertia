@@ -36,10 +36,14 @@ body {
   backdrop-filter: blur(8px);
 }
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
+.brand-mark { width: 1.75rem; height: 1.75rem; flex-shrink: 0; }
 .brand-sub { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .nav button {
   display: block;

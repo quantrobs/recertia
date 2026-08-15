@@ -3,7 +3,8 @@ name = "recertia"
 version = "0.1.0"
 description = "Recertia: a self-improving agent system. contracts/ (ADR-0009) is the structural source of truth; src/recertia/ implements M0–M9 (docs/archive/2026-Q3/implementation-plan.md)."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Robert Schmidt" }]
 requires-python = ">=3.11"
 dependencies = [
@@ -13,7 +14,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/recertia/recertia"
+Documentation = "https://github.com/recertia/recertia/blob/main/docs/architecture.md"
 Repository = "https://github.com/recertia/recertia"
+Changelog = "https://github.com/recertia/recertia/blob/main/CHANGELOG.md"
 Issues = "https://github.com/recertia/recertia/issues"
 
 [project.optional-dependencies]
@@ -54,7 +57,7 @@ files = ["contracts", "src/recertia"]
 ignore_missing_imports = true
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
