@@ -7,8 +7,7 @@ treating *solved work* as durable, versioned, retrievable state, and by making r
 mandatory step before any new problem-solving attempt.
 
 This document describes the runtime shape. Data contracts are in
-[the core entities and skill contracts](../specifications/core-entities.md); build order is in
-[`archive/2026-Q3/implementation-plan.md`](../archive/2026-Q3/implementation-plan.md). Decisions with alternatives worth
+[the core entities and skill contracts](../specifications/core-entities.md). Decisions with alternatives worth
 recording live in [`adr/`](../adr/), and [`references.md`](../references.md) lists the literature
 this draws on — including the findings that contradicted an earlier draft and changed it.
 

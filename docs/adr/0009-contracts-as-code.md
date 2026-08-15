@@ -1,7 +1,7 @@
 # ADR-0009: Contracts as code — Pydantic models are the normative structural source
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B5
+- **Evidence base:** B5
 
 ## Context
 

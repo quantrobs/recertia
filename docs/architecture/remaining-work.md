@@ -1,10 +1,7 @@
 # Remaining work — implementation plan
 
-Companion to the [one-year roadmap](one-year-roadmap.md) (strategy),
-[production-readiness](production-readiness.md) (Phase-4 gate), and
-[`assumptions.md`](../assumptions.md) (research outcomes). Normative requirements for
-the remaining *engineering* surface are in
-[`../specifications/remaining-work.md`](../specifications/remaining-work.md).
+Companion to [`assumptions.md`](../assumptions.md) (research outcomes).
+The remaining *engineering* surface is this document.
 
 M0–M9, console **C0–C4**, goal packs **GP0–GP2**, OpenRouter **OR0**, and the
 roadmap-remaining CI gates are **shipped**. This document is the build order for what is
@@ -98,7 +95,7 @@ license line matches `LICENSE`.
 
 **Goal:** one operator can leave Recertia running on `repo-chore` with a real model,
 container backend, and truthful spend. Engineering P0-1…P0-5 already landed; this
-milestone is the **ops gate** in [one-year-roadmap.md](one-year-roadmap.md) §2.
+milestone is the **ops gate** (four consecutive soak weeks plus a tabletop log).
 
 Shipped (do not rebuild): cost table + `ModelResponse.cost_usd`; command policy +
 untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins;
@@ -155,8 +152,7 @@ prints `"not established"` whenever the Wilson interval spans zero.
 
 **Research (RW-A, not a merge gate):** `a1` → `supported` or `refuted` with interval;
 `a2` with observed certification-trial accumulation; `a4` → `under evaluation` with
-the first live canary rates. Negative `a1` **halts** Phase-3 scope expansion
-([roadmap](one-year-roadmap.md) §3).
+the first live canary rates. Negative `a1` **halts** Phase-3 scope expansion.
 
 ## 7. RW-LY / RW-PC / RW-HEX — Library economics remainder
 
@@ -203,8 +199,7 @@ in production without an eval-compare note in the ledger.
 
 ## 8. RW-OR — OpenRouter polish (OR1–OR3)
 
-OR0 is shipped. Remaining from
-[`archive/2026-Q3/implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md):
+OR0 is shipped. Remaining OpenRouter polish:
 
 | Milestone | Work | Done when |
 | --- | --- | --- |
@@ -236,7 +231,7 @@ endpoint writes the same `EvalObservation` rows as `recertia lift`; `/v1`
 
 ## 10. RW-C5 / RW-TM — Phase 4 remainder
 
-Do not start C5 UI until [production-readiness.md](production-readiness.md) go/defer
+Do not start C5 UI until a Phase-4 go/defer
 criteria hold. Remaining:
 
 1. Threat-model re-review of principal-review §5 deltas — **accepted-with-owner** for
@@ -266,8 +261,8 @@ Acceptable year-end: two-domain single-operator product.
 
 ## 12. Operating cadence (unchanged)
 
-Weekly metrics review, monthly assumptions register, quarterly threat-model refresh —
-[roadmap §6](one-year-roadmap.md). Status changes to `a1`–`a4` are **commits** to
+Weekly metrics review, monthly assumptions register, quarterly threat-model refresh.
+Status changes to `a1`–`a4` are **commits** to
 [`assumptions.md`](../assumptions.md), not chat.
 
 ## 13. Success criteria for remaining work
@@ -276,4 +271,4 @@ Weekly metrics review, monthly assumptions register, quarterly threat-model refr
 2. `a1` and `a2` resolved with intervals, either direction (RW-A).
 3. `a4` is a watched number per verifier model version.
 4. `library_yield` / `retrieval_decay` are computed, not just defined (RW-LY).
-5. Phase-4 go/defer recorded in production-readiness.md with a named owner.
+5. Phase-4 go/defer recorded with a named owner.

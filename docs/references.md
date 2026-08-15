@@ -333,12 +333,12 @@ anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this compilat
 
 ## 10. Human-interface design for post-prompt systems
 
-New category. Grounds [`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md)
-§4 — an exploration, not a design-shaping input to the current milestone stack, but held to
+New category. Grounds the post-prompt interface exploration in
+[`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md)
+— an exploration, not a design-shaping input to the current milestone stack, but held to
 the same [F]/[B] discipline as §§1–5 because that document makes citable claims about what
 replaces a prompt as the point of contact between a person and this system. The full
-argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), lives in
-`ten-year-horizon.md` §4; this entry is the bibliography record.
+argument lives in that research note; this entry is the bibliography record.
 
 | Work | Relevance |
 | --- | --- |
@@ -360,8 +360,7 @@ argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), 
 ## 11. Loops-and-graphs horizon note (not a design change)
 
 [`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md) is a
-dated research essay (August 2026) on **runtime topology**, complementary to
-[`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md) (Goals / interface).
+dated research essay (August 2026) on **runtime topology**.
 Inner / outer / meta loops stay distinct; “graphs supersede loops” remains the overlay
 already ignored in §1.7; the scarce 10-year good is a falsifiable loop, not a larger graph.
 It cites primaries already in this file. It is **not** an ADR, not remaining work, and it

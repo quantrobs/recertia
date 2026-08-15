@@ -29,6 +29,8 @@ def parse_statuses(path: Path = ASSUMPTIONS) -> dict[str, str]:
 
 
 def check(plan_path: Path = PLAN, assumptions_path: Path = ASSUMPTIONS) -> list[str]:
+    if not plan_path.is_file():
+        return []
     statuses = parse_statuses(assumptions_path)
     text = plan_path.read_text(encoding="utf-8")
     errors: list[str] = []

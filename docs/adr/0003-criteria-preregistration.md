@@ -60,7 +60,7 @@ system's scorecard degrading.
 ## Amendment: two criteria timelines (2026-07-30)
 
 This ADR was silent on one timeline collision, flagged in
-[`archive/2026-Q3/refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B2: `intake` locks required criteria *before*
+B2: `intake` locks required criteria *before*
 `retrieve` and `plan` run, so no skill has been chosen yet — but the original text listed
 "skill-inherited (when a skill is applied)" as a lock source, which is temporally impossible.
 Separately, a skill's own certification criteria are authored at `distill` time, *after* the run

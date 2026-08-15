@@ -2,7 +2,6 @@
 
 How Recertia talks to OpenRouter and similar Chat Completions gateways. Normative
 contracts: [`../specifications/openai-compat-gateways.md`](../specifications/openai-compat-gateways.md).
-Build order: [`../implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md).
 Decision: [ADR-0013](../adr/0013-openai-compat-gateways.md). Operator recipe:
 [`go-live.md`](go-live.md).
 

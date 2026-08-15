@@ -1,7 +1,7 @@
 # ADR-0008: Optional join, explicit failure signals, and split terminals
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B3, B4; corroborated by
+- **Evidence base:** B3, B4; corroborated by
   `README.md`'s simplified loop diagram, which never routed through a `join` node
 
 ## Context
