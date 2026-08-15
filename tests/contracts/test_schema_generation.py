@@ -67,11 +67,39 @@ def test_readme_and_pyproject_declare_polyform_license():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     license_text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")
+    agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "PolyForm Noncommercial" in readme
     assert "PolyForm Noncommercial" in license_text
     assert 'license = { file = "LICENSE" }' in pyproject
     assert (REPO_ROOT / "SECURITY.md").is_file()
     assert (REPO_ROOT / "CONTRIBUTING.md").is_file()
+    assert (REPO_ROOT / "CHANGELOG.md").is_file()
+    assert (REPO_ROOT / "assets" / "mark.svg").is_file()
+    assert (REPO_ROOT / "assets" / "logo.svg").is_file()
+    assert 'Homepage = "https://github.com/recertia/recertia"' in pyproject
+    assert "Documentation =" in pyproject
+    assert "Changelog =" in pyproject
+    assert "CONTRIBUTING.md" in agents
+    assert "not the contributor guide" in agents.lower().replace("*", "")
+
+
+def test_research_survey_files_are_not_git_lfs_pointers():
+    gitattributes = (REPO_ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "research/" not in gitattributes or "filter=lfs" not in gitattributes
+    paths = [
+        REPO_ROOT / "research" / "preprints-self-improving-agents.xlsx",
+        REPO_ROOT / "research" / "preprints-score10-reference-lists.xlsx",
+        REPO_ROOT / "research" / "preprints-self-improving-agents.scored.json",
+        REPO_ROOT / "research" / "preprints-score10-reference-lists.scored.json",
+        REPO_ROOT / "research" / "score10-references" / "score10-references.json",
+    ]
+    lfs_prefix = b"version https://git-lfs.github.com/spec/v1"
+    missing = [str(p.relative_to(REPO_ROOT)) for p in paths if not p.is_file()]
+    assert missing == [], f"missing research files: {missing}"
+    pointers = [
+        str(p.relative_to(REPO_ROOT)) for p in paths if p.read_bytes().startswith(lfs_prefix)
+    ]
+    assert pointers == [], f"research files still Git LFS pointers: {pointers}"
 
 
 def test_canonical_examples_have_no_drift_from_contracts_examples():

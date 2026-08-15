@@ -50,6 +50,12 @@ python3 scripts/generate_schemas.py
 
 Do not hand-edit files under `schema/`.
 
+## Research artifacts
+
+Spreadsheets and scored JSON under [`research/`](research/) are ordinary git
+files (a few hundred KB). You do **not** need Git LFS to clone or work on this
+repo. Markdown notes and bibliography extracts in that tree are also plain git.
+
 ## What belongs in a PR
 
 - Keep diffs on-task. Do not rewrite archived Q3 plans or mark research assumptions
@@ -59,6 +65,6 @@ Do not hand-edit files under `schema/`.
 - HEX/compress flags stay off unless the enablement predicates in
   [`docs/specifications/remaining-work.md`](docs/specifications/remaining-work.md) hold.
 
-Cursor Cloud notes for this repo are in [`AGENTS.md`](AGENTS.md). Architecture and
+Cursor Cloud / coding-agent notes (not this guide) are in [`AGENTS.md`](AGENTS.md). Architecture and
 specs are indexed from [`docs/architecture.md`](docs/architecture.md) and
 [`docs/specifications.md`](docs/specifications.md).

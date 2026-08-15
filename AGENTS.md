@@ -1,6 +1,12 @@
-# AGENTS.md
+# Agent notes
 
-## Cursor Cloud specific instructions
+This file is for **coding agents** (Cursor Cloud and similar). It is **not** the contributor guide.
+
+- Humans sending a change: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security reports: [`SECURITY.md`](SECURITY.md)
+- Architecture: [`docs/architecture.md`](docs/architecture.md)
+
+## Cursor Cloud environment
 
 Recertia is a single Python (>=3.11) package. The runtime is a cyclic graph orchestrator exposed
 through two surfaces: the `recertia` CLI and a FastAPI HTTP API. Persistence is embedded SQLite +
