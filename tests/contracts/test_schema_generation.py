@@ -90,6 +90,18 @@ def test_readme_and_pyproject_declare_polyform_license():
     assert "not the contributor guide" in agents.lower().replace("*", "")
 
 
+def test_pyproject_toml_parses_and_pins_canonical_github_repo():
+    """Duplicate keys (e.g. two `license =` lines) must not silently break pip/CI."""
+    import tomllib
+
+    with (REPO_ROOT / "pyproject.toml").open("rb") as fh:
+        data = tomllib.load(fh)
+    urls = data["project"]["urls"]
+    assert urls["Homepage"] == "https://github.com/recertia/recertia"
+    assert urls["Repository"] == "https://github.com/recertia/recertia"
+    assert data["project"]["license"] == "PolyForm-Noncommercial-1.0.0"
+
+
 def test_living_docs_use_canonical_github_repo_not_placeholders():
     """Public clone/PR identity must stay recertia/recertia (not a generic placeholder)."""
     skip_dir_names = {

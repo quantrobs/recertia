@@ -38,7 +38,6 @@ manifest/`provider` labels, and still need the same URL/header/body knobs.
 
 - Go-live recipe stays a small env block; Kimi/Qwen work without new packages.
 - Specs: [`../specifications/openai-compat-gateways.md`](../specifications/openai-compat-gateways.md).
-- Plan: [`../implementation-plan-openai-compat.md`](../archive/2026-Q3/implementation-plan-openai-compat.md).
 - Architecture: [`../architecture/openai-compat-gateways.md`](../architecture/openai-compat-gateways.md).
 - Operators who need accurate spend MUST set price overrides for gateway slugs.
 - A future first-class `openrouter` enum would be a breaking label change and needs a

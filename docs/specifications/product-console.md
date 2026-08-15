@@ -1,8 +1,7 @@
 # Recertia Specifications: Product console
 
 Normative requirements for the operator/reviewer console. Architecture rationale:
-[`../architecture/product-console.md`](../architecture/product-console.md). Build order:
-[`../implementation-plan-console.md`](../archive/2026-Q3/implementation-plan-console.md). Decisions:
+[`../architecture/product-console.md`](../architecture/product-console.md). Decisions:
 [ADR-0012](../adr/0012-product-console-surfaces.md).
 
 This document extends — and does not replace —

@@ -80,7 +80,7 @@ repo. Markdown notes and bibliography extracts in that tree are also plain git.
 - Default T2 policy is [`policy/default.json`](policy/default.json). Weekly job spend
   belongs in `.recertia/job_quota.json`, not in that file.
 - HEX/compress flags stay off unless the enablement predicates in
-  [`docs/specifications/remaining-work.md`](docs/specifications/remaining-work.md) hold.
+  [`docs/architecture/remaining-work.md`](docs/architecture/remaining-work.md) hold.
 
 Cursor Cloud / coding-agent notes (not this guide) are in [`AGENTS.md`](AGENTS.md). Architecture and
 specs are indexed from [`docs/architecture.md`](docs/architecture.md) and

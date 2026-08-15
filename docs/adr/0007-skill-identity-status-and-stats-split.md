@@ -3,7 +3,7 @@
 - **Status:** accepted
 - **Supersedes:** the single-document `SkillVersion` shape implied by `schema/skill.schema.json`
   before this decision
-- **Evidence base:** [`../refactor-plan.md`](../archive/2026-Q3/refactor-plan.md) B1
+- **Evidence base:** B1
 
 ## Context
 

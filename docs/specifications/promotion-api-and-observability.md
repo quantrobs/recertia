@@ -76,7 +76,7 @@ Console-oriented behaviour is specified normatively in [`product-console.md`](pr
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
+| C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](../architecture/remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
 
 Error envelope (used on `/v1/*` `HTTPException` including budget/in-flight `POST /v1/runs`; FastAPI `{detail: ...}` MAY remain on `/health` and 422):
 

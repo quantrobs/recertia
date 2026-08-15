@@ -1,7 +1,7 @@
 # Assumptions register
 
 This document tracks **empirical claims** the design depends on, separately from the
-**engineering acceptance gates** in [`archive/2026-Q3/implementation-plan.md`](archive/2026-Q3/implementation-plan.md). The
+**engineering acceptance gates** in the shipped M0–M9 runtime. The
 distinction is the fix for refactor-plan B7:
 
 - An **engineering gate** asks "does the harness work?" — it can be satisfied by a system that
@@ -75,8 +75,8 @@ non-`judge` criteria, the verifier's false-pass rate at our judge configurations
 the threshold past which contribution-based retirement silently disables (Blind Curator,
 [`references.md` §1.8](references.md#18-a-biased-judge-silently-disables-retirement) **[B]**).
 
-- **Depends on:** the Phase-1 verifier configuration and the Phase-2 judge false-pass canary
-  ([`architecture/one-year-roadmap.md`](architecture/one-year-roadmap.md)): planted-failure
+- **Depends on:** the Phase-1 verifier configuration and the Phase-2 judge false-pass canary:
+  planted-failure
   artifacts scored by the verifier on a schedule, false-pass rate reported per model version.
 - **Engineering gate (not this claim):** the canary harness exists and correctly measures a
   known, injected false-pass rate on synthetic artifacts, and reports a number per

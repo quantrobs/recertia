@@ -3,8 +3,7 @@
 Normative contracts for **registered host workspaces**: allowlisted absolute roots that
 Pilot (and Programs) may bind as a run `workdir` without accepting arbitrary host escapes.
 Companion docs: [product-console.md](product-console.md) §2.3, architecture
-[product-console.md](../architecture/product-console.md), build order
-[implementation-plan-registered-workspaces.md](../archive/2026-Q3/implementation-plan-registered-workspaces.md).
+[product-console.md](../architecture/product-console.md).
 
 **Host path profile for this specification:** Windows. Roots are stored and displayed as
 Windows absolute paths (drive-letter form). The API process MUST run on a host that can

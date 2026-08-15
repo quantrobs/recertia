@@ -41,15 +41,9 @@ the chapter text itself is inlined here so this file is readable offline.
 - [Recertia Architecture: 11. Measurement integrity](#ch-architecture-measurement-integrity) — `architecture/measurement-integrity.md`
 - [Recertia Architecture: 12. Failure taxonomy](#ch-architecture-risk-and-governance) — `architecture/risk-and-governance.md`
 - [Recertia Architecture: 16. Measuring compounding](#ch-architecture-measurement-and-scope) — `architecture/measurement-and-scope.md`
-- [One-year technical roadmap (August 2026 – August 2027)](#ch-architecture-one-year-roadmap) — `architecture/one-year-roadmap.md`
-- [Ten-year horizon: beyond prompts (exploration)](#ch-architecture-ten-year-horizon) — `architecture/ten-year-horizon.md`
-- [Narrowing the ten-year horizon to a supportable position](#ch-architecture-ten-year-horizon-narrowing) — `architecture/ten-year-horizon-narrowing.md`
-- [Ten-year horizon — supportable position and objectives](#ch-architecture-ten-year-horizon-objectives) — `architecture/ten-year-horizon-objectives.md`
-- [UI/UX-lead review of the ten-year horizon plan](#ch-architecture-ten-year-horizon-ux-review) — `architecture/ten-year-horizon-ux-review.md`
 - [Remaining work — implementation plan](#ch-architecture-remaining-work) — `architecture/remaining-work.md`
 - [Incident tabletop (operator GA)](#ch-architecture-incident-tabletop) — `architecture/incident-tabletop.md`
 - [Threat-model deltas (principal review §5) — single-operator closeout](#ch-architecture-threat-model-deltas) — `architecture/threat-model-deltas.md`
-- [Production readiness assessment (Phase 4 gate)](#ch-architecture-production-readiness) — `architecture/production-readiness.md`
 - [Product console architecture](#ch-architecture-product-console) — `architecture/product-console.md`
 - [Recertia Architecture: Goal packs](#ch-architecture-goal-packs) — `architecture/goal-packs.md`
 
@@ -69,7 +63,6 @@ the chapter text itself is inlined here so this file is readable offline.
 - [Recertia Specifications: 24. Library capacity and retirement](#ch-specifications-library-authoring-and-concurrency) — `specifications/library-authoring-and-concurrency.md`
 - [Registered workspaces (Pilot workdir binding)](#ch-specifications-registered-workspaces) — `specifications/registered-workspaces.md`
 - [Trajectory events and counterfactual replay](#ch-specifications-trajectory-and-replay) — `specifications/trajectory-and-replay.md`
-- [Recertia Specifications: Remaining work](#ch-specifications-remaining-work) — `specifications/remaining-work.md`
 
 ### Part III — Architecture decision records
 
@@ -111,8 +104,7 @@ treating *solved work* as durable, versioned, retrievable state, and by making r
 mandatory step before any new problem-solving attempt.
 
 This document describes the runtime shape. Data contracts are in
-[the core entities and skill contracts](specifications/core-entities.md); build order is in
-[`archive/2026-Q3/implementation-plan.md`](archive/2026-Q3/implementation-plan.md). Decisions with alternatives worth
+[the core entities and skill contracts](specifications/core-entities.md). Decisions with alternatives worth
 recording live in [`adr/`](adr), and [`references.md`](references.md) lists the literature
 this draws on — including the findings that contradicted an earlier draft and changed it.
 
@@ -1049,7 +1041,6 @@ OpenRouter is configured as the OpenAI provider plus a gateway URL — not a sep
 provider enum. Specs and remaining polish milestones:
 [`openai-compat-gateways.md`](architecture/openai-compat-gateways.md),
 [`../specifications/openai-compat-gateways.md`](specifications/openai-compat-gateways.md),
-[`../implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md),
 [ADR-0013](adr/0013-openai-compat-gateways.md).
 
 Point the OpenAI client at a full Chat Completions URL and pass gateway metadata via env:
@@ -1192,7 +1183,6 @@ python -m uvicorn recertia.api.app:app --host 127.0.0.1 --port 8080
 Issue an API key with `runs` (+ `metrics` / `exec` as needed) for the sidebar. Browser
 sessions (`RECERTIA_CONSOLE_AUTH=dev` or `oidc`) carry human roles; do not embed long-lived
 keys in frontend source. Specs: [`../specifications/product-console.md`](specifications/product-console.md).
-Plan: [`../implementation-plan-console.md`](archive/2026-Q3/implementation-plan-console.md).
 
 ### Registered workspaces (real repo bind)
 
@@ -1247,7 +1237,6 @@ and does not update assumption `a4`.
 
 How Recertia talks to OpenRouter and similar Chat Completions gateways. Normative
 contracts: [`../specifications/openai-compat-gateways.md`](specifications/openai-compat-gateways.md).
-Build order: [`../implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md).
 Decision: [ADR-0013](adr/0013-openai-compat-gateways.md). Operator recipe:
 [`go-live.md`](architecture/go-live.md).
 
@@ -1583,1540 +1572,14 @@ Recorded so their absence is a decision rather than an oversight:
 | Multi-agent negotiation beyond portfolio fan-out | Portfolio plus critic separation captures most of the benefit at a fraction of the complexity |
 | Self-authored tools | T3 boundary: a system that writes its own tools writes its own permissions |
 
-<a id="ch-architecture-one-year-roadmap"></a>
-
-> Source: [`architecture/one-year-roadmap.md`](architecture/one-year-roadmap.md)
-
-# One-year technical roadmap (August 2026 – August 2027)
-
-Companion to [`archive/2026-Q3/principal-review-2026-08.md`](archive/2026-Q3/principal-review-2026-08.md), which contains the
-evidence for every gap cited here. Sequencing follows the same rule as
-[`../implementation-plan.md`](archive/2026-Q3/implementation-plan.md): phases are ordered by what each one
-lets you **measure**, not by calendar appetite. Every phase lists engineering gates (merge
-requirements) separately from research outcomes (never merge requirements, per
-[`../assumptions.md`](assumptions.md) and refactor-plan B7).
-
-A non-normative 2036 exploration — Goals, libraries, and programs as what replaces
-prompts if compounding is real — is in [`ten-year-horizon.md`](architecture/ten-year-horizon.md).
-It does not create gates and does not change this sequence.
-
-## 1. Strategic posture
-
-The build phase is complete: M0–M9 plus security hardening (#39) and go-live wiring (#40) are
-on `main`. What is not complete is **evidence**. The system's central claim — that managed
-memory compounds — is currently supported by the literature (Ratchet **[F]**, +0.328 on MBPP+
-hard-100 with a no-skill control at +0.002) and untested on our own traffic (`a1`, `a2`:
-`under evaluation`). A year from now the deliverable is not more architecture; it is a
-defensible answer, in our domain, with our harness, to "does it get better, and can you prove
-it?"
-
-Resource allocation guidance: ~70% measurement/operations, ~30% new capability, shifting
-toward capability only after Phase 2 produces stable intervals.
-
-## 2. Phase 1 (months 0–3): Operator-mode GA
-
-**Goal:** one operator can run Recertia unattended on `repo-chore` work with a real model,
-real costs, and injection-hardened tools — the minimum product that can generate truthful
-traffic for Phase 2.
-
-Scope (each item closes a P0 gap from the review):
-
-1. **Cost accounting (P0-1).** Pricing table per model id; `ModelResponse.cost_usd` computed
-   from token usage on every provider call; `cost_per_solved_task` becomes a real number.
-2. **Injection hardening (P0-2).** Fetched content wrapped as untrusted data (delimiters +
-   instruction pinning) everywhere it enters a prompt; a command policy gate in front of
-   `agent_subtask` (allowlisted prefixes, or operator approval in interactive mode);
-   adversarial regression tests with planted instructions inside fetched payloads — the
-   test-strategy Adversarial row, now pointed at the real injection surface (OWASP LLM01
-   **[S]**).
-3. **Bounded observe–act scratch loop (P0-3).** The solver sees command output and proposes
-   the next step within the attempt; iteration bound from policy; every step transcripted and
-   budget-charged. The loop is a solver property; graph topology does not change.
-4. **Manifest pinning (P0-4).** Bootstrap pins provider, model id, index snapshot, and library
-   commit into `RunManifest` for every run, CLI and API alike.
-5. **Soak and durability (P0-5).** Docker + Postgres soak environment exercised on a weekly
-   schedule; documented backup/RPO for `.recertia/`; dashboards consuming the OTel export;
-   run-latency and eval-cadence SLOs.
-6. **Verifier configuration.** Documented solver/verifier split (distinct credentials
-   preferred, distinct model id required); `--verifier` default policy in the go-live doc.
-
-**Done when (engineering gates):** a synthetic run with a recorded fixture shows non-zero
-`cost_usd` propagating to `Spend` and to the eval store (CI); a planted-instruction payload
-cannot steer `agent_subtask` into a non-allowlisted command (CI); a scratch task that fails
-its first command succeeds on a later in-attempt iteration, fully transcripted (CI); every
-run manifest is fully populated (CI); the soak environment runs the golden suite weekly on
-Postgres without manual intervention (ops gate).
-
-**Research outcomes recorded, not gated:** baseline `reuse_rate`, `first_attempt_success`,
-`attempts_to_success`, and true `cost_per_solved_task` on real operator traffic. No lift
-claim is made this phase.
-
-**GA criteria for operator mode:** all engineering gates green for four consecutive soak
-weeks; zero P0 rows open; one documented incident review exercised (even if tabletop).
-
-## 3. Phase 2 (months 3–6): Measured compounding on repo-chore
-
-**Goal:** resolve `a1` and `a2` — in either direction — and instrument the judge. This is the
-phase the entire system exists to enable; everything before it is scaffolding for honest
-measurement.
-
-Scope:
-
-1. **Eval cadence (P1-1).** Scheduled runs against the labelled probe set
-   (`evals/probes/repo-chore.json`) and golden suite with the ablation control arm at the
-   governed rate; weekly `causal_lift` report with Wilson intervals; `retrieval_precision_at_3`
-   re-measured on the probe labels.
-2. **Judge false-pass canary (P1-2, assumption `a4`).** Planted-failure artifacts scored by
-   the verifier on a schedule; false-pass rate reported per model version; alert past a
-   configured threshold. This operationalizes Blind Curator **[B]** before the failure mode
-   can silently disable retirement.
-3. **Curation gap (P1-4).** `curation_gap` reported per provenance class — the direct,
-   in-domain test of SkillsBench's +0.0pp self-authored result **[B]**.
-4. **Practice loop closed (P1-5).** Scheduled Practice job consuming recorded one-off
-   clusters; `practice_conversion` reported; curriculum excluded from user-facing metrics.
-5. **Evidence-floor study (`a2`).** Certification-trial accumulation rates per skill; the
-   answer to "does most of the library sit below the floor indefinitely?" is a finding either
-   way.
-
-**Done when (engineering gates):** the weekly lift report is generated automatically and
-correctly reports "not established" on any week where the interval spans zero; the canary
-produces a false-pass number per verifier model version (CI on synthetic planted failures,
-ops on the real schedule); `curation_gap` appears in the metrics export; Practice conversion
-is tracked with its own budget.
-
-**Research outcomes (the point of the phase):** `a1` moves to `supported` or `refuted` with
-a stated interval; `a2` moves to `supported` or `refuted` with observed accumulation rates;
-`a4` moves to `under evaluation` with the first measured canary rates. A negative `a1` result
-halts Phase 3 scope expansion and triggers a design review of the curation bottleneck —
-that is the B7 machinery working, not a project failure.
-
-## 4. Phase 3 (months 6–9): Library economics
-
-**Goal:** the improvement plane runs on evidence it collected itself — Curator proposals
-justified by trajectory replay and contribution data, not by schedule.
-
-Scope:
-
-1. **Trajectory replay as Curator evidence (P1-3).** Replay packs (`retrieval_only` first,
-   per ADR-0011) attached to Curator proposals and promotion packets; additive evidence only;
-   golden gate remains mandatory.
-2. **Step-graph proposals from real transcripts.** `parallelise` / `serialise` driven by the
-   fake-edge threshold on production transcripts; each proposal reports expected
-   `parallel_speedup` beside `merge_gap_rate` — never speedup alone.
-3. **Composition exercised (M8 in production).** At least one parent skill composes pinned
-   children on real traffic; `mean_composition_depth` tracked against library size (the
-   Dynamic Agent Skills survey's **library trajectory** metric **[F]**).
-4. **Retirement observability.** `retirement_reversal_rate`, `active_cap_pressure`, and
-   contribution distributions on a dashboard; harsh-configuration alarms (Ratchet A4 **[F]**
-   is the named failure mode).
-5. **Correction Miner on reviewer edits.** Reviewer-edit clusters become T2 proposals; every
-   proposal classified to a tier and ledger-recorded — this is also the longitudinal test of
-   `a3`.
-
-**Done when (engineering gates):** a Curator proposal lands with a replay pack attached and
-the pack is reproducible from the trajectory store (CI); a genuinely serial-for-no-reason
-skill is parallelised by proposal with no golden regression (e2e); quarantining a composed
-child provably benches its parents (e2e); retirement decisions display their evidence floor
-and interval in the ledger (CI).
-
-**Research outcomes:** `library_yield` trend (the anti-vanity metric), `retrieval_decay`
-early-warning trend, composition's effect on coverage growth.
-
-## 5. Phase 4 (months 9–12): Second domain and the multi-tenant readiness gate
-
-**Goal:** prove generality on `research-synthesis`, then decide — with criteria fixed in
-advance — whether multi-tenant is worth building at all.
-
-Scope:
-
-1. **Second domain, unchanged runtime.** `research-synthesis` runs on the existing graph,
-   schemas, and services with **no structural change**; any change required is logged as a
-   design defect and fixed in the shared layer, not patched domain-locally (M9's done-when,
-   now executed against real traffic; golden fixtures already exist under
-   `evals/golden/research-synthesis/`).
-2. **Scope model exercised.** Cross-scope promotion with redaction; planted-secret crossing
-   test; tenant-private memory verified absent from other scopes' retrieval.
-3. **Postgres soak on a real snapshot (P2-1)** and quota accounting (P2-3).
-4. **Production readiness assessment.** Threat model re-review (all §5 deltas from the
-   review closed or explicitly accepted); break-glass procedure; key rotation; deployment
-   topology; SLOs; NIST AI RMF Govern/Map documentation for the tenant surface **[S]**.
-5. **The gate.** Multi-tenant GA proceeds only if: operator mode has been GA for a full
-   phase; `a1` is `supported` in at least one domain (a system that cannot demonstrate lift
-   should not multiply its blast radius); all P2 rows closed; and a written threat model is
-   signed by someone other than its author. Otherwise multi-tenant defers, and the year ends
-   with a two-domain single-operator product — a good outcome.
-
-**Done when (engineering gates):** `research-synthesis` tasks run on the unchanged runtime
-(CI + soak); cross-scope redaction test passes; the readiness assessment document exists with
-every item either closed or accepted-with-owner.
-
-**Research outcomes:** second-domain `reuse_rate` and `causal_lift` reported; "not
-established" is an acceptable, passing result per B7.
-
-## 6. Operating cadence (cross-cutting)
-
-| Cadence | Ritual | Artifact |
-| --- | --- | --- |
-| Weekly | Metrics review: lift report, canary rates, cost per solved task | Auto-generated report; decisions logged |
-| Monthly | Assumptions register review (`a1`–`a4` statuses) | Updated `assumptions.md`; status changes are commits, not conversation |
-| Quarterly | Threat-model refresh; ADR review for any settled-decision challenges | Updated threat model; ADRs for genuine reversals only |
-| Per promotion | Golden gate + evidence packet (replay pack from Phase 3) | Ledger entry |
-| Per incident | Blameless review; control-plane fix preferred over prose | Incident doc linked from the run id |
-
-## 7. Staffing and build-vs-buy notes
-
-- Phase 1–2 needs one engineer with full context more than it needs three without; the
-  measurement code is subtle exactly where it is load-bearing.
-- Buy observability (dashboards, alerting); keep the eval harness in-house forever — it is
-  the product's claim to honesty.
-- OpenRouter / OpenAI-compat gateways use `provider=openai` + base URL (ADR-0013);
-  call path shipped (OR0). Polish milestones OR1–OR3:
-  [`../implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md).
-- Model-provider failover (P2-5) is a deliberate-absence candidate: two providers doubles the
-  judge-bias surface (canary must run per provider × model) for an availability benefit a
-  single operator may not need. Decide at the Phase 4 gate with data, not in advance.
-- If a second domain champion is available by Phase 4, the highest-leverage hire is the
-  person who labels probe sets and reviews Curator proposals — curation is the bottleneck the
-  literature keeps naming (Ratchet **[F]**; Dynamic Agent Skills **[F]**).
-
-## 8. Success criteria for the year
-
-1. Operator mode GA with cost, injection, and soak gates green — a system one person can
-   trust unattended.
-2. `a1` and `a2` resolved with intervals, in either direction, on real traffic.
-3. `a4` instrumented: the judge's false-pass rate is a number we watch, not a hope we hold.
-4. The improvement plane proposing from its own evidence (trajectory replay, contribution),
-   with the golden gate intact.
-5. A second domain on the unchanged runtime, and a multi-tenant decision made by criteria
-   fixed before the evidence was in.
-
-## 9. Engineering status (as of roadmap-remaining implementation)
-
-Implementation decomposition of what is still open:
-[`remaining-work.md`](architecture/remaining-work.md) (plan) and
-[`../specifications/remaining-work.md`](specifications/remaining-work.md) (normative).
-
-Engineering gates that can land in CI are implemented; research outcomes stay harness-ready
-and must not be marked `supported` without real traffic (B7).
-
-| Phase | Engineering landed | Still ops / research |
-| --- | --- | --- |
-| 1 Operator GA | Cost, injection, observe–act, manifest, soak compose + weekly workflow, tabletop doc | Four consecutive soak weeks; baseline metrics on real traffic; live incident (or completed tabletop log) |
-| 2 Measured compounding | `recertia metrics` + `scripts/weekly_metrics_report.py`; judge canary fixtures; `curation_gap` / `practice_conversion` on `MetricReport`; Practice reads `one_off_log` | Scheduled probe runs on live traffic; `a1`/`a2`/`a4` status changes with intervals |
-| 3 Library economics | Trajectory emit + ReplayPack on Curator; `parallelise`/`serialise`/`correction` jobs + CLI; retirement / composition / pressure fields | Real-traffic composition; library_yield / retrieval_decay trends |
-| 4 Second domain + tenant gate | research-synthesis fixture gate; planted-secret scope e2e; `QuotaStore`; [`production-readiness.md`](architecture/production-readiness.md) | Signed threat model; multi-tenant go/defer decision; console **C5** only if GA gate passes ([`product-console.md`](architecture/product-console.md)) |
-
-Operator UX beyond CLI is specified separately: console milestones **C0–C5** in
-[`../implementation-plan-console.md`](archive/2026-Q3/implementation-plan-console.md) (Goal form, runs/skills
-browsers, proposal queue, async+SSE, OIDC). C0–C4 may ship for single-operator mode without
-waiting on multi-tenant GA. Multi-step migrations use **Goal packs** (GP0–GP2) in
-[`../implementation-plan-goal-packs.md`](archive/2026-Q3/implementation-plan-goal-packs.md) — programs of
-locked Goals, not mega-Goals ([ADR-0014](adr/0014-goal-packs-as-migration-programs.md)).
-
-## 10. References
-
-Phase mapping to the tracked literature: Phase 1 — Falsifiable Release Gates
-(arXiv:2607.13070 **[B]**) for pre-declared GA suites; OWASP LLM Top 10 **[S]** for the
-injection surface. Phase 2 — SkillsBench (arXiv:2602.12670 **[B]**, `a1`); Ratchet A4
-(arXiv:2605.22148 **[F]**, `a2`); Blind Curator (arXiv:2607.07436 **[B]**, `a4`); Not All
-Skills Help (arXiv:2606.15390 **[B]**) for per-skill causal contribution; PACE
-(arXiv:2606.08106 **[B]**) for why the acceptor, not the proposer, is where rigor lives.
-Phase 3 — ATDP/trajectory replay (arXiv:2607.01120 **[F]**, ADR-0011); Dynamic Agent Skills
-(arXiv:2607.10113 **[F]**) for library-trajectory metrics; Trace2Skill
-(arXiv:2603.25158 **[B]**) for trace-driven pruning with a gate. Phase 4 — Voyager
-(arXiv:2305.16291 **[F]**) as the generality precedent; NIST AI RMF 1.0 **[S]** for the
-readiness assessment frame.
-
-<a id="ch-architecture-ten-year-horizon"></a>
-
-> Source: [`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md)
-
-# Ten-year horizon: beyond prompts (exploration)
-
-- **Status:** exploration — not an ADR, not a roadmap, not a merge gate
-- **Date:** 2026-08-13
-- **Horizon:** ~2036
-- **Committed plan:** remains [`one-year-roadmap.md`](architecture/one-year-roadmap.md)
-- **Narrowing instrument:** [`ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md)
-- **Objectives (worked run):** [`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md)
-- **UX review:** [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md)
-
-This is an answer to a question, not a schedule. The one-year roadmap is still the only
-document that may create engineering gates. Nothing here moves [`assumptions.md`](assumptions.md)
-off `under evaluation`. Nothing here grows the graph.
-
-## 1. The claim
-
-The prompt is a 2020s transitional interface. It exists because we still talk to models the
-way we talk to people, and because the success condition of a chat is "a plausible reply."
-
-Recertia already rejected that as the unit of work. A Goal is a desired state plus
-constraints, compiled to locked criteria before anyone is allowed to invent
-([ADR-0010](adr/0010-goal-as-primary-input.md),
-[ADR-0003](adr/0003-criteria-preregistration.md)). Natural language is optional context.
-In ten years the interesting systems will not be better chat. They will be better contracts,
-better memory, and better measurement.
-
-A prompt is a request that hope will be interpreted. A Goal is a request that can fail.
-
-## 2. What Recertia already decided (2026)
-
-The architecture is not waiting for 2036 to leave prompts behind. The bets that matter are
-already on `main`:
-
-| Bet | Where it lives | Why it is "beyond prompts" |
-| --- | --- | --- |
-| Structured Goal as primary input | ADR-0010 | The caller names outcomes, not instructions |
-| Criteria lock before solve | ADR-0003 | Success is not negotiated in the transcript |
-| Retrieval before invention | [overview](architecture/overview.md) non-negotiable 1 | Memory is queried; the model is not asked to "remember" |
-| Plural, versioned memory | [ADR-0002](adr/0002-plural-memory.md) | Skills, facts, cases, utterances, policy — not a chat log |
-| Failure is knowledge | overview non-negotiable 4 | Dead ends are stored so they are not re-entered |
-| Offline improvement plane | [ADR-0004](adr/0004-offline-improvement-plane.md) | Learning does not happen while a user waits |
-| Bounded self-modification | [ADR-0005](adr/0005-self-modification-boundary.md) | The solver may not rewrite the judge |
-| Goal packs as programs | [ADR-0014](adr/0014-goal-packs-as-migration-programs.md) | Multi-step change is a sequence of contracts, not a mega-prompt |
-| Console as control plane | [ADR-0012](adr/0012-product-console-surfaces.md) | Chat is not the operator surface |
-
-The one-year roadmap's job is to find out whether those bets *compound* on real traffic
-(`a1`, `a2`, `a4`). The ten-year picture below assumes they can. §7 says what to believe
-instead if they cannot.
-
-## 3. What I see in 2036
-
-### 3.1 Work is issued as desired state
-
-The default way a human, a ticket system, or another agent asks for work is a Goal: required
-desired states that a machine can fail, plus constraints (freeze zones, budgets, side-effect
-class). The compiler still produces `TaskCriterion[]` and still locks them at intake. Suggest
-and Compose still exist, but they propose Goals; they do not execute prose.
-
-Prompt engineering as a job is gone the way punch-card encoding is gone. The scarce skill is
-writing a DesiredState that can actually fail, and a Constraint that is honest about what
-must not move.
-
-### 3.2 Chat remains, off the critical path
-
-Chat does not disappear. It is how people explore, argue with a draft Goal, and debug a
-failed walk. It is not how serious work is dispatched, scored, or remembered.
-
-That split is already the console design: Pilot composes; the run is a Goal; Tower inspects
-the walk. In ten years every serious product that still looks like "an AI chat box" is
-either a toy or a composition surface sitting on top of a contract runtime.
-
-### 3.3 Competence lives in libraries, not weights
-
-The model of 2036 is cheaper, faster, and more interchangeable than the model of 2026. That
-does not make memory optional. Recurring work compounds by *representation*: versioned
-skills, facts, cases, and policy that every later walk reads before inventing
-([overview](architecture/overview.md) design goals). Weight updates are still a non-goal. Improvement is
-still not parametric.
-
-Organizations compete on libraries the way they once competed on codebases. The library is
-diffable, reviewable, and revertible. A competitor can buy the same solver and still lose,
-because they do not have the cases, the pitfall skills, or the contribution scores.
-
-This is the Ratchet result taken at decade scale: lifecycle management, not authorship, is
-the bottleneck ([`references.md`](references.md) §1.1). Ten years of better models does
-not dissolve a librarian problem.
-
-### 3.4 Humans curate contracts and gates
-
-The human is not gone. The human is no longer typing instructions into a void.
-
-The load-bearing human work is:
-
-- authoring and reviewing DesiredStates and Constraints
-- sitting on T2 (policy, distiller guidance, retrieval thresholds)
-- holding T3 (sandbox, promotion bar, ablation rate, graph topology, this boundary)
-- labelling probe sets and judging Curator proposals — the role the one-year roadmap already
-  names as the highest-leverage hire
-
-SkillsBench's null on self-authored skills ([`references.md`](references.md) §1.1) does
-not get better because the author is an LLM in 2036. Uncurated growth is still library
-drift. The decade's product is a *librarian with a golden gate*, not an unsupervised
-memoir.
-
-### 3.5 The graph does not go away
-
-Reality has retries, partial success, and "try several ways at once." A linear chat cannot
-express those without hiding control flow in a transcript. A cyclic graph can
-([ADR-0001](adr/0001-graph-with-loops.md)).
-
-Fifteen nodes remain T3 today ([`remaining-work.md`](architecture/remaining-work.md) §1). In ten years
-the topology may have been deliberately revised — by humans, with evidence — but "the agent
-just loops until it feels done" is still not an architecture. Budgets on back-edges, join
-accounting, and "nothing dispatched goes missing" are still the difference between a system
-and a séance.
-
-### 3.6 Measurement is the product's honesty
-
-By 2036, a system that cannot report causal lift against a retrieval-suppressed control,
-with an interval, including the honest result **"not established"**, is not taken seriously
-for recurring work. That is already Recertia's non-negotiable 5. The decade's change is
-that this becomes boring: as expected as a unit test, as unremarkable as a ledger verify.
-
-The judge remains the dangerous component. Blind Curator is not a 2026 curiosity: a biased
-acceptor silently disables retirement. The false-pass canary is still running. The
-verifier is still not the solver asked whether it agrees with itself.
-
-### 3.7 The T3 line holds
-
-Capability growth makes the self-modification boundary *more* expensive to violate, not
-less. A system rewarded for first-attempt success and cost will still try, locally
-rationally, to lower the promotion bar, shrink the control arm, or grant itself tools
-([ADR-0005](adr/0005-self-modification-boundary.md)).
-
-The governing rule does not age out: **the system may not modify the mechanisms that
-measure or constrain it.** Shadow autonomy can expand (T1) precisely because the thresholds
-that govern it cannot. Systems that fail in public in the 2030s will be the ones that let
-the solver rewrite the judge.
-
-### 3.8 Models become interchangeable solvers
-
-Provider identity is already a pin in the run manifest, not a personality. In ten years a
-Goal compiler plus a retrieval bundle plus a validator is the product. The model is a
-solver behind that, swapped when the canary says the judge drifted or the cost curve
-moved.
-
-Failover and multi-provider are still a measurement-surface decision (one-year roadmap
-§7), not a slogan. Two providers still double the judge-bias surface. The decade does not
-make that arithmetic go away; it just makes the canary cheaper to run.
-
-## 4. The human interface, checked against the literature
-
-Section 3 is architecture. This section asks the narrower question a reader should ask of
-any "beyond prompts" claim: *what does a person actually look at and touch?* HCI has
-forty years of evidence about what happens when an interface is words in, words out, and
-this design should be checked against it rather than asserted against it. Citations follow
-[`references.md`](references.md)'s convention: **[F]** = fetched and read directly,
-**[B]** = taken from a citing source's bibliography and not independently verified,
-**[F, practitioner]** = non-academic source read directly, carrying argument rather than
-measurement.
-
-### 4.1 The prompt is a regression, not an advance
-
-Shneiderman named *direct manipulation* — continuous representation of objects of interest,
-rapid reversible actions, physical gestures instead of command syntax — as the property
-that produced "glowing enthusiasm" instead of "grudging acceptance" (**Direct Manipulation:
-A Step Beyond Programming Languages**, Shneiderman, *IEEE Computer*, 1983 **[F]**). A prompt
-box is a step *back* toward the command-language interfaces that paper argued against: no
-continuous representation of the object being changed, no way to see partial progress, and
-recovery from a bad instruction means retyping, not undoing.
-
-Hutchins, Hollan, and Norman formalized *why* command languages cost more: the **gulf of
-execution** (translating a goal into system-legible actions) and the **gulf of evaluation**
-(translating system state back into a judgement about the goal) (**Direct Manipulation
-Interfaces**, *Human–Computer Interaction* 1(4), 1985 **[F]**). A chat window makes both
-gulfs *linguistic* — the user must phrase the goal in words the model will parse well, then
-re-read prose to judge whether it worked — instead of closing them with visible, manipulable
-state.
-
-**Design implication already taken:** a Goal's `DesiredState[]` is a continuous
-representation of the object of interest — what the world should look like when this is
-done — not a command. Criteria lock (ADR-0003) is the evaluation side closed *before*
-execution starts: the user does not read prose afterward to judge success, the machine
-checks it. The remaining gulf-of-evaluation surface is the walk itself, which is why Tower
-exists as a graph view, not a scrollback.
-
-### 4.2 Prompting has a name for its own failure, and it is not a skill issue
-
-Zamfirescu-Pereira, Wong, Hartmann, and Yang studied non-AI-experts designing LLM prompts
-and found they design *opportunistically* rather than systematically, and — the load-bearing
-finding — that they default to treating a prompt as a **human-to-human instruction** rather
-than a technical configuration, because the interface gives them no other vocabulary (**Why
-Johnny Can't Prompt: How Non-AI Experts Try (and Fail) to Design LLM Prompts**, CHI 2023
-**[B]**). This is not a training gap that better courses fix; it is what happens when the
-only available input modality is prose addressed to something that answers in prose.
-
-Subramonyam, Pondoc, Seifert, Agrawala, and Pea extend Norman's gulfs with a third,
-LLM-specific one: the **gulf of envisioning**, the distance between a goal and a prompt that
-successfully invokes it, decomposed into a *capability gap* (can this even be done?), an
-*instruction gap* (how do I say it so the model does that?), and an *intentionality gap*
-(what should I expect back, and how do I know it matches what I meant?) (**Bridging the Gulf
-of Envisioning: Cognitive Challenges in Prompt-Based Interactions with LLMs**, CHI 2024,
-arXiv:2309.14459 **[F]**).
-
-**Design implication already taken, and one still open:**
-
-- The capability gap is answered *before* the user writes anything: Goal compiles
-  deterministically to `TaskCriterion[]` (ADR-0010), so "can this be checked" is a compiler
-  error, not a guess.
-- The intentionality gap is answered by construction: locked criteria mean the user does not
-  have to predict the model's output and judge whether it matches an intention — the
-  validator does that against a pre-declared contract.
-- The **instruction gap survives** and is the honest remaining UI problem: writing a
-  DesiredState that is both true to the goal and machine-checkable is still an authoring
-  skill. Suggest/Compose proposing draft Goals from retrieved cases (§4.6 below) is the
-  mitigation the roadmap already has; a decade-scale answer is a *library of DesiredState
-  templates per task class*, reviewed the way skills are reviewed, so authoring narrows to
-  editing a diff instead of writing from a blank page.
-
-### 4.3 Autonomy is a negotiated interface property, not a backend flag
-
-Horvitz argued that the interesting design space is not "direct manipulation versus agents"
-but their coupling: an agent should add value beyond what direct manipulation already gets
-for free, reason about uncertainty in the user's goal, time its interventions to the user's
-attention, and — critically — give the user cheap ways to invoke, refine, dismiss, or
-terminate automated action (**Principles of Mixed-Initiative User Interfaces**, CHI 1999
-**[F]**). Amershi et al.'s 18 guidelines operationalize the same idea across the lifecycle:
-*make clear what the system can do*, *make clear how well it can do it*, *support efficient
-correction*, *notify users about changes*, and *provide global controls* recur across all
-four interaction phases (**Guidelines for Human-AI Interaction**, CHI 2019 **[F]**).
-
-Recertia's T0–T3 self-modification boundary (ADR-0005) is exactly a mixed-initiative
-contract, but as written it is an internal enforcement mechanism, not a surfaced interface
-property. A 2025 framework closes that gap directly: it defines agent autonomy as *the role
-the user plays* — operator, collaborator, consultant, approver, observer — and argues
-autonomy should be a deliberate, user-legible design choice orthogonal to model capability,
-not an emergent property of how capable the model happens to be (**Levels of Autonomy for AI
-Agents**, arXiv:2506.12469, 2025 **[F]**).
-
-**Design implication, not yet taken:** T0–T3 already *is* a five-tier autonomy ladder
-(autonomous / policy-gated / human-gated / never-autonomous, plus the T1 shadow-promotion
-boundary that turns a former human-gate into an autonomous one once evidenced). The gap is
-that it is legible to code and to a reviewer reading ADRs, not to an operator reading a
-console. A decade-scale interface makes each task class's current tier **visible and
-explained** next to the run — "this skill applies at T1 (auto-promote, zero-regression
-gate); this Goal pack step requires T2 sign-off because it touches the retrieval
-threshold" — rather than leaving tier as something you infer from source code.
-
-### 4.4 Never show one opaque number
-
-Lee and See's synthesis of trust-in-automation research names the three properties an
-interface must support for a person to calibrate trust correctly: **calibration** (does the
-displayed confidence match real performance?), **resolution** (does it discriminate
-situations where the system will succeed from ones where it will not?), and **specificity**
-(is the confidence broken down by the conditions it depends on, or reported as one global
-number?) (**Trust in Automation: Designing for Appropriate Reliance**, *Human Factors*
-46(1), 2004 **[F]**). Overtrust from an uncalibrated or non-specific number causes misuse;
-undertrust from a system that hides its own resolution causes disuse — both are interface
-failures, not just modeling failures.
-
-These are properties of trust, not a mandate to render three widgets on every row.
-Amershi et al. (2019 **[F]**) warn that over-disclosure is itself a failure mode: a list
-of fifty skills needs a scannable primary. The house rule is **progressive disclosure**:
-the list/summary shows **one honestly calibrated primary** (contribution or lift with
-interval — or `"not established"` when the interval spans zero, never a rounded point
-estimate, star, or composite that hides the interval), and the detail view discloses
-calibration (lift trend by task class over time), resolution (does this skill's score
-separate wins from losses on held-out probes), and specificity (per task class, per
-model version — never one library-wide star rating). A single *opaque* trust score for
-a skill is exactly the interface failure mode the trust literature predicts will be
-misused. Showing three numbers on every list row is the complementary failure
-([`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F1).
-
-Recertia's own measurement discipline already refuses a single opaque confidence: skill
-trust is contribution-scored per outcome, causal lift is reported with a Wilson interval and
-an honest "not established," and evidence sits below a floor until enough certification
-trials accumulate (ADR-0006, [`measurement-integrity.md`](architecture/measurement-integrity.md)). The
-Lee & See framework is worth naming explicitly because it turns "show your evidence" from
-this project's house style into a citable requirement for that progressive-disclosure
-shape, not for display width.
-
-### 4.5 Chat is linear; the work underneath it is not, and shouldn't pretend to be
-
-Two UIST 2023 systems independently diagnosed the same problem from the artifact side:
-Graphologue converts a linear LLM chat response into an interactive node-link diagram
-because "LLMs like ChatGPT present significant limitations in supporting complex information
-tasks due to the insufficient affordances of the text-based medium and linear conversational
-structure" (**Graphologue: Exploring Large Language Model Responses with Interactive
-Diagrams**, UIST 2023, arXiv:2305.11473 **[F]**); Sensecape adds a hierarchy view so users
-can move between foraging and sensemaking instead of scrolling a transcript (**Sensecape:
-Enabling Multilevel Exploration and Sensemaking with Large Language Models**, UIST 2023,
-arXiv:2305.11483 **[F]**). Both are retrofits: they impose structure onto a system whose
-underlying computation is a single linear generation.
-
-Recertia does not need the retrofit, because the underlying computation was never linear.
-The execution plane is already a graph with loops (ADR-0001) and the improvement plane is
-already scheduled, non-conversational jobs (ADR-0004). The decade-scale implication is
-narrow but real: **Tower's run view is the artifact Graphologue and Sensecape had to
-synthesize after the fact, available for free because the runtime is graph-shaped by
-construction.** The interface risk is the opposite one — flattening a walk *back* into a
-chat-shaped log for the sake of familiarity, which would spend this advantage for nothing.
-
-### 4.6 A Goal-authoring notation is a notation, and can be scored as one
-
-Green and Petre's Cognitive Dimensions of Notations gives a vocabulary for evaluating any
-artifact a person edits — not just visual programming languages — along axes like
-**viscosity** (how much has to change to make one small edit), **closeness of mapping**
-(does the notation read like the domain, not like implementation), **premature commitment**
-(does the notation force a decision before the user has enough information), and
-**secondary notation** (can the user attach meaning — layout, comments, rationale — the
-system does not itself execute) (**Usability Analysis of Visual Programming Environments: A
-'Cognitive Dimensions' Framework**, *J. Visual Languages & Computing* 7(2), 1996 **[F]**).
-
-Applied to `Goal`/`DesiredState`/`Constraint` as a notation rather than a data model:
-
-- **Premature commitment** is deliberately accepted at intake — criteria lock *is* a
-  premature-commitment tradeoff, made on purpose because ADR-0003 values a stable success
-  contract over mid-run negotiation. Goal packs (ADR-0014) exist specifically to lower this
-  cost at the *program* level by deferring lock to each step rather than one mega-Goal.
-- **Viscosity** is the open decade-scale question: how much of a locked Goal has to be
-  re-authored, versus edited, when one DesiredState turns out to be wrong mid-walk. The
-  current answer is "start a new run"; a gentler answer is closer to git — amend, don't
-  retype — without weakening the lock's guarantee for the criteria that did not change.
-- **Closeness of mapping** is the argument for DesiredState prose staying readable English
-  describing outcomes ("the CLI's `--help` output lists the new flag") rather than becoming
-  a query language only compiler authors can write.
-- **Secondary notation** — a place for "why" that the compiler does not execute — is what
-  keeps Goal authoring from degenerating into the same opaque-syntax problem prompts have;
-  today that lives informally in `Task.request` as optional context (ADR-0010) and should
-  stay a first-class, non-executable field rather than be squeezed out as legacy.
-
-Programming-by-demonstration research reached a parallel conclusion from a different
-direction: "if a user knows how to perform a task, that should be sufficient to create a
-program to perform the task... instead of learning a [command] language" (**Watch What I
-Do: Programming by Demonstration**, Cypher et al. (eds.), MIT Press, 1993 **[F]**; survey:
-Myers & Ko, **End-User Programming**, ACM overview, 2006 **[F]**). The decade-scale reading
-for Goal authoring is not "demonstrate a macro" — Recertia is not recording keystrokes — but
-the same instinct applied one level up: the fastest way to author a DesiredState should be
-picking the nearest retrieved case and editing its diff, not writing a fresh sentence
-against a blank compiler. This is Suggest/Compose's job today; a decade from now it is the
-default authoring path, not an assist feature bolted onto a text box.
-
-### 4.7 Memory that a person can hold, not just query
-
-Ink & Switch's practitioner argument for **malleable software** — systems users can reshape
-with minimal friction instead of "prefabricated applications built by developers far away,"
-via a gentle slope from consumer to co-creator, editable tools rather than fixed apps, and
-communal creation — is not academic HCI, but it names the interface property this
-architecture's memory plane already has by construction (**Malleable Software: Restoring
-User Agency in a World of Locked-Down Apps**, Litt, Horowitz, van Hardenberg & Matthews, Ink
-& Switch, 2025 **[F, practitioner]**). Skills, facts, cases, and policy are diffable,
-versioned, revertible data (ADR-0002), which is the "editable, not appliance" property the
-essay asks for, applied to an agent's competence instead of to a document.
-
-The gentle-slope pattern is the missing half: the essay's examples (spreadsheets, HyperCard)
-succeed because a novice can *use* the artifact with zero editing and *grow into* editing it
-without switching tools. A decade-scale library browser should offer the same slope —
-consuming a skill's outcomes requires nothing; disagreeing with one reviewer edit and having
-it become a Correction Miner proposal is the next rung; authoring a DesiredState template
-for a whole task class is the top rung — rather than a hard line between "user" and
-"curator" roles.
-
-### 4.8 Summary: what the literature adds that the architecture didn't already say
-
-None of these papers change §3's claims. What they add is falsifiable design vocabulary for
-the interface layer specifically, and two concrete gaps worth tracking alongside `a1`/`a2`/
-`a4`:
-
-- **Autonomy tiers are enforced but not yet legible at the decision** (§4.3) — a console
-  gap, not an engineering gate. A detail-page badge does not close Norman's gulf of
-  evaluation; the T2 approval interstitial is the surface that matters
-  ([`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F3).
-- **Trust display defaults to a single opaque number wherever a dashboard is sketched
-  informally** (§4.4) — worth a house rule: any UI mock that shows one skill-quality
-  number without a calibrated primary (interval or `"not established"`) is a design
-  review finding, the same way an untiered mutable surface is (ADR-0005). Requiring
-  calibration, resolution, and specificity as co-equal list figures is the complementary
-  finding. Progressive disclosure (calibrated primary + detail breakdown) is the shape
-  ([`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F1).
-
-## 5. Horizon layers (not a second roadmap)
-
-These are capability layers, not calendar phases. Layer A is what the one-year plan already
-starts. Layers B and C are what becomes thinkable only if `a1` is supported in at least
-one domain. They are not a license to skip soak weeks.
-
-**Layer A — Contracts replace prompts.** Goal is the public input. Packs are how a
-migration is a program of locked Goals rather than a mega-prompt. The console is a control
-plane. Operator mode can run unattended on one domain with real cost and an injection
-gate. This layer is the 2026–2027 roadmap.
-
-**Layer B — Libraries replace folklore.** Recurring work stops living in wiki pages, chat
-scrollback, and "ask the person who did it last time." The organization's memory is a
-bounded, contribution-scored, golden-gated library with a performance floor. Curator
-proposals carry trajectory replay. Practice converts failure clusters. Retirement is
-observable. A second domain runs on the unchanged runtime, or the design is defective.
-
-**Layer C — Programs replace tickets.** Desired-state programs are how work is issued
-across a decade of change: not "open a ticket and hope," not "paste a prompt into an
-agent," but a pack of Goals with dependencies, freeze zones, and a ledger. Other systems
-(CI, issue trackers, research desks) emit Goals. Humans confirm T2/T3 and review
-exceptions. The audit trail a regulator or an incident review wants is the walk, the
-criteria, and the memory versions — not a reconstructed chat.
-
-Layer C is the 2036 picture. It is not a 2027 milestone.
-
-## 6. What dies, what does not
-
-**Dies, or is demoted to composition:**
-
-- Prompt libraries as the product
-- "The model knows our repo" with no retrieval, no ledger, no revert
-- Fine-tuning as the default improvement story for *recurring, checkable* work
-- Unbounded autonomy as a feature
-- Mega-Goals and prompt-only packs (already rejected by ADR-0014)
-- Chat as the execution surface for anything with a side effect
-
-**Does not die:**
-
-- Language, for exploration and for drafting Goals
-- Human gates on measurement, containment, and promotion
-- Cyclic control flow
-- Curation as the bottleneck
-- The evidence floor, and the possibility that most of a low-traffic library sits below it
-  (`a2`)
-- Judge bias (`a4`)
-- The option that compounding does not show up on our traffic (`a1`)
-- A single opaque trust number per skill (§4.4) — the interface failure mode the trust
-  literature predicts, not a shortcut this design should reach for. Progressive
-  disclosure (calibrated primary + detail breakdown) is the house rule, not "always
-  render three."
-
-## 7. What would falsify this picture
-
-This document is allowed to be wrong. These are the cleanest ways it would be:
-
-1. **`a1` refuted** on machine-checkable domains, with a stable interval. Compounding is
-   then a literature story we failed to reproduce. The product that remains is a competent
-   agent with no memory — still useful, no longer the thesis. Chat-plus-tools stays the
-   default. Halt Layer B/C; do not multiply blast radius (already the Phase-4 gate).
-2. **`a2` refuted** — the evidence floor is unreachable at our volume even with Practice.
-   The library is then a well-governed museum. Retrieval-before-invention still helps
-   audit, not lift. Design review of the floor and of Practice, not a quiet lowering of
-   the bar.
-3. **`a4` refuted** — false-pass rates high enough to disable retirement. The judge is the
-   product risk. Stop promoting. Do not "fix" it by asking the solver.
-4. **A no-memory general agent dominates recurring checkable work** at lower cost than a
-   retrieval-gated library, on our harness, not on a demo. Then Recertia's central claim
-   is wrong and this horizon with it. Memory might still win on audit and rollback; that
-   would be a different, smaller product.
-5. **Regulation requires a human on every side effect.** T2 expands; Layer C stretches;
-   the architecture still fits, because gates were never a temporary embarrassment.
-
-Negative results are not project failure. They are the B7 machinery working.
-
-## 8. What this document must not become
-
-- An engineering gate, a staffing plan, or a reason to open a new milestone.
-- A license to grow the graph, add HEX, auto-advance, or learned rankers before their
-  enablement predicates fire.
-- A reason to mark `a1` / `a2` / `a4` supported without real traffic.
-- A substitute for four consecutive soak weeks.
-
-The next honest step is still the one-year roadmap: operator-mode GA, then a defensible
-answer — in our domain, with our harness — to "does it get better, and can you prove it?"
-
-A reusable auditor prompt that turns this file into a supportable position and a
-checkable objectives list is
-[`ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md). One worked run is
-[`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md), fine-tuned against
-[`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md). None of these is a
-remaining-work milestone.
-
-If that answer is yes, 2036 looks like Goals, libraries, and programs. If that answer is
-no, 2036 looks like better chat, and this file was a clean miss.
-
-## 9. References (human interface)
-
-Grounding for §4 only. Filed in the repo's main bibliography as
-[`references.md` §10](references.md#10-human-interface-design-for-post-prompt-systems)
-(new category); reproduced here for convenience. Verification status per
-[`references.md`](references.md)'s convention: **[F]** fetched and read, **[B]** from a
-citing paper's bibliography and not independently verified, **[F, practitioner]**
-non-academic, read directly.
-
-| Ref | Citation | Status |
-| --- | --- | --- |
-| Shneiderman 1983 | Shneiderman, B. *Direct Manipulation: A Step Beyond Programming Languages.* IEEE Computer 16(8), 1983. | **[F]** |
-| Hutchins, Hollan & Norman 1985 | Hutchins, E., Hollan, J., & Norman, D. *Direct Manipulation Interfaces.* Human–Computer Interaction 1(4), 311–338, 1985. | **[F]** |
-| Zamfirescu-Pereira et al. 2023 | Zamfirescu-Pereira, J.D., Wong, R.Y., Hartmann, B., & Yang, Q. *Why Johnny Can't Prompt: How Non-AI Experts Try (and Fail) to Design LLM Prompts.* CHI 2023. | **[B]** |
-| Subramonyam et al. 2024 | Subramonyam, H., Pondoc, C., Seifert, C., Agrawala, M., & Pea, R. *Bridging the Gulf of Envisioning: Cognitive Challenges in Prompt-Based Interactions with LLMs.* CHI 2024, arXiv:2309.14459. | **[F]** |
-| Horvitz 1999 | Horvitz, E. *Principles of Mixed-Initiative User Interfaces.* CHI 1999, 159–166. | **[F]** |
-| Amershi et al. 2019 | Amershi, S., Weld, D., Vorvoreanu, M., et al. *Guidelines for Human-AI Interaction.* CHI 2019. | **[F]** |
-| Levels of Autonomy 2025 | *Levels of Autonomy for AI Agents.* arXiv:2506.12469, 2025. | **[F]** |
-| Lee & See 2004 | Lee, J.D., & See, K.A. *Trust in Automation: Designing for Appropriate Reliance.* Human Factors 46(1), 50–80, 2004. | **[F]** |
-| Jiang et al. 2023 | Jiang, P., Rayan, J., Dow, S.P., & Xia, H. *Graphologue: Exploring Large Language Model Responses with Interactive Diagrams.* UIST 2023, arXiv:2305.11473. | **[F]** |
-| Suh et al. 2023 | Suh, S., Min, B., Palani, S., & Xia, H. *Sensecape: Enabling Multilevel Exploration and Sensemaking with Large Language Models.* UIST 2023, arXiv:2305.11483. | **[F]** |
-| Green & Petre 1996 | Green, T.R.G., & Petre, M. *Usability Analysis of Visual Programming Environments: A 'Cognitive Dimensions' Framework.* J. Visual Languages & Computing 7(2), 131–174, 1996. | **[F]** |
-| Cypher et al. 1993 | Cypher, A. (ed.), with Halbert, D.C., Kurlander, D., Lieberman, H., Maulsby, D., Myers, B.A., & Turransky, A. *Watch What I Do: Programming by Demonstration.* MIT Press, 1993. | **[F]** |
-| Myers & Ko 2006 | Myers, B.A., & Ko, A.J. *End-User Programming.* Invited research overview, 2006. | **[F]** |
-| Litt et al. 2025 | Litt, G., Horowitz, J., van Hardenberg, P., & Matthews, T. *Malleable Software: Restoring User Agency in a World of Locked-Down Apps.* Ink & Switch, 2025. | **[F, practitioner]** |
-
-<a id="ch-architecture-ten-year-horizon-narrowing"></a>
-
-> Source: [`architecture/ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md)
-
-# Narrowing the ten-year horizon to a supportable position
-
-- **Status:** exploration instrument — not an ADR, not a remaining-work milestone
-- **Date:** 2026-08-13
-- **Inputs:** [`ten-year-horizon.md`](architecture/ten-year-horizon.md), [`one-year-roadmap.md`](architecture/one-year-roadmap.md),
-  [`remaining-work.md`](architecture/remaining-work.md), [`../assumptions.md`](assumptions.md),
-  [`../references.md`](references.md) §10,
-  [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md)
-- **Output of a successful run:** [`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md)
-- **Recertia Goal:** [`ten-year-horizon-narrowing-goal.json`](architecture/ten-year-horizon-narrowing-goal.json)
-
-The horizon is a *possibility space*. This file is the filter that turns it into a *position*
-and then into a *list of objectives*. The one-year roadmap and remaining-work plan remain
-the only documents that may create engineering gates. Running this instrument MUST NOT
-edit those files, MUST NOT mark `a1`/`a2`/`a4` `supported`, and MUST NOT grow the graph.
-
-## 1. Analysis: why the horizon is too wide to act on
-
-A 10-year picture mixes five kinds of sentence that do not have the same evidential status:
-
-| Kind | What it is | Example from the horizon | What a forecast may do with it |
-| --- | --- | --- | --- |
-| **Architectural fact** | Already decided, on `main` | Goal is primary input (ADR-0010); T3 is unreachable | Freeze. Not an objective to "achieve" |
-| **Inherited ops / research** | Already planned; not yet evidenced | Soak weeks, probe cadence, resolve `a1` | Cite the existing `RW-*` id. Do not rewrite |
-| **Interface gap** | Architecture implies it; console does not surface it; HCI literature independently requires it | T0–T3 not visible at the decision; opaque trust primary | *Candidate* objective. Independent of `a1`. UX review may rewrite `done_when` |
-| **Contingent claim** | True only if a named assumption holds | Libraries replace folklore (Layer B) | Keep as objective **with the predicate attached** |
-| **Speculative / market** | No Recertia evidence, no HCI requirement, no remaining-work id | Prompt engineering dies; programs replace tickets industry-wide | Drop. Record in "explicitly not objectives" |
-
-The horizon's own §8 already forbids turning its sentences into milestones. That constraint
-is load-bearing. The only *new* objectives this filter is allowed to emit are **candidates**:
-interface properties the architecture already implies and the HCI record independently
-asks for, which remaining-work does not yet name. Everything else is either a freeze, an
-inherited `RW-*` row, or a drop.
-
-Three further traps the filter is built to catch:
-
-1. **Wish ≠ likely.** "Organizations compete on libraries" is a desired end-state of the
-   thesis, not a base-rate forecast. SkillsBench's null on self-authored skills
-   ([`references.md`](references.md) §1.1) is the prior. Until `a1` is `supported` on
-   our traffic, Layer B is a *predicate*, not a prediction.
-2. **Interface gaps do not need compounding to be real.** Horvitz, Amershi, Lee & See, and
-   Subramonyam et al. (horizon §4) constrain the *console* whether or not retrieval helps.
-   Treating them as "Phase 4 / 2036" work is how a measurement project indefinitely
-   postpones the one surface a human actually touches.
-3. **The instruction gap is the residual.** Goal compilation closes the capability and
-   intentionality gaps (horizon §4.2). Writing a DesiredState that is both true and
-   checkable remains hard. That is the only prompt-shaped problem that survives, and it
-   is an *authoring* problem (templates, a first-class precedent path — not an unmeasured
-   default), not a prompting-skill problem.
-
-**Supportable position (the filter's conclusion, restated in the objectives file):**
-
-Recertia in the next honest slice of the future is still a Goal-compiled, retrieval-first,
-T3-bounded cyclic graph with a console control plane. What will *likely* change, without
-needing `a1`, is operational evidence (soak, probes, assumption intervals) and two
-interface properties the architecture already implies: autonomy-tier legibility **at the
-decision** (approval interstitial, not detail-only) and calibrated trust display (one
-honest primary plus detail breakdown — not three numbers on every row). Goal authoring
-will remain hard; the likely mitigation is task-class templates plus a first-class
-retrieved-case path, not a better chat box and not an unmeasured "precedent is the
-default" landing. What will *likely* change *if* `a1` is supported is Phase 3–4 of
-remaining-work as already written. What is *not* supportable: that prompts, tickets, or
-chat disappear as industry defaults by 2036. A UX-lead review of the first worked run
-([`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md)) is an input: accepted
-findings F1–F5 MUST survive a re-run.
-
-## 2. The prompt
-
-Copy the block below into a capable model (or into Recertia as `Goal.context`). The
-machine-checkable contract is the Goal JSON, not this prose. Re-running the prompt should
-regenerate [`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md), not edit
-remaining-work, the roadmap, or the assumptions register, and not reverse accepted
-findings in [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md).
-
-````markdown
-You are a claims auditor, not a futurist. Your job is to narrow
-`docs/architecture/ten-year-horizon.md` to a supportable position on what will
-*likely* be, then emit a detailed list of objectives. You are not allowed to
-invent architecture, grow the graph, or open remaining-work milestones.
-
-# Inputs (read all of them; do not skip remaining-work)
-
-- docs/architecture/ten-year-horizon.md
-- docs/architecture/one-year-roadmap.md
-- docs/architecture/remaining-work.md
-- docs/assumptions.md          (status of a1, a2, a3, a4)
-- docs/references.md §1 and §10
-- docs/adr/0003, 0005, 0010, 0012, 0014
-- docs/architecture/product-console.md (what the console already is)
-- docs/architecture/ten-year-horizon-ux-review.md (accepted findings F1–F5; do not reverse)
-
-# What "supportable" and "likely" mean here
-
-A claim is **supportable** only if at least one of the following is true:
-
-1. It is already an accepted ADR or shipped behaviour (architectural fact).
-2. It is already a remaining-work or roadmap item with an existing id (`RW-*`,
-   Phase-N gate, console C0–C4, GP0–GP2).
-3. It is an interface property that (a) the architecture already implies,
-   (b) remaining-work does not yet name, and (c) horizon §4 cites with [F] or
-   [B] HCI evidence that does not depend on a1.
-4. It is a contingent remaining-work item whose predicate (`a1` supported,
-   Phase-4 gate, HEX enablement predicates) is already written down.
-
-A claim is **likely** only if it is supportable *and* does not require a
-market-wide behaviour change (jobs disappearing, tickets disappearing, chat
-disappearing as a consumer default). Recertia-local interface and ops changes
-can be likely. Industry-default changes cannot, on this evidence.
-
-A claim is **not supportable** if it is a labour-market prediction, a sector
-prediction, a Layer-C "programs replace tickets" picture, a graph-topology
-change, HEX/auto-advance/learned-ranker enablement before predicates, or any
-sentence that would mark a1/a2/a4 `supported` without real traffic.
-
-# Method (do not skip steps; show the classification table)
-
-1. **Inventory.** Extract every distinct claim in ten-year-horizon.md §§3–5
-   and §4.8's two named gaps. One row per claim.
-
-2. **Classify** each row as exactly one of:
-   `architectural-fact` | `inherited` | `interface-gap` | `contingent` |
-   `speculative` | `contradicted-by-literature`
-
-3. **Dispose:**
-   - `architectural-fact` → freeze objective (preserve; done_when is a
-     regression test or a "must_not reverse" rule), or omit if already
-     enforced in CI with no console/docs gap.
-   - `inherited` → cite the existing `RW-*` / Phase / C* / GP* id. Do not
-     rewrite the done-when. One objective per remaining-work row at most.
-   - `interface-gap` → **candidate** objective. This is the only class in
-     which you may mint a new `OBJ-IF-*` id.
-   - `contingent` → inherit the remaining-work item and keep the predicate
-     in `depends_on` and in the title. Do not drop the predicate.
-   - `speculative` and `contradicted-by-literature` → "explicitly not
-     objectives" list, with a one-line why.
-
-4. **Deduplicate.** If a candidate restates remaining-work, it is inherited,
-   not new. If two candidates are the same interface gap, merge them.
-
-5. **Write the supportable position** as ≤12 sentences *before* the
-   objectives list. It must distinguish unconditional / contingent-on-a1 /
-   not-a-prediction. It must not introduce claims absent from the
-   classification table.
-
-6. **Emit objectives** matching the schema below. Every `done_when` must
-   describe a state that can fail (a missing field, a failing test, a
-   missing soak log). Soft goals ("operators feel confident") are rejected.
-
-# Objective schema (every objective has all of these fields)
-
-```
-### OBJ-<NS>-<NAME>
-- **title:**
-- **kind:** inherited | candidate | freeze
-- **likelihood:** unconditional | contingent-a1 | contingent-a2 | contingent-a4
-- **source:** RW-* id, ADR-*, or horizon §4.x
-- **why_supportable:** 2–4 sentences. Name the evidence. If inherited, say
-  "already remaining-work" and stop.
-- **depends_on:** none | a1.supported | a2.supported | a4.instrumented | other
-- **not_established_until:** (OBJ-IF-* only) an observable on operator
-  traffic, or "n/a — freeze/display rule". Citation is not validation.
-- **done_when:** a checkable state. Prefer: file/field/test/ops-log exists
-  and has property P. Must be fail-able.
-- **must_not:** at least one concrete reversal (grow the graph, single
-  quality score, mark a1 supported, edit remaining-work.md, …)
-```
-
-Namespaces: `OBJ-RW-*` inherited remaining-work, `OBJ-IF-*` interface
-candidates, `OBJ-FZ-*` freezes.
-
-# Hard limits
-
-- Do not edit `docs/architecture/remaining-work.md`,
-  `docs/architecture/one-year-roadmap.md`, `docs/assumptions.md`, or any ADR.
-- Do not add HEX, auto-advance, learned rankers, a 16th graph node, or
-  C5/multi-tenant chrome as objectives unless remaining-work already has
-  them with their existing enablement predicate.
-- Do not estimate calendar time (days, weeks, quarters, "by 2028").
-- Do not use a `judge` criterion as the only success condition.
-- New `OBJ-IF-*` ids: at most six. If you want more, you are minting
-  product; stop and merge.
-- Inherited `OBJ-RW-*` ids: at most one per remaining-work inventory row
-  that is still open.
-- The output file is `docs/architecture/ten-year-horizon-objectives.md`
-  and only that file (plus this classification, which may live in the
-  same file above the list).
-- Do not restore any of: "precedent as default" / "precedent-first as the
-  default Pilot path"; "three numbers on every row" / simultaneous
-  calibration+resolution+specificity as the list view; "tier only on
-  detail" / a detail-page badge as OBJ-IF-TIER passing. These are
-  accepted findings in ten-year-horizon-ux-review.md (F1–F3).
-- Do not treat the three hardcoded templates in
-  `src/recertia/console_templates.py` as OBJ-IF-TEMPLATES passing (F5).
-- Each OBJ-IF-* MUST include `not_established_until` (F4).
-
-# Output shape
-
-1. Supportable position (≤12 sentences)
-2. Classification table (claim → class → disposition)
-3. Objectives (schema above)
-4. Explicitly not objectives (dropped speculative/contradicted claims)
-5. A one-paragraph note: what would force a re-run of this prompt
-   (a1/a2/a4 status change, a new [F] HCI paper that names a third
-   interface gap, or an accepted UX finding this file still contradicts)
-
-End of prompt.
-````
-
-## 3. Recertia Goal
-
-The prompt above is `Goal.context`. The success contract is
-[`ten-year-horizon-narrowing-goal.json`](architecture/ten-year-horizon-narrowing-goal.json): the
-objectives file exists, contains the required headings and at least one `OBJ-IF-` candidate
-and one `OBJ-RW-` inherited row, and the freeze set was not modified. Natural language
-never constitutes the success contract by itself (ADR-0010).
-
-## 4. Worked run
-
-The prompt was applied once in-tree, then fine-tuned against
-[`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md). Result:
-[`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md). Re-running it is
-allowed; editing remaining-work as a side effect of a re-run is not; reversing
-accepted UX findings F1–F5 is not.
-
-<a id="ch-architecture-ten-year-horizon-objectives"></a>
-
-> Source: [`architecture/ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md)
-
-# Ten-year horizon — supportable position and objectives
-
-- **Status:** exploration output — **not an engineering gate**, not remaining-work
-- **Date:** 2026-08-13
-- **Produced by:** one application of [`ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md) §2
-- **UX review:** [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) (F1–F5 applied)
-- **Goal:** [`ten-year-horizon-narrowing-goal.json`](architecture/ten-year-horizon-narrowing-goal.json)
-
-Re-running the narrowing prompt may replace this file. It MUST NOT edit
-[`remaining-work.md`](architecture/remaining-work.md), [`one-year-roadmap.md`](architecture/one-year-roadmap.md),
-[`../assumptions.md`](assumptions.md), or any ADR. A re-run MUST keep the
-UX-accepted constraints in [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md):
-no "precedent as default", no "three numbers on every row", no "tier only on detail".
-
-## 1. Supportable position
-
-Recertia, unconditionally, remains what it already is: a Goal-compiled, retrieval-first,
-T3-bounded cyclic graph with a console control plane. That is architecture, not a forecast.
-
-What will *likely* change without needing `a1` is evidence, not shape: operator-mode GA
-closeout (soak, tabletop, cost), live probe cadence, and honest intervals on `a1` / `a2` /
-`a4` — including the honest result `"not established"`. Independently of whether memory
-compounds, two interface properties the architecture already implies and the HCI record
-independently requires will likely need to be *surfaced*: autonomy-tier legibility at the
-decision (T0–T3 readable in the T2 approval interstitial, not only in ADRs or on a detail
-page) and calibrated trust display (one honest primary that may read `"not established"`,
-with calibration, resolution, and specificity on detail — never an opaque composite).
-Goal authoring will remain the residual hard problem (the instruction gap); the likely
-mitigation is task-class DesiredState templates plus a first-class retrieved-case path,
-not a better prompt box and not an unmeasured "precedent is the default" landing. These
-four interface properties remain untested until observed; citation is not validation.
-
-What will *likely* change *if* `a1` is `supported` on real `repo-chore` traffic is Phase 3–4
-of remaining-work as already written: curator-from-replay, composition on live traffic, a
-second domain on the unchanged runtime, and a multi-tenant decision made by criteria fixed
-in advance. If `a1` is `refuted`, Layer B and Layer C die and the product that remains is a
-competent Goal-gated agent with no compounding thesis.
-
-What is *not* a supportable prediction: that prompt engineering, tickets, or chat disappear
-as industry defaults by 2036; that programs replace tickets outside Recertia; that the
-graph grows; that HEX, auto-advance, or learned rankers enable themselves.
-
-## 2. Classification table
-
-| Horizon claim | Class | Disposition |
-| --- | --- | --- |
-| Work is issued as a Goal / desired state | architectural-fact | Freeze ADR-0010; no new objective |
-| Chat remains, off the critical path (Recertia) | architectural-fact | Freeze ADR-0012 Pilot/Tower split |
-| Chat / prompts die as industry defaults | speculative | Drop (§4) |
-| Competence lives in libraries, not weights | contingent | Inherit Phase 2–3 (`RW-A`, `RW-LY`) with `depends_on: a1` |
-| Humans curate contracts and T2/T3 gates | architectural-fact | Freeze ADR-0005; inherit review/curator rows |
-| The cyclic graph does not go away | architectural-fact | `OBJ-FZ-TOPOLOGY` |
-| Measurement honesty / causal lift | inherited | `OBJ-RW-M2`, `OBJ-RW-A1` |
-| T3 line holds | architectural-fact + `a3` untested | `OBJ-FZ-T3`; `a3` stays research |
-| Models become interchangeable solvers | architectural-fact locally; speculative as market | Freeze run-manifest pinning; drop market claim |
-| Layer A — contracts replace prompts | inherited | `OBJ-RW-GA` and console C0–C4 (shipped) |
-| Layer B — libraries replace folklore | contingent | Inherit Phase 3–4; predicate `a1.supported` |
-| Layer C — programs replace tickets | speculative | Drop (§4) |
-| T0–T3 enforced but not console-legible at the decision (§4.3, §4.8) | interface-gap | `OBJ-IF-TIER` (approval interstitial; detail-only fails) |
-| Trust display collapses to one opaque number (§4.4, §4.8) | interface-gap | `OBJ-IF-TRUST` (calibrated primary + detail breakdown) |
-| Instruction gap survives (§4.2) | interface-gap | `OBJ-IF-PRECEDENT` (first-class, not default), `OBJ-IF-TEMPLATES` (versioned library) |
-| Tower/run view flattened back to chat (§4.5) | interface-gap / freeze | `OBJ-FZ-GRAPHVIEW` |
-| `Goal.context` squeezed out as legacy (§4.6 secondary notation) | interface-gap / freeze | `OBJ-FZ-CONTEXT` |
-| Locked-Goal viscosity / amend-in-place (§4.6) | speculative-as-objective | Drop until a lock-preserving design exists (§4) |
-| Gentle slope user→curator (§4.7) | inherited-in-part | Covered by Phase-3 Correction Miner; no extra id |
-| Prompt engineering as a job is gone | speculative | Drop (§4) |
-| Mega-Goals / prompt-only packs | architectural-fact (already rejected) | Freeze ADR-0014 |
-| Unbounded autonomy as a feature | contradicted-by-literature + ADR-0005 | Freeze; drop as a "will happen" claim |
-
-## 3. Objectives
-
-Candidate `OBJ-IF-*` rows are **not** remaining-work. Promoting any of them into
-[`remaining-work.md`](architecture/remaining-work.md) is a separate, explicit decision. Each
-`OBJ-IF-*` carries `not_established_until`: literature support is a prior, not a pass
-([`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F4).
-
-### OBJ-RW-GA
-
-- **title:** Close operator-mode GA on shipped code
-- **kind:** inherited
-- **likelihood:** unconditional
-- **source:** `RW-GA` in remaining-work; one-year roadmap Phase 1
-- **why_supportable:** Already remaining-work. Code exists; ops cadence does not. This is
-  the minimum product that can generate truthful traffic for `a1`.
-- **depends_on:** none
-- **done_when:** Four consecutive weekly soak runs of the golden suite complete without
-  manual intervention; a completed tabletop (or live incident) log exists and is linked
-  from a run id; baseline `cost_per_solved_task` is a number on real operator traffic.
-- **must_not:** Treat "tooling shipped" as GA; skip soak because the horizon sounds larger.
-
-### OBJ-RW-M2
-
-- **title:** Run probe + golden + ablation cadence on live traffic
-- **kind:** inherited
-- **likelihood:** unconditional
-- **source:** `RW-M2`; one-year roadmap Phase 2
-- **why_supportable:** Already remaining-work. Engineering for `MetricReport` is shipped;
-  the live eval DB and schedule are ops.
-- **depends_on:** none (harness exists)
-- **done_when:** A weekly lift report is produced from live `repo-chore` probes with the
-  ablation arm at the governed rate, and reports `"not established"` whenever the interval
-  spans zero.
-- **must_not:** Fill the interval by suppressing the control arm; treat synthetic fixtures
-  as a1 evidence.
-
-### OBJ-RW-A1
-
-- **title:** Resolve `a1` with a stated interval (either direction)
-- **kind:** inherited
-- **likelihood:** unconditional (the *resolution* is unconditional; a positive result is not)
-- **source:** `RW-A`; [`assumptions.md`](assumptions.md) `a1`
-- **why_supportable:** Already remaining-work / B7. The claim is whether machine-checkable
-  `repo-chore` shows causal lift from retrieval. Status today: `under evaluation`.
-- **depends_on:** `OBJ-RW-M2` traffic
-- **done_when:** `docs/assumptions.md` `a1` status is `supported` or `refuted` with a
-  Wilson interval from real traffic, in a commit, not a conversation. `"not established"`
-  remaining after a stated accumulation window is an allowed, recorded outcome — it is
-  not this objective passing.
-- **must_not:** Mark `supported` from literature (Ratchet, SkillsBench) or from synthetic
-  nulls; make a positive `a1` a merge requirement.
-
-### OBJ-RW-A2
-
-- **title:** Resolve `a2` — evidence-floor reachability at our volume
-- **kind:** inherited
-- **likelihood:** unconditional (resolution); floor-cleared is contingent
-- **source:** `RW-A`; assumptions `a2`
-- **why_supportable:** Already remaining-work. Ratchet's floor is a design parameter; whether
-  most skills ever clear it is an empirical question, including a useful negative.
-- **depends_on:** live + Practice trial volume
-- **done_when:** `a2` is `supported` or `refuted` with observed certification-trial
-  accumulation rates per skill (real + Practice), committed to `assumptions.md`.
-- **must_not:** Lower `evidence_floor` to make the claim true; count Practice trials as
-  user-facing lift.
-
-### OBJ-RW-A4
-
-- **title:** Instrument `a4` — judge false-pass canary on live verifier versions
-- **kind:** inherited
-- **likelihood:** unconditional
-- **source:** `RW-A`; assumptions `a4`; horizon §3.6
-- **why_supportable:** Already remaining-work. Blind Curator: false-pass bias silently
-  disables retirement. Isolation is necessary and shipped; a measured rate is not.
-- **depends_on:** none (canary fixtures exist)
-- **done_when:** False-pass rate is reported per provider × model version on the real
-  canary schedule; `a4` moves from `untested` to `under evaluation` at minimum.
-- **must_not:** Ask the solver whether it agrees with the judge; skip the canary after a
-  model upgrade.
-
-### OBJ-RW-P4
-
-- **title:** Keep the Phase-4 multi-tenant gate criteria fixed before the evidence arrives
-- **kind:** inherited
-- **likelihood:** contingent-a1 (the *go* decision); writing the criteria is unconditional
-  and already done
-- **source:** remaining-work `RW-C5` / `RW-TM`; one-year roadmap Phase 4; production-readiness.md
-- **why_supportable:** Already remaining-work. The gate (operator GA for a full phase; `a1`
-  supported in at least one domain; P2 closed; signed threat model) is the B7 machinery
-  that stops a null-lift system from multiplying blast radius.
-- **depends_on:** `a1.supported` for a *go*; none for keeping the written criteria
-- **done_when:** A go/defer decision exists that cites the pre-written criteria; a defer
-  because `a1` is not `supported` counts as this objective passing.
-- **must_not:** Relax the gate because Layer C sounds attractive; ship C5 before the gate.
-
-### OBJ-IF-TIER
-
-- **title:** Make T0–T3 autonomy legible at the decision, not only on a detail page
-- **kind:** candidate
-- **likelihood:** unconditional
-- **source:** horizon §4.3, §4.8; ADR-0005; Horvitz 1999 **[F]**; Amershi et al. 2019 **[F]**;
-  Levels of Autonomy for AI Agents, arXiv:2506.12469 **[F]**;
-  [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F3
-- **why_supportable:** T0–T3 is already enforced (`POST /v1/proposals/{id}/decision`
-  403s T2 without reviewer). Mixed-initiative HCI treats autonomy as a *user-legible*
-  property at the act, orthogonal to model capability. Norman's gulf of evaluation is
-  at the decision, not on a page the operator must remember to open. Independent of `a1`.
-- **depends_on:** none
-- **not_established_until:** an operator (or fixture acting as one) completes a T2
-  approve/reject from the interstitial copy, not from a detail-page badge alone
-- **done_when:** T2 and any other human-gated action show the applicable tier plus one
-  operator-language sentence of *why* **in the approval interstitial** (e.g. "T2:
-  retrieval-threshold change, human approval required"; "T3: sandbox policy, not
-  reachable from this action"). Run detail and skill detail MAY repeat the same
-  sentence. A detail-only badge **fails** this objective. Existing T3 unreachability
-  tests still pass.
-- **must_not:** Let a run or job *change* its own tier; collapse T0–T3 into a single
-  "autonomy slider" the solver can request; grow the graph to display this; treat a
-  run/skill-detail badge as this objective passing.
-
-### OBJ-IF-TRUST
-
-- **title:** Calibrated primary on lists; calibration, resolution, specificity on detail
-- **kind:** candidate
-- **likelihood:** unconditional
-- **source:** horizon §4.4, §4.8; Lee & See 2004 **[F]**; Amershi et al. 2019 **[F]**;
-  measurement-integrity.md; [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F1
-- **why_supportable:** Contribution scores, Wilson intervals, and `"not established"`
-  already exist in the metrics pipeline (`GET /v1/skills` already returns
-  `contribution`). The gap is display calibration, not a missing field. Lee & See
-  constrain trust *properties*; they do not require three widgets on every row.
-  Independent of `a1`.
-- **depends_on:** none (numbers may honestly be `unavailable`)
-- **not_established_until:** a list-view fixture whose interval spans zero leads with
-  `"not established"` (not a rounded point estimate), and a detail view of the same
-  skill discloses calibration, resolution, and specificity
-- **done_when:** Skill list / summary shows **one** honestly calibrated primary:
-  contribution or lift with interval, or `"not established"` when the interval spans
-  zero, or an `unavailable` reason — never a star, percentage, or rounded point
-  estimate as the lead. Skill show / Tower skill **detail** discloses (1) that same
-  calibrated primary, (2) a probe-level win/loss or selected-vs-suppressed split when
-  observations exist (resolution), (3) a breakdown by task class and/or model id
-  (specificity). `"not established"` is the list primary whenever the interval spans
-  zero.
-- **must_not:** Invent a composite score that hides `"not established"`; show one
-  library-wide rating; require three numbers on every list row; treat this as a reason
-  to change contribution math.
-
-### OBJ-IF-PRECEDENT
-
-- **title:** Offer retrieved-case edit as a first-class Goal-authoring path in Pilot
-- **kind:** candidate
-- **likelihood:** unconditional
-- **source:** horizon §4.2, §4.6; Zamfirescu-Pereira et al. 2023 **[B]**; Subramonyam et
-  al. 2024 **[F]**; Cypher et al. 1993 **[F]**;
-  [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F2
-- **why_supportable:** Compilation already closes capability and intentionality gaps.
-  The surviving instruction gap is authoring a DesiredState. HCI supports
-  retrieval/example against a blank page; it does not license defaulting every author
-  into the nearest past Goal (anchoring). Suggest/Compose already exist; the gap is a
-  retrieve-similar-Goal path, not inventing Compose. Independent of `a1`.
-- **depends_on:** none
-- **not_established_until:** time-to-lock, criteria-rework rate, or blank-form escape
-  rate is observed on real Pilot traffic. Literature citations do not close this.
-  Default-vs-blank is not this objective passing.
-- **done_when:** Pilot Compose exposes retrieve similar Goals/cases → present a
-  diffable draft → human edits → preview `compile_goal` → submit as a reachable
-  first-class control (not buried behind Suggest-only heuristics). A blank Goal form
-  remains. When a golden task class has a reviewed template, that template is the
-  suggested start; the precedent path is for "no template matches." Drafts still
-  never lock (ADR-0003). Making precedent the landing state is **not** this
-  objective passing.
-- **must_not:** Auto-lock a suggested Goal; skip `compile_goal` preview; replace
-  DesiredState fields with a prompt box; make retrieved-case edit the default Pilot
-  path without the `not_established_until` measurement.
-
-### OBJ-IF-TEMPLATES
-
-- **title:** Versioned DesiredState templates per golden task class
-- **kind:** candidate
-- **likelihood:** unconditional
-- **source:** horizon §4.2; ADR-0010 "task-class templates"; product-console.md Pilot templates;
-  [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) F5
-- **why_supportable:** Three hardcoded templates already ship
-  (`src/recertia/console_templates.py`: gitignore, EditorConfig, pytest.ini). The
-  instruction-gap mitigation is a *reviewed, versioned, linted* library per golden
-  task class, the same way skills are reviewed — not inventing templates. Independent
-  of `a1`.
-- **depends_on:** none
-- **not_established_until:** an operator authors a new golden-class Goal from a
-  reviewed template that is not one of the three hardcoded dict entries, and
-  `compile_goal` plus the template lint both pass
-- **done_when:** Each golden task class under `evals/golden/` has at least one reviewed
-  Goal template (DesiredState + Constraint skeletons) that `compile_goal` accepts; a
-  lint equivalent to `recertia skills lint` exists for templates; templates are
-  versioned artifacts (not only SPA / `TEMPLATES` dict hardcoding).
-- **must_not:** Treat templates as executable skills; silently mutate a locked run's
-  criteria from a template update; add judge-only templates; treat the three existing
-  hardcoded templates as this objective passing.
-
-### OBJ-FZ-GRAPHVIEW
-
-- **title:** Keep the run view graph-shaped
-- **kind:** freeze
-- **likelihood:** unconditional
-- **source:** horizon §4.5; ADR-0001; ADR-0012 Tower/run detail
-- **why_supportable:** Graphologue and Sensecape retrofit structure onto linear chat.
-  Recertia's route log *is* that structure. Flattening it "for familiarity" spends the
-  advantage. This is a preservation rule, not a build.
-- **depends_on:** none
-- **done_when:** Run detail's primary view remains route log / graph / spend / manifest
-  (product-console.md §3.1). A review comment that proposes a chat-shaped *primary* run
-  view is a recorded design finding; chat remains allowed as a composition surface
-  (Pilot Compose), not as the execution record.
-- **must_not:** Make a transcript-replay chat the default run detail; hide join-accounting
-  or missing-branch failures behind prose.
-
-### OBJ-FZ-CONTEXT
-
-- **title:** Keep `Goal.context` / `Task.request` as non-executable secondary notation
-- **kind:** freeze
-- **likelihood:** unconditional
-- **source:** horizon §4.6; ADR-0010; Green & Petre 1996 **[F]**
-- **why_supportable:** Closeness of mapping and secondary notation are why DesiredStates
-  stay readable English and why "why" must not be compiled. Squeezing `context` out as
-  legacy recreates opaque-syntax prompts.
-- **depends_on:** none
-- **done_when:** `contracts/goal.py` still has a non-compiled `context` field;
-  `compile_goal` still ignores it for criteria; at least one golden Goal fixture still
-  carries context without that context appearing in locked `TaskCriterion[]`.
-- **must_not:** Compile `context` into criteria; delete the field as "legacy"; require
-  context to be empty for new clients.
-
-### OBJ-FZ-TOPOLOGY
-
-- **title:** Fifteen graph nodes remain T3
-- **kind:** freeze
-- **likelihood:** unconditional
-- **source:** remaining-work §1 rule 3; ADR-0001; ADR-0005
-- **why_supportable:** Already remaining-work / T3. The horizon explicitly must not grow
-  the graph. HEX, compress, learned rankers, auto-advance stay behind existing
-  enablement predicates.
-- **depends_on:** none
-- **done_when:** Existing topology/T3 tests still pass; no objective in this file
-  proposes a 16th node.
-- **must_not:** Add a node to "make the forecast real"; enable HEX before
-  `practice_conversion` and a weekly lift interval are numbers.
-
-### OBJ-FZ-B7
-
-- **title:** Do not promote research outcomes into merge requirements
-- **kind:** freeze
-- **likelihood:** unconditional
-- **source:** assumptions.md B7; remaining-work §1 rule 1; horizon §8
-- **why_supportable:** The entire measurement thesis. This file exists because the
-  horizon was too easy to misread as a plan.
-- **depends_on:** none
-- **done_when:** No `done_when` in this file requires `a1`/`a2`/`a4` to be `supported`
-  in order to merge unrelated code; `OBJ-RW-A1`/`A2`/`A4` remain research outcomes.
-- **must_not:** Use this objectives list as a staffing plan or as a reason to open a
-  remaining-work milestone without a separate decision.
-
-## 4. Explicitly not objectives
-
-| Dropped claim | Why |
-| --- | --- |
-| Prompt engineering as a profession is gone | Labour-market prediction; no Recertia evidence. The instruction gap *survives* as authoring |
-| Chat disappears | Contradicted by the horizon's own §3.2; chat stays as composition/debug |
-| Programs replace tickets industry-wide (Layer C) | Sector prediction. Goal packs exist *inside* Recertia (GP0–GP2); that does not license a 2036 market claim |
-| Organizations compete on libraries the way they competed on codebases | Desired thesis end-state; prior is SkillsBench null until `a1` is `supported` |
-| Locked-Goal amend/viscosity "like git" | Would weaken ADR-0003 unless a lock-preserving design is written first; not supportable as an objective today |
-| HEX / `curator_compress` / learned rankers / auto-advance / 16th node | Remaining-work already gates these; the horizon is forbidden from enabling them |
-| Multi-tenant console chrome (C5) as an unconditional objective | Already `RW-C5`, Phase-4 gated; duplicating it without the predicate is how blast radius multiplies |
-| A no-memory general agent "will not win" | That is falsification clause 4 of the horizon, not a build objective |
-| Gentle-slope "everyone is a curator" product | Partial inherit of Phase-3 Correction Miner; minting a new id is product expansion |
-
-## 5. When to re-run the prompt
-
-Re-run [`ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md) §2 when, and only
-when:
-
-- `a1`, `a2`, or `a4` changes status in `docs/assumptions.md`, or
-- a new **[F]** HCI paper names a third interface gap that is not already `OBJ-IF-TIER`,
-  `OBJ-IF-TRUST`, `OBJ-IF-PRECEDENT`, or `OBJ-IF-TEMPLATES`, or
-- [`ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md) marks a finding
-  `accepted` that this file still contradicts.
-
-A re-run that wants more than six `OBJ-IF-*` ids is minting product; stop. A re-run
-MUST NOT restore "precedent as default", "three numbers on every row", or "tier only
-on detail".
-
-<a id="ch-architecture-ten-year-horizon-ux-review"></a>
-
-> Source: [`architecture/ten-year-horizon-ux-review.md`](architecture/ten-year-horizon-ux-review.md)
-
-# UI/UX-lead review of the ten-year horizon plan
-
-- **Status:** exploration review — **not an engineering gate**, not remaining-work
-- **Date:** 2026-08-13
-- **Reviewer role:** UI/UX lead (named design critique). This repo has no designated UX
-  owner; the review is not a persona co-sign.
-- **Inputs:** [`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md) (pre-rewrite),
-  [`ten-year-horizon.md`](architecture/ten-year-horizon.md) §4, [`product-console.md`](architecture/product-console.md),
-  [`../specifications/product-console.md`](specifications/product-console.md),
-  [`../references.md`](references.md) §10, shipped Compose / templates / skills /
-  proposal-decision code
-- **Outcome applied in:** rewritten `OBJ-IF-*` blocks in
-  [`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md)
-- **Must not:** edit [`remaining-work.md`](architecture/remaining-work.md),
-  [`one-year-roadmap.md`](architecture/one-year-roadmap.md), [`../assumptions.md`](assumptions.md),
-  or any ADR; mint a fifth `OBJ-IF-*`; promote any candidate into remaining-work
-
-This is the same genre as the archived
-[principal architecture review](archive/2026-Q3/principal-review-2026-08.md): a
-falsifiable critique of a plan, not an implementation. It walks the *shipped* console so
-the findings are not literature-only.
-
-## Verdict
-
-Agree with the *substance* of the four interface candidates (`OBJ-IF-TIER`,
-`OBJ-IF-TRUST`, `OBJ-IF-PRECEDENT`, `OBJ-IF-TEMPLATES`). Reject three of their original
-`done_when` clauses. Do not promote any of them into remaining-work.
-
-HCI citations in horizon §4 and [`references.md`](references.md) §10 constrain the
-console whether or not `a1` compounds. They do **not** validate a design. By this
-project's own B7 standard, literature is a prior, not a pass.
-
-| Objective | Verdict | Why |
-| --- | --- | --- |
-| `OBJ-IF-TIER` | agree-with-rewrite | Tier must be legible at the **decision**, not only on a detail page |
-| `OBJ-IF-TRUST` | agree-with-rewrite | Lee & See is calibration, not "always render three numbers" |
-| `OBJ-IF-PRECEDENT` | agree-with-rewrite | Retrieval-first is supported; **defaulting** it is anchoring, unmeasured |
-| `OBJ-IF-TEMPLATES` | agree-with-rewrite | Templates already ship; the gap is a versioned linted library |
-| `OBJ-FZ-GRAPHVIEW` | agree | Keep run detail graph-shaped; chat stays a composition surface |
-| `OBJ-FZ-CONTEXT` | agree | `Goal.context` is secondary notation; do not compile it |
-| `OBJ-FZ-TOPOLOGY` / `OBJ-FZ-B7` | agree | Out of UX scope; do not reverse |
-| `OBJ-RW-*` | agree (no UX rewrite) | Inherited ops/research; this review does not restaff them |
-
-## Shipped console (what the plan was scored against)
-
-C0–C4 already exist. The candidates overstate some gaps and understate others.
-
-| Surface | Where it lives | What a UX lead actually sees |
-| --- | --- | --- |
-| Pilot Compose / Suggest | `src/recertia/console_compose.py`, `POST /v1/goals/suggest` | Drafts from heuristic / model / template. Drafts never lock. Blank Goal form is still the natural landing. |
-| Templates | `src/recertia/console_templates.py`, `GET /v1/templates` | Three hardcoded `repo-chore` skeletons (`add-gitignore-pyc`, `add-editorconfig`, `add-pytest-config`) in a module dict — not a versioned, linted library. |
-| Skill list contribution | `GET /v1/skills` returns `contribution` | A contribution object is already in the list payload. Display calibration (interval vs point estimate vs `"not established"`) is unspecified. The failure mode is **how** the number is shown, not a missing field. |
-| T2 enforcement | `POST /v1/proposals/{id}/decision` in `console_routes.py` | T2 / `correction` requires `reviewer` or admin. The 403 is `"T2 requires reviewer"`. No operator-language *why*, no tier sentence in an approval interstitial. Enforcement without explanation. |
-| Run detail | [`product-console.md`](architecture/product-console.md) §3.1 | Route log, spend, manifest, failure class — already graph-shaped. |
-| Proposal inbox | spec §3.3, architecture §3.2 | Approve / reject / request-changes. Kind and payload `tier` exist; they are not presented as a user-legible autonomy property at click time. |
-
-## Findings
-
-### F1 — Trust display: calibration, not width — `accepted`
-
-**Claim under test:** `OBJ-IF-TRUST` as originally written required skill show / Tower to
-render calibration, resolution, *and* specificity as co-equal figures, and treated "never
-one number" as a simultaneous-display rule ([`ten-year-horizon.md`](architecture/ten-year-horizon.md)
-§4.4).
-
-**Why it fails as a UX requirement.** Lee & See (2004) **[F]** name three *properties of
-trust* an interface must support — calibration, resolution, specificity — not three
-widgets that must occupy every row. Amershi et al. (2019) **[F]** G2 / transparency
-overload: showing three metrics everywhere buries the one that matters and trains
-operators to ignore the panel. List views of skills need a scannable primary. The real
-failure mode is an **opaque** or **uncalibrated** primary (a star, a rounded point
-estimate whose interval spans zero, a composite that hides `"not established"`), not
-the existence of a primary.
-
-**Disposition.** Rewrite `done_when` as progressive disclosure: one honestly calibrated
-primary on list/summary (must render `"not established"` when the interval spans zero);
-calibration, resolution, and specificity on detail. `must_not` still forbids a composite
-that hides `"not established"`; it also forbids requiring three numbers on every list
-row.
-
-### F2 — Precedent-as-default is anchoring, asserted not measured — `accepted`
-
-**Claim under test:** `OBJ-IF-PRECEDENT` made retrieved-case edit *the default* Pilot
-authoring path, with the blank form as an escape hatch.
-
-**Why it fails as a UX requirement.** Zamfirescu-Pereira et al. (2023) **[B]**,
-Subramonyam et al. (2024) **[F]**, and Cypher et al. (1993) **[F]** support
-retrieval/example against a blank page. They do not license *defaulting every author*
-into the nearest past Goal. That is the estimation-anchoring failure: the retrieved case
-suppresses articulation of what is actually different. Compose/Suggest already exists;
-making it the landing state is a bigger interaction change than the original objective
-treated it as, and it was closed by citation rather than by a metric. That is
-inconsistent with B7 (this project will not mark `a1` `supported` from literature).
-
-Templates already cover three golden-shaped chores. Fighting templates and precedent
-for the same landing state is a product expansion. Known task class → template; no
-template → precedent as a reachable path. Default-vs-blank is a measured decision.
-
-**Disposition.** Title and `done_when` become: first-class retrieved-case path, **not**
-the default. Blank form remains. Default-vs-blank does **not** pass this objective.
-`not_established_until` names time-to-lock, criteria-rework rate, or blank-form escape
-rate on real Pilot traffic.
-
-### F3 — Tier legibility belongs at the decision — `accepted`
-
-**Claim under test:** `OBJ-IF-TIER` was satisfied by showing T0–T3 on run detail and
-skill detail (CLI `skills show` and/or Tower).
-
-**Why it fails as a UX requirement.** Norman's gulf of evaluation (Hutchins, Hollan &
-Norman 1985 **[F]**; horizon §4.1) is about feedback at the moment of the judgement, not
-in a page the operator has to remember to open. Horvitz (1999) **[F]** and the 2025
-levels-of-autonomy note **[F]** treat autonomy as a *user-legible role at the act*. T2
-is already enforced at `POST /v1/proposals/{id}/decision`; a detail-page badge can pass
-the original `done_when` while every approval click still looks like an undifferentiated
-"approve."
-
-**Disposition.** `done_when`: T2 (and any human-gated action) shows the applicable tier
-plus one operator-language *why* **in the approval interstitial**. Run/skill detail may
-repeat it. A detail-only badge **fails** this objective. `must_not` unchanged (no
-solver-requested slider, no graph growth).
-
-### F4 — Interface hypotheses get B7 treatment — `accepted`
-
-**Claim under test:** the four `OBJ-IF-*` rows were "supportable" because architecture
-implies them and HCI independently requires them. Supportable ≠ validated.
-
-**Why it fails as an epistemic requirement.** `docs/assumptions.md` will not mark `a1`
-`supported` from SkillsBench or Ratchet — only from measured traffic. These four
-objectives were derived the same way (literature plus architectural inference) with no
-operator having used a tier interstitial, a calibrated trust primary, a precedent path,
-or a linted template library. Calling them "candidate" understates that they are
-hypotheses.
-
-**Disposition.** Each `OBJ-IF-*` carries `not_established_until` with an observable on
-operator traffic, or `n/a` when the row is a display/freeze rule rather than a behaviour
-change. Status stays untested until observed. Do **not** mint `a*` ids — assumptions.md
-is frozen. Citation is not validation.
-
-### F5 — Scope candidates to the real gap — `accepted`
-
-**Claim under test:** `OBJ-IF-TEMPLATES` (and, in passing, PRECEDENT and TRUST) read as
-if the console lacked templates, suggestion, and contribution.
-
-**Why it fails as scoping.** Three templates, Suggest, and a contribution object already
-ship (table above). Inventing those surfaces again would duplicate C0–C4. The remaining
-gaps are: templates are a hardcoded `TEMPLATES` dict, not a reviewed versioned library
-with a lint equivalent to `recertia skills lint`; Suggest is not a retrieve-similar-Goal
-path; contribution is an API field whose display calibration is unspecified.
-
-**Disposition.** `OBJ-IF-TEMPLATES` `done_when` stays about reviewed Goal skeletons per
-golden task class, a lint, and versioned artifacts. `must_not` adds: do not treat the
-three existing hardcoded templates as this objective passing. PRECEDENT and TRUST
-rewrites (F1, F2) already stop inventing Compose and inventing a contribution field.
-
-## Explicitly not accepted
-
-| Proposal | Why deferred / rejected |
-| --- | --- |
-| Promote any `OBJ-IF-*` into [`remaining-work.md`](architecture/remaining-work.md) | Separate, explicit decision. This review is not that decision. |
-| Mint `a5`… for interface hypotheses | assumptions.md is frozen; `not_established_until` is enough |
-| Locked-Goal amend-in-place / viscosity "like git" | Still dropped until a lock-preserving design exists (objectives §4) |
-| Fifth `OBJ-IF-*` (gentle-slope curator, C5 chrome, …) | Product expansion; narrowing cap is six and four is enough |
-| Usability-study instrumentation beyond naming the metrics | Next step, after the rewritten `done_when` exists |
-| Console implementation in this change | Out of scope. The review exists to stop building the *wrong* `done_when`. |
-
-## What this review does to the plan
-
-Accepted findings F1–F5 are applied in
-[`ten-year-horizon-objectives.md`](architecture/ten-year-horizon-objectives.md) (supportable position,
-classification wording, four `OBJ-IF-*` blocks).
-[`ten-year-horizon-narrowing.md`](architecture/ten-year-horizon-narrowing.md) is patched so a re-run
-cannot restore "precedent as default", "three numbers on every row", or "tier only on
-detail". Horizon §4.4 / §4.8 keep the house rule against an **opaque** single score and
-state progressive disclosure.
-
-No remaining-work, roadmap, assumptions, or ADR file is edited.
-
 <a id="ch-architecture-remaining-work"></a>
 
 > Source: [`architecture/remaining-work.md`](architecture/remaining-work.md)
 
 # Remaining work — implementation plan
 
-Companion to the [one-year roadmap](architecture/one-year-roadmap.md) (strategy),
-[production-readiness](architecture/production-readiness.md) (Phase-4 gate), and
-[`assumptions.md`](assumptions.md) (research outcomes). Normative requirements for
-the remaining *engineering* surface are in
-[`../specifications/remaining-work.md`](specifications/remaining-work.md).
+Companion to [`assumptions.md`](assumptions.md) (research outcomes).
+The remaining *engineering* surface is this document.
 
 M0–M9, console **C0–C4**, goal packs **GP0–GP2**, OpenRouter **OR0**, and the
 roadmap-remaining CI gates are **shipped**. This document is the build order for what is
@@ -3210,7 +1673,7 @@ license line matches `LICENSE`.
 
 **Goal:** one operator can leave Recertia running on `repo-chore` with a real model,
 container backend, and truthful spend. Engineering P0-1…P0-5 already landed; this
-milestone is the **ops gate** in [one-year-roadmap.md](architecture/one-year-roadmap.md) §2.
+milestone is the **ops gate** (four consecutive soak weeks plus a tabletop log).
 
 Shipped (do not rebuild): cost table + `ModelResponse.cost_usd`; command policy +
 untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins;
@@ -3267,8 +1730,7 @@ prints `"not established"` whenever the Wilson interval spans zero.
 
 **Research (RW-A, not a merge gate):** `a1` → `supported` or `refuted` with interval;
 `a2` with observed certification-trial accumulation; `a4` → `under evaluation` with
-the first live canary rates. Negative `a1` **halts** Phase-3 scope expansion
-([roadmap](architecture/one-year-roadmap.md) §3).
+the first live canary rates. Negative `a1` **halts** Phase-3 scope expansion.
 
 ## 7. RW-LY / RW-PC / RW-HEX — Library economics remainder
 
@@ -3315,8 +1777,7 @@ in production without an eval-compare note in the ledger.
 
 ## 8. RW-OR — OpenRouter polish (OR1–OR3)
 
-OR0 is shipped. Remaining from
-[`archive/2026-Q3/implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md):
+OR0 is shipped. Remaining OpenRouter polish:
 
 | Milestone | Work | Done when |
 | --- | --- | --- |
@@ -3348,7 +1809,7 @@ endpoint writes the same `EvalObservation` rows as `recertia lift`; `/v1`
 
 ## 10. RW-C5 / RW-TM — Phase 4 remainder
 
-Do not start C5 UI until [production-readiness.md](architecture/production-readiness.md) go/defer
+Do not start C5 UI until a Phase-4 go/defer
 criteria hold. Remaining:
 
 1. Threat-model re-review of principal-review §5 deltas — **accepted-with-owner** for
@@ -3378,8 +1839,8 @@ Acceptable year-end: two-domain single-operator product.
 
 ## 12. Operating cadence (unchanged)
 
-Weekly metrics review, monthly assumptions register, quarterly threat-model refresh —
-[roadmap §6](architecture/one-year-roadmap.md). Status changes to `a1`–`a4` are **commits** to
+Weekly metrics review, monthly assumptions register, quarterly threat-model refresh.
+Status changes to `a1`–`a4` are **commits** to
 [`assumptions.md`](assumptions.md), not chat.
 
 ## 13. Success criteria for remaining work
@@ -3388,7 +1849,7 @@ Weekly metrics review, monthly assumptions register, quarterly threat-model refr
 2. `a1` and `a2` resolved with intervals, either direction (RW-A).
 3. `a4` is a watched number per verifier model version.
 4. `library_yield` / `retrieval_decay` are computed, not just defined (RW-LY).
-5. Phase-4 go/defer recorded in production-readiness.md with a named owner.
+5. Phase-4 go/defer recorded with a named owner.
 
 <a id="ch-architecture-incident-tabletop"></a>
 
@@ -3430,8 +1891,7 @@ looks partially written.
 
 # Threat-model deltas (principal review §5) — single-operator closeout
 
-Companion to [`production-readiness.md`](architecture/production-readiness.md) and the archived
-[principal review](archive/2026-Q3/principal-review-2026-08.md). Rows below are
+Companion to [`remaining-work.md`](architecture/remaining-work.md). Rows below are
 **closed** or **accepted-with-owner** for **single-operator** mode. They are **not** a
 signed multi-tenant threat model and do **not** authorize console C5.
 
@@ -3451,45 +1911,9 @@ until live canary rates exist (B7: this document MUST NOT mark research assumpti
 ## Explicit non-claims
 
 - This file is not a signature by a second party. Multi-tenant GA still requires a threat
-  model signed by someone other than its author ([production-readiness.md](architecture/production-readiness.md)).
+  model signed by someone other than its author.
 - Console C5 (tenant switcher) MUST NOT ship on the strength of this closeout.
 - Model-provider failover (P2-5) remains a deliberate-absence candidate.
-
-<a id="ch-architecture-production-readiness"></a>
-
-> Source: [`architecture/production-readiness.md`](architecture/production-readiness.md)
-
-# Production readiness assessment (Phase 4 gate)
-
-Companion to [`one-year-roadmap.md`](architecture/one-year-roadmap.md) §5 and
-[`archive/2026-Q3/principal-review-2026-08.md`](archive/2026-Q3/principal-review-2026-08.md) §5. Every row must be
-**closed** or **accepted-with-owner** before multi-tenant GA is considered.
-
-| Item | Status | Owner / notes |
-| --- | --- | --- |
-| Threat-model deltas from principal review §5 | accepted-with-owner (single-operator) | See [`threat-model-deltas.md`](architecture/threat-model-deltas.md). Re-review + second-party signature before tenant GA. C5 UI still must not ship. |
-| Break-glass procedure | accepted-with-owner | Operator retains host access to `.recertia/` and `DATABASE_URL`; document in runbook |
-| Key rotation | closed (scaffold) | `recertia keys revoke` + re-issue; rotate provider keys out-of-band |
-| Deployment topology | accepted-with-owner | Single-operator: CLI + optional API on loopback; container backend preferred |
-| SLOs (run p95, eval cadence, canary miss) | closed (scaffold) | Tracked via `recertia metrics` + weekly-ops workflow; alert thresholds operator-owned |
-| Tenant quota accounting | closed (scaffold) | `QuotaStore` on `POST /v1/runs`; env `RECERTIA_TENANT_MAX_*` |
-| Scope / planted-secret isolation | closed (CI) | `tests/e2e/test_planted_secret_scope.py` |
-| Second domain unchanged runtime | closed (fixture + CI) | `evals/golden/research-synthesis/` + `second_domain_fixture_ready` |
-| NIST AI RMF Govern/Map (tenant surface) | open | Required only if multi-tenant GA proceeds |
-| Assumption `a1` / `a2` resolved on real traffic | research | Must not be marked `supported` without intervals (B7) |
-| Multi-tenant GA gate | deferred until criteria met | Operator GA + `a1` supported in ≥1 domain + P2 closed + signed threat model |
-| Product console C5 (tenant switcher) | deferred until criteria met | See [`product-console.md`](architecture/product-console.md); C0–C4 single-operator console may proceed earlier |
-
-## Multi-tenant go / defer
-
-Proceed only if all of the following hold:
-
-1. Operator mode has been GA for a full phase (four consecutive soak weeks).
-2. `a1` is `supported` in at least one domain with a stated interval.
-3. All P2 rows from the principal review are closed or accepted-with-owner.
-4. A written threat model is signed by someone other than its author.
-
-Otherwise the year ends with a two-domain single-operator product — an acceptable outcome.
 
 <a id="ch-architecture-product-console"></a>
 
@@ -3498,8 +1922,7 @@ Otherwise the year ends with a two-domain single-operator product — an accepta
 # Product console architecture
 
 Companion to [ADR-0012](adr/0012-product-console-surfaces.md), normative contracts in
-[`../specifications/product-console.md`](specifications/product-console.md), and build
-order in [`../implementation-plan-console.md`](archive/2026-Q3/implementation-plan-console.md).
+[`../specifications/product-console.md`](specifications/product-console.md).
 
 ## 1. Purpose
 
@@ -4222,7 +2645,7 @@ review   → reject_draft     : human or policy rejected
 `join` exists only on the fan-out path (`branches` non-empty). The ordinary, single-attempt
 path used exclusively through M0–M5 routes `validate` directly to `distill` or
 `classify_failure` — this is Option 1 from
-[`archive/2026-Q3/refactor-plan.md`](archive/2026-Q3/refactor-plan.md) B3, chosen definitively; see
+the fifteen-node graph, chosen definitively; see
 [ADR-0008](adr/0008-optional-join-and-failure-signals.md). `MergeAudit` has no `.complete`
 field; the predicate above is the real one, over `expected`/`received`/`missing`.
 
@@ -4398,7 +2821,7 @@ Console-oriented behaviour is specified normatively in [`product-console.md`](sp
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](specifications/remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
+| C5 UI | tenant switcher chrome | Phase-4 gate only ([remaining-work.md](architecture/remaining-work.md) RW-C5). APIs already isolate by `tenant_id`. |
 
 Error envelope (used on `/v1/*` `HTTPException` including budget/in-flight `POST /v1/runs`; FastAPI `{detail: ...}` MAY remain on `/health` and 422):
 
@@ -4503,8 +2926,7 @@ received ids, missing ids, action taken).
 # Recertia Specifications: Product console
 
 Normative requirements for the operator/reviewer console. Architecture rationale:
-[`../architecture/product-console.md`](architecture/product-console.md). Build order:
-[`../implementation-plan-console.md`](archive/2026-Q3/implementation-plan-console.md). Decisions:
+[`../architecture/product-console.md`](architecture/product-console.md). Decisions:
 [ADR-0012](adr/0012-product-console-surfaces.md).
 
 This document extends — and does not replace —
@@ -4794,7 +3216,6 @@ C0–C2 HTTP+UI delivery.
 Normative requirements for using OpenRouter and other Chat Completions gateways through
 Recertia’s OpenAI client. Architecture:
 [`../architecture/openai-compat-gateways.md`](architecture/openai-compat-gateways.md).
-Plan: [`../implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md).
 Decision: [ADR-0013](adr/0013-openai-compat-gateways.md).
 
 These rules extend — and do not replace — model/cost behaviour described in
@@ -5895,8 +4316,7 @@ reads as complete.
 Normative contracts for **registered host workspaces**: allowlisted absolute roots that
 Pilot (and Programs) may bind as a run `workdir` without accepting arbitrary host escapes.
 Companion docs: [product-console.md](specifications/product-console.md) §2.3, architecture
-[product-console.md](architecture/product-console.md), build order
-[implementation-plan-registered-workspaces.md](archive/2026-Q3/implementation-plan-registered-workspaces.md).
+[product-console.md](architecture/product-console.md).
 
 **Host path profile for this specification:** Windows. Roots are stored and displayed as
 Windows absolute paths (drive-letter form). The API process MUST run on a host that can
@@ -6223,249 +4643,6 @@ Active-set mutations SHOULD attach a `ReplayPack` from retrieval-only counterfac
 - Trajectory failures MUST NOT fail the run (engine swallows emission errors)
 - Trajectory = T0; replay = T1
 
-<a id="ch-specifications-remaining-work"></a>
-
-> Source: [`specifications/remaining-work.md`](specifications/remaining-work.md)
-
-# Recertia Specifications: Remaining work
-
-Normative requirements for work that is **ops-gated** or still blocked on research /
-Phase-4 gates. Engineering slices RW-M2/LY, RW-HY, RW-SUR (except C5), RW-HEX gating,
-and OR1–OR3 are implemented; this file remains the source of truth for enablement
-predicates and ops closeout. Architecture and sequencing:
-[`../architecture/remaining-work.md`](architecture/remaining-work.md). This file
-does not replace shipped contracts in
-[`promotion-api-and-observability.md`](specifications/promotion-api-and-observability.md),
-[`evaluation-improvement-and-governance.md`](specifications/evaluation-improvement-and-governance.md),
-[`product-console.md`](specifications/product-console.md), or
-[`openai-compat-gateways.md`](specifications/openai-compat-gateways.md). Where those files and this
-one conflict on a **shipped** behaviour, the shipped-topic file wins. Where they
-conflict on a **remaining** behaviour, **this file wins** until the change lands and
-those files are updated (RW-HY).
-
-Research outcomes `a1`–`a4` MUST NOT be marked `supported` by any requirement in this
-document ([`../assumptions.md`](assumptions.md) B7).
-
-## 1. MetricReport completeness (RW-M2 / RW-LY)
-
-`contracts.eval.MetricReport` MUST grow the following fields (ADR-0009; regenerate
-`schema/metric_report.schema.json`):
-
-| Field | Definition | `unavailable` MUST be set when |
-| --- | --- | --- |
-| `library_yield` | approved skills with ≥1 later application in the window ÷ approved skills in the library snapshot | no approved skills, or application events not recorded |
-| `retrieval_precision_at_3` | mean over probe items of (labelled-relevant ∩ top-3) / 3 | probe set empty or retrieve not run |
-| `retrieval_decay` | Δ `retrieval_precision_at_3` per 100 skills added vs the previous stored probe snapshot | fewer than two probe snapshots, or skill-count denominator zero |
-
-Existing fields (`causal_lift`, `curation_gap`, `practice_conversion`,
-`retirement_reversal_rate`, `judge_false_pass_rate`, …) MUST keep honest
-`unavailable` reasons. Adding yield/decay MUST NOT invent zeros.
-
-`build_metric_report` MUST accept optional `approved_applied`, `approved_total`,
-`precision_at_3`, `prior_precision_at_3`, `skills_added` (or equivalent observation
-rows) rather than scanning the world implicitly.
-
-`GET /v1/metrics/report` and `recertia metrics` MUST include the new fields. PC-5
-(unavailable preservation) applies.
-
-### Probe runner
-
-1. Recertia MUST ship a command that reads `evals/probes/<task_class>.json` (schema:
-   `probes[]` with `id`, `request`, optional `workdir_files`, `relevant[]` skill ids).
-2. For each probe it MUST call the same `retrieve` path as a run (not a parallel
-   scorer).
-3. It MUST persist per-probe hits and the mean `retrieval_precision_at_3` into the
-   eval store, keyed by library snapshot / `index_snapshot_id`.
-4. CI MUST fail if the committed `repo-chore` probe set scores mean precision `< 0.7`
-   (M1 floor, already asserted in `tests/e2e/test_m1_procedural_memory.py` — the
-   runner MUST reuse that definition).
-5. Unrelated / empty-relevant probes MUST still be allowed to return an empty bundle
-   without failing the mean (they contribute zeros to precision, which is the point).
-
-### Weekly cadence
-
-When soak secrets / `RECERTIA_EVAL_DB` are present, `.github/workflows/weekly-ops.yml`
-MUST:
-
-1. Run the probe runner against the soak library.
-2. Run golden `repo-chore` tasks with the policy `ablation_rate` (eval fixtures
-   remain excluded from the control sample per §19).
-3. Run the judge canary; attribute `judge_false_pass_rate` to
-   `provider × model_version` when a real verifier is configured.
-4. Upload JSON that includes `causal_lift.status` and MUST echo
-   `claim=not established` when the interval includes zero.
-
-When secrets are **absent** (default GitHub `ubuntu-latest` checkout), the workflow
-MUST still emit JSON with `unavailable` reasons and MUST NOT use `|| true` to hide a
-Python exception. Empty DB → successful report with holes is allowed.
-
-## 2. Assumption status updates (RW-A)
-
-Updating [`../assumptions.md`](assumptions.md) is a **commit**, not a console
-toggle.
-
-| Id | MAY move to `supported` / `refuted` only if |
-| --- | --- |
-| `a1` | `causal_lift` Wilson interval for `repo-chore` treatment vs control excludes zero, with sample counts; or the interval is stable and includes zero (`refuted` / remains not established — authors MUST pick the status that matches the interval, not hope) |
-| `a2` | certification-trial counts per active skill vs `policy.evidence_floor` are reported; majority-below-floor is a valid `refuted` |
-| `a4` | live canary rates exist per verifier model version (synthetic CI alone MUST leave status `untested` or move only to `under evaluation`) |
-| `a3` | Correction Miner / Curator writes over a window stayed inside T0–T2; not required for operator GA |
-
-A milestone **Done when** MUST NOT require `a1` to be `supported`.
-
-Negative `a1` MUST block enabling HEX/compress and Phase-3 composition-on-traffic
-expansion until a written design review (ADR or remaining-work amendment).
-
-## 3. Portfolio dual-path expiry (RW-PC)
-
-Until `docs/architecture/portfolio-measurement.md` exists:
-
-- `RECERTIA_PORTFOLIO_CONTROLLER` MAY select the pure vs legacy `recompute_active_set`.
-- The flag MUST NOT be documented as operator configuration.
-- Equivalence tests MUST remain.
-
-After that document exists:
-
-- Recertia MUST delete `_recompute_active_set_legacy` and the env flag.
-- `recompute_active_set` MUST be the pure controller only.
-- Tests MUST fail if either the flag or the legacy function reappear.
-
-## 4. HEX and compress enablement (RW-HEX)
-
-`ImprovementFlags.practice_hex_search` and `curator_compress` MUST default false.
-
-A job MUST NOT run HEX search or unit-level compress unless:
-
-1. Policy flags are true, **and**
-2. The latest weekly `MetricReport` has numeric `practice_conversion`, **and**
-3. `causal_lift.status` is established positive **or** an explicit ledger-noted
-   recovery experiment after `a1` `refuted`, **and**
-4. `JobQuota.can_admit` for `practice_hex` / `compress` succeeds at the documented
-   priority (recertifier → curator retire → fail-cluster → practice band → HEX →
-   compress).
-
-Flipping `policy/default.json` alone MUST NOT bypass (2)–(4). Bypass is a T2 change
-and MUST record a human actor on the ledger.
-
-## 5. OpenAI-compatible remaining (OR1–OR3)
-
-Extends [`openai-compat-gateways.md`](specifications/openai-compat-gateways.md).
-
-| ID | Assertion |
-| --- | --- |
-| OG-7 | Docs/CI: configuring `RECERTIA_OPENAI_BASE_URL` MUST NOT be treated as evidence for `a1`. Unknown slugs MUST cost via defaults/overrides without claiming vendor-exact spend |
-| OG-8 | When `RECERTIA_OPENAI_MAX_TOKENS` is set and EXTRA_BODY does not include `max_tokens`, the client MUST send that integer |
-| OG-9 | OpenRouter-style `{error: {message, code}}` bodies MUST raise `ProviderError` whose message includes the gateway `code` when present |
-| OG-10 | If `choices[0].message.content` is a list of `{type: text, text}` parts, the client MUST concatenate `text` fields; other part types MAY be ignored |
-| OG-11 (OR3) | `POST /v1/runs` with a console-selected model slug not on the server allowlist MUST return 400; the allowlist MUST NOT be shipped in `console/static/` |
-
-OR0 tests OG-1…OG-6 remain required.
-
-## 6. HTTP/CLI remainder (RW-SUR)
-
-### 6.1 Error envelope
-
-JSON error responses under `/v1/*` MUST use:
-
-```json
-{ "error": { "code": "budget_exhausted", "message": "...", "run_id": "01J…", "retryable": false } }
-```
-
-`code` MUST be a stable snake_case token. `retryable` MUST be true only for
-rate-limit / lock-timeout / worker-busy. FastAPI `{detail: ...}` MAY remain on
-`/health` and on 422 validation. `HTTPException` on `/v1/*` is rewritten to the
-envelope.
-
-### 6.2 Remaining routes
-
-| Method | Path | MUST |
-| --- | --- | --- |
-| `POST` | `/v1/evals/runs` | Scope `metrics` or `admin`. Body: `task_class`, optional `snapshot` / `golden_dir`. Runs golden fixtures; writes `EvalObservation`; MUST NOT distill (eval firewall). |
-| `GET` | `/v1/reviews` | List pending distill-review decisions; tenant-scoped. Until volume exists, MAY be an alias of pending skill candidates. |
-| `POST` | `/v1/reviews/{decision_id}` | `approve` / `reject` / `request_changes`; ledger actor required. MUST NOT write `lifecycle=approved` (golden gate still required). |
-| `GET` | `/v1/facts` · `/v1/cases` · `/v1/affordances` | Tenant-scoped reads; no cross-tenant ids (PC-1). |
-| `POST` | `/v1/memory/query` | Federated retrieve debug: scores + drop reasons across planes; MUST NOT start a run. |
-| `GET` | `/v1/policy` | Return loaded `Policy` (no secrets). |
-| `POST` | `/v1/policy/proposals` | T2 proposal only; MUST NOT apply without human approval + eval-compare. |
-
-CLI twins exist for eval-run, policy show/propose, memory query, skills list/show,
-review queue/approve, facts list, cases show, and proposals queue.
-
-### 6.3 Promotion-api drift (RW-HY)
-
-[`promotion-api-and-observability.md`](specifications/promotion-api-and-observability.md) §9 MUST
-list as implemented every route that `src/recertia/api/` currently serves, including
-console C0–C4. The aspirational table MUST contain only C5.
-
-README license text MUST match `LICENSE` (PolyForm Noncommercial).
-
-## 7. Operator-GA ops artifacts (RW-GA)
-
-Engineering MUST keep:
-
-- `docker-compose.soak.yml` + `scripts/soak_postgres.py` (`--recertia-root` notes snapshot presence)
-- `.github/workflows/weekly-ops.yml` (probes + golden + metrics JSON + canary + postgres)
-- [incident-tabletop.md](architecture/incident-tabletop.md)
-- `recertia backup` / `recertia restore` / `scripts/backup_recertia.py`
-- `recertia tabletop`
-- `recertia canary` (synthetic; `--live` when `RECERTIA_VERIFIER_MODEL_ID` is set)
-
-Ops (not CI) MUST produce:
-
-1. A soak log with four consecutive weeks, each pointing at a metrics artifact whose
-   eval DB was not empty **or** an explicit `unavailable` reason that is not "fresh
-   checkout".
-2. A tabletop log: date, run id, restore source, time-to-recover, follow-up.
-3. Baseline `MetricReport` from real (non-fixture) `repo-chore` runs.
-
-GA MUST NOT be declared in README Status while (1)–(3) are missing.
-
-## 8. Phase-4 / C5 (RW-C5, RW-TM)
-
-Until [production-readiness.md](architecture/production-readiness.md) go/defer
-passes:
-
-- Console MUST NOT present a tenant switcher that implies isolation it does not have.
-- APIs MUST still isolate by `tenant_id` (already required).
-- C5 UI MUST NOT ship.
-
-If the gate passes, [`product-console.md`](specifications/product-console.md) §7 applies in full.
-Single-operator threat-model deltas are accepted-with-owner in
-[`threat-model-deltas.md`](architecture/threat-model-deltas.md). A second-party
-signed threat model is still required before C5 / tenant GA.
-
-`research-synthesis` real traffic MUST use the existing graph and contracts. Any
-structural change required is a defect in the shared layer, not a domain fork.
-
-## 9. Explicit non-requirements
-
-- Auto-advance / DAG / `copy_forward` for goal packs
-- UNC registered-workspace roots
-- Provider token streaming in the console
-- Enabling HEX/compress to "get data for a1"
-- A third task class
-- Replacing the in-house eval harness
-- Calendar estimates as done-when
-
-## 10. Conformance tests (CI)
-
-| ID | Assertion |
-| --- | --- |
-| RW-1 | `MetricReport` schema includes `library_yield`, `retrieval_precision_at_3`, `retrieval_decay`; extra=forbid |
-| RW-2 | Synthetic window with no applications sets `unavailable["library_yield"]` and leaves the field `null` |
-| RW-3 | Two probe snapshots with known precision 1.0 then 0.7 and +100 skills → `retrieval_decay` = −0.3 |
-| RW-4 | Probe runner on committed `evals/probes/repo-chore.json` mean ≥ 0.7 |
-| RW-5 | Weekly report JSON includes `causal_lift.status` or `unavailable["causal_lift"]`; never a bare float that spans a zero interval labelled as improvement |
-| RW-6 | HEX job with flags true but `practice_conversion` unavailable does not emit HEX proposals |
-| RW-7 | `POST /v1/evals/runs` on a fixture task does not write a candidate skill |
-| RW-8 | Budget-exhausted `POST /v1/runs` body matches the error envelope (`error.code`) |
-| RW-9 | OG-7…OG-11 |
-| RW-10 | After portfolio expiry, `RECERTIA_PORTFOLIO_CONTROLLER` is not read |
-
-Tests RW-1…RW-8 live in `tests/unit/test_remaining_work.py`. OG-7…OG-11 live in
-`tests/unit/test_openai_compat_gateway.py` (RW-9). RW-10 waits on portfolio expiry
-(`docs/architecture/portfolio-measurement.md`). RW-GA remains an ops gate, not CI.
-
 ---
 
 # Part III — Architecture decision records
@@ -6650,7 +4827,7 @@ system's scorecard degrading.
 ## Amendment: two criteria timelines (2026-07-30)
 
 This ADR was silent on one timeline collision, flagged in
-[`archive/2026-Q3/refactor-plan.md`](archive/2026-Q3/refactor-plan.md) B2: `intake` locks required criteria *before*
+B2: `intake` locks required criteria *before*
 `retrieve` and `plan` run, so no skill has been chosen yet — but the original text listed
 "skill-inherited (when a skill is applied)" as a lock source, which is temporally impossible.
 Separately, a skill's own certification criteria are authored at `distill` time, *after* the run
@@ -6891,7 +5068,7 @@ already produces one. The two mechanisms compose rather than competing for the s
 - **Status:** accepted
 - **Supersedes:** the single-document `SkillVersion` shape implied by `schema/skill.schema.json`
   before this decision
-- **Evidence base:** [`../refactor-plan.md`](archive/2026-Q3/refactor-plan.md) B1
+- **Evidence base:** B1
 
 ## Context
 
@@ -6989,7 +5166,7 @@ read steps that never changed.
 # ADR-0008: Optional join, explicit failure signals, and split terminals
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](archive/2026-Q3/refactor-plan.md) B3, B4; corroborated by
+- **Evidence base:** B3, B4; corroborated by
   `README.md`'s simplified loop diagram, which never routed through a `join` node
 
 ## Context
@@ -7119,7 +5296,7 @@ being fixed.
 # ADR-0009: Contracts as code — Pydantic models are the normative structural source
 
 - **Status:** accepted
-- **Evidence base:** [`../refactor-plan.md`](archive/2026-Q3/refactor-plan.md) B5
+- **Evidence base:** B5
 
 ## Context
 
@@ -7319,15 +5496,12 @@ invariants the system exists to protect.
    today’s sync `POST /v1/runs` response; introduce enqueue + worker + SSE (or WebSocket)
    over trajectory/telemetry events.
 7. **Single-operator console precedes multi-tenant chrome.** Tenant switcher, org RBAC, and
-   isolated libraries wait on the Phase-4 gate in
-   [`production-readiness.md`](architecture/production-readiness.md).
+   isolated libraries wait on the Phase-4 gate.
 
 ## Consequences
 
 - Specs for console HTTP, events, and UX live in
   [`../specifications/product-console.md`](specifications/product-console.md).
-- Implementation milestones **C0–C5** live in
-  [`../implementation-plan-console.md`](archive/2026-Q3/implementation-plan-console.md).
 - Observability dashboards SHOULD be bought (Grafana / OTel) rather than rebuilt; the
   console embeds links or light panels, not a second metrics product.
 - Measurement integrity (B7, ablation, golden gate) is unchanged: the console is a UI over
@@ -7377,7 +5551,6 @@ manifest/`provider` labels, and still need the same URL/header/body knobs.
 
 - Go-live recipe stays a small env block; Kimi/Qwen work without new packages.
 - Specs: [`../specifications/openai-compat-gateways.md`](specifications/openai-compat-gateways.md).
-- Plan: [`../implementation-plan-openai-compat.md`](archive/2026-Q3/implementation-plan-openai-compat.md).
 - Architecture: [`../architecture/openai-compat-gateways.md`](architecture/openai-compat-gateways.md).
 - Operators who need accurate spend MUST set price overrides for gateway slugs.
 - A future first-class `openrouter` enum would be a breaking label change and needs a
@@ -7527,7 +5700,7 @@ on the version document.
 # Assumptions register
 
 This document tracks **empirical claims** the design depends on, separately from the
-**engineering acceptance gates** in [`archive/2026-Q3/implementation-plan.md`](archive/2026-Q3/implementation-plan.md). The
+**engineering acceptance gates** in the shipped M0–M9 runtime. The
 distinction is the fix for refactor-plan B7:
 
 - An **engineering gate** asks "does the harness work?" — it can be satisfied by a system that
@@ -7601,8 +5774,8 @@ non-`judge` criteria, the verifier's false-pass rate at our judge configurations
 the threshold past which contribution-based retirement silently disables (Blind Curator,
 [`references.md` §1.8](references.md#18-a-biased-judge-silently-disables-retirement) **[B]**).
 
-- **Depends on:** the Phase-1 verifier configuration and the Phase-2 judge false-pass canary
-  ([`architecture/one-year-roadmap.md`](architecture/one-year-roadmap.md)): planted-failure
+- **Depends on:** the Phase-1 verifier configuration and the Phase-2 judge false-pass canary:
+  planted-failure
   artifacts scored by the verifier on a schedule, false-pass rate reported per model version.
 - **Engineering gate (not this claim):** the canary harness exists and correctly measures a
   known, injected false-pass rate on synthetic artifacts, and reports a number per
@@ -7990,12 +6163,12 @@ anchored in §§3–4 (Reflexion, ReAct, Self-Refine). Do not cite this compilat
 
 ## 10. Human-interface design for post-prompt systems
 
-New category. Grounds [`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md)
-§4 — an exploration, not a design-shaping input to the current milestone stack, but held to
+New category. Grounds the post-prompt interface exploration in
+[`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md)
+— an exploration, not a design-shaping input to the current milestone stack, but held to
 the same [F]/[B] discipline as §§1–5 because that document makes citable claims about what
 replaces a prompt as the point of contact between a person and this system. The full
-argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), lives in
-`ten-year-horizon.md` §4; this entry is the bibliography record.
+argument lives in that research note; this entry is the bibliography record.
 
 | Work | Relevance |
 | --- | --- |
@@ -8017,8 +6190,7 @@ argument, mapped against Recertia's existing surfaces (Goal, console, T0–T3), 
 ## 11. Loops-and-graphs horizon note (not a design change)
 
 [`../research/loops-and-graphs-horizon.md`](../research/loops-and-graphs-horizon.md) is a
-dated research essay (August 2026) on **runtime topology**, complementary to
-[`architecture/ten-year-horizon.md`](architecture/ten-year-horizon.md) (Goals / interface).
+dated research essay (August 2026) on **runtime topology**.
 Inner / outer / meta loops stay distinct; “graphs supersede loops” remains the overlay
 already ignored in §1.7; the scarce 10-year good is a falsifiable loop, not a larger graph.
 It cites primaries already in this file. It is **not** an ADR, not remaining work, and it

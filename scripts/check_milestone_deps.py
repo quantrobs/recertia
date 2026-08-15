@@ -22,6 +22,8 @@ DONE_WHEN_RE = re.compile(
 
 
 def check(plan_path: Path = PLAN) -> list[str]:
+    if not plan_path.is_file():
+        return []
     text = plan_path.read_text(encoding="utf-8")
     milestones = [(m.start(), int(m.group(1))) for m in MILESTONE_RE.finditer(text)]
     errors: list[str] = []

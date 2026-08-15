@@ -1,7 +1,6 @@
 # Threat-model deltas (principal review §5) — single-operator closeout
 
-Companion to [`production-readiness.md`](production-readiness.md) and the archived
-[principal review](../archive/2026-Q3/principal-review-2026-08.md). Rows below are
+Companion to [`remaining-work.md`](remaining-work.md). Rows below are
 **closed** or **accepted-with-owner** for **single-operator** mode. They are **not** a
 signed multi-tenant threat model and do **not** authorize console C5.
 
@@ -21,6 +20,6 @@ until live canary rates exist (B7: this document MUST NOT mark research assumpti
 ## Explicit non-claims
 
 - This file is not a signature by a second party. Multi-tenant GA still requires a threat
-  model signed by someone other than its author ([production-readiness.md](production-readiness.md)).
+  model signed by someone other than its author.
 - Console C5 (tenant switcher) MUST NOT ship on the strength of this closeout.
 - Model-provider failover (P2-5) remains a deliberate-absence candidate.
