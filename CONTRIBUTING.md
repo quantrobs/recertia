@@ -7,6 +7,23 @@ are the structural source of truth (ADR-0009). Implementation lives in
 Contributions are accepted under the [PolyForm Noncommercial License 1.0.0](LICENSE).
 This is **not** MIT. Do not send a change that assumes commercial-use rights.
 
+## Canonical GitHub identity
+
+This project lives at **[github.com/recertia/recertia](https://github.com/recertia/recertia)**
+(org `recertia`, repo `recertia`). Clone and push only that URL. A pull request
+shows the GitHub owner/repo of the remote you pushed to; you cannot retarget an
+existing PR to a different owner or name.
+
+```bash
+git clone https://github.com/recertia/recertia.git
+git remote set-url origin https://github.com/recertia/recertia.git
+git remote -v   # origin must be github.com/recertia/recertia
+```
+
+Cursor Cloud Agents open PRs against the GitHub repository selected when the
+agent starts — start them from `recertia/recertia`, not a differently named
+clone or an old org. Historical PRs from a previous owner stay as they are.
+
 ## Setup
 
 ```bash

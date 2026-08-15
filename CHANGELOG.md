@@ -19,6 +19,8 @@ this version as production-ready.
 - Container execution backend (Docker/Podman); `--local-exec` for development
 - Seed skills and golden evals under `skills/` and `evals/`
 - PolyForm Noncommercial license (`LICENSE`, `NOTICE`), `SECURITY.md`, and `CONTRIBUTING.md`
+- Canonical GitHub identity locked to `github.com/recertia/recertia` (clone URL, package
+  metadata, and contributor guide)
 
 ### Notes
 

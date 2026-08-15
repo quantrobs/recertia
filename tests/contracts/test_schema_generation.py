@@ -80,10 +80,45 @@ def test_readme_and_pyproject_declare_polyform_license():
     assert (REPO_ROOT / "assets" / "mark.svg").is_file()
     assert (REPO_ROOT / "assets" / "logo.svg").is_file()
     assert 'Homepage = "https://github.com/recertia/recertia"' in pyproject
+    assert 'Repository = "https://github.com/recertia/recertia"' in pyproject
     assert "Documentation =" in pyproject
     assert "Changelog =" in pyproject
+    assert "github.com/recertia/recertia" in (REPO_ROOT / "CONTRIBUTING.md").read_text(
+        encoding="utf-8"
+    )
     assert "CONTRIBUTING.md" in agents
     assert "not the contributor guide" in agents.lower().replace("*", "")
+
+
+def test_living_docs_use_canonical_github_repo_not_placeholders():
+    """Public clone/PR identity must stay recertia/recertia (not a generic placeholder)."""
+    skip_dir_names = {
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".recertia",
+        "node_modules",
+        "archive",
+    }
+    skip_files = {REPO_ROOT / "tests" / "contracts" / "test_schema_generation.py"}
+    suffixes = {".md", ".py", ".toml", ".yml", ".yaml", ".html"}
+    placeholder = "github.com/your-org/"
+    hits: list[str] = []
+    for path in REPO_ROOT.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in suffixes:
+            continue
+        if path in skip_files:
+            continue
+        if any(part in skip_dir_names for part in path.parts):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if placeholder in text:
+            hits.append(str(path.relative_to(REPO_ROOT)))
+    assert hits == [], f"placeholder GitHub owner/repo in: {', '.join(hits)}"
 
 
 def test_research_survey_files_are_not_git_lfs_pointers():

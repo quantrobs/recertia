@@ -1060,7 +1060,7 @@ export RECERTIA_MODEL_ID=moonshotai/kimi-k2   # exact OpenRouter slug
 export OPENAI_API_KEY=sk-or-…
 export RECERTIA_OPENAI_BASE_URL=https://openrouter.ai/api/v1/chat/completions
 # Optional OpenRouter rankings / app attribution:
-export RECERTIA_OPENAI_HTTP_REFERER=https://github.com/your-org/your-app
+export RECERTIA_OPENAI_HTTP_REFERER=https://github.com/recertia/recertia
 export RECERTIA_OPENAI_TITLE=Recertia
 # Optional extra Chat Completions fields (JSON object; cannot override model/messages):
 export RECERTIA_OPENAI_EXTRA_BODY='{"temperature":0.2}'
