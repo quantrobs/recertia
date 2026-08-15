@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/recertia/schema/LedgerEntry",
+  "$id": "https://github.com/recertia/recertia/schema/LedgerEntry",
   "additionalProperties": false,
   "description": "One hash-chained record of a memory-plane write (specs \u00a721).\n\n``entry_hash`` is computed over the canonical serialisation of every other field; a chain\nis valid when each entry's ``prev_hash`` equals its predecessor's ``entry_hash`` and every\nentry's own ``entry_hash`` recomputes correctly.",
   "properties": {

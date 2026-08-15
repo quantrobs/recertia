@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Recertia Console</title>
+  <link rel="icon" href="/console/assets/mark.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/console/assets/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,7 +13,10 @@
 <body>
   <div class="app">
     <aside class="nav">
-      <div class="brand">Recertia</div>
+      <div class="brand">
+        <img class="brand-mark" src="/console/assets/mark.svg" width="28" height="28" alt="" />
+        Recertia
+      </div>
       <p class="brand-sub">Pilot · Tower · Ops</p>
       <nav>
         <button data-view="pilot" class="active">Pilot</button>
@@ -172,7 +176,7 @@
           <h2>Registered workspaces</h2>
           <div class="row">
             <label>ID <input id="wsId" type="text" placeholder="recertia" /></label>
-            <label>Display name <input id="wsName" type="text" placeholder="quantrobs/recertia" /></label>
+            <label>Display name <input id="wsName" type="text" placeholder="example/recertia" /></label>
           </div>
           <label>Host root (Windows)
             <input id="wsHostRoot" type="text" placeholder="D:\src\recertia" autocomplete="off" />

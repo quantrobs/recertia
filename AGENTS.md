@@ -1,6 +1,12 @@
-# AGENTS.md
+# Agent notes
 
-## Cursor Cloud specific instructions
+This file is for **coding agents** (Cursor Cloud and similar). It is **not** the contributor guide.
+
+- Humans sending a change: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security reports: [`SECURITY.md`](SECURITY.md)
+- Architecture: [`docs/architecture.md`](docs/architecture.md)
+
+## Cursor Cloud environment
 
 Recertia is a single Python (>=3.11) package. The runtime is a cyclic graph orchestrator exposed
 through two surfaces: the `recertia` CLI and a FastAPI HTTP API. Persistence is embedded SQLite +
@@ -36,10 +42,13 @@ files under a gitignored `.recertia/` dir; no external database is required for 
 - Console auth defaults **off**. Dev login needs `RECERTIA_CONSOLE_AUTH=dev` and
   `RECERTIA_CONSOLE_DEV_LOGIN=1`. OIDC requires `RECERTIA_CONSOLE_SESSION_SECRET`.
 - Drift/hygiene checks (part of CI): the `--check` scripts under `scripts/`
-  (`generate_schemas.py`, `export_examples.py`, `check_cross_refs.py`, `check_milestone_deps.py`,
-  `check_assumptions_hygiene.py`, `security_review.py`). `schema/` is generated from `contracts/`
-  — regenerate with `python3 scripts/generate_schemas.py` when contracts change, or CI's drift
-  check fails. Run a Python security review with `python3 scripts/security_review.py --check`.
+  (`generate_schemas.py`, `export_examples.py`, `generate_architecture2.py`, `check_cross_refs.py`,
+  `check_milestone_deps.py`, `check_assumptions_hygiene.py`, `security_review.py`). `schema/` is
+  generated from `contracts/` — regenerate with `python3 scripts/generate_schemas.py` when
+  contracts change, or CI's drift check fails. `docs/architecture2.md` is the all-in-one
+  architecture + specifications compilation — regenerate with
+  `python3 scripts/generate_architecture2.py`. Run a Python security review with
+  `python3 scripts/security_review.py --check`.
 - Tests: `pytest -v` (fast, ~10s).
 
 ### Running the surfaces

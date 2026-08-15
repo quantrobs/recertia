@@ -11,13 +11,6 @@ and [`docs/assumptions.md`](../docs/assumptions.md).
 | `preprints-score10-reference-lists.xlsx` / `.scored.json` | Score-10 paper reference-list extracts |
 | [`score10-references/`](score10-references/) | Per-paper bibliography markdown + combined JSON |
 
-## Git LFS
-
-Spreadsheets, `*.scored.json`, and `score10-references/score10-references.json` are stored
-with [Git LFS](https://git-lfs.com/). Clone/fetch needs `git lfs install` (and network access
-to the LFS endpoint). Without LFS you will only see pointer files.
-
-```bash
-git lfs install
-git lfs pull
-```
+These files are ordinary git objects (about 800 KB total). A public clone does **not**
+need [Git LFS](https://git-lfs.com/). Older commits on this history may still store
+pointer files; `git lfs pull` is only required if you check those commits out.

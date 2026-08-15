@@ -1,6 +1,14 @@
 # Recertia
 
+<p align="center">
+  <img src="assets/logo.svg" alt="Recertia" width="280" />
+</p>
+
 **Only memory that still works gets kept.**
+
+Public homepage for this project is this repository:
+[github.com/recertia/recertia](https://github.com/recertia/recertia).
+Docs: [`docs/architecture.md`](docs/architecture.md) · changelog: [`CHANGELOG.md`](CHANGELOG.md) · contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 Recertia is a self-improving agent system for recurring work. It solves a task against locked, machine-checkable criteria, saves what worked as versioned memory, and measures whether that memory actually helps the next time.
 
@@ -168,14 +176,17 @@ Research outcomes that are still open are listed in [`docs/assumptions.md`](docs
 
 ## License
 
-[PolyForm Noncommercial](LICENSE). Personal use, research, experimentation, and use by many noncommercial organizations are permitted. This is **not** MIT. Commercial production use requires a separate license from the copyright holder.
+[PolyForm Noncommercial](LICENSE) 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal use, research, experimentation, and use by many noncommercial organizations are permitted. This is **not** MIT. Commercial production use requires a separate license from the copyright holder.
 
-Copyright (c) 2026 Robert Schmidt.
+Copyright (c) 2026 Robert Schmidt. See [`NOTICE`](NOTICE).
 
 ## More detail
 
 | Doc | When you need it |
 | --- | --- |
+| [`docs/architecture2.md`](docs/architecture2.md) | All-in-one architecture + specifications (downloadable compilation) |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed |
+| [`docs/brand/README.md`](docs/brand/README.md) | Logo and mark |
 | [`docs/architecture/overview.md`](docs/architecture/overview.md) | Planes, memory taxonomy, governance |
 | [`docs/architecture/go-live.md`](docs/architecture/go-live.md) | Model credentials, jobs, retention |
 | [`docs/architecture/container-sandbox.md`](docs/architecture/container-sandbox.md) | Docker/Podman setup and hardening |
@@ -184,3 +195,5 @@ Copyright (c) 2026 Robert Schmidt.
 | [`contracts/`](contracts) | Normative Pydantic models |
 | [`docs/references.md`](docs/references.md) | Literature grounding |
 | [`docs/assumptions.md`](docs/assumptions.md) | Empirical claims still under test |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, CI checks, how to send a change |
+| [`SECURITY.md`](SECURITY.md) | Vulnerability reporting |

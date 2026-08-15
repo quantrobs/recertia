@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/quantrobs/recertia/schema/ExecutionGuide",
+  "$id": "https://github.com/recertia/recertia/schema/ExecutionGuide",
   "additionalProperties": false,
   "properties": {
     "primary": {

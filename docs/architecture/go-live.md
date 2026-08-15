@@ -182,7 +182,7 @@ recertia keys issue --tenant default --scopes runs,admin,metrics --actor dev
 
 recertia workspaces register `
   --id recertia `
-  --name "quantrobs/recertia" `
+  --name "example/recertia" `
   --host-root D:\src\recertia `
   --tenant default `
   --runs-root .recertia
