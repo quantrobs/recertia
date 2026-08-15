@@ -79,9 +79,10 @@ def check(docs_root: Path = DOCS) -> list[str]:
     errors: list[str] = []
     docs_root = docs_root.resolve()
     base = docs_root.parent  # usually the repo root; tmp_path in tests
+    # architecture2.md is a generated compilation; topic files remain canonical.
     md_files = sorted(
         p for p in docs_root.rglob("*.md")
-        if "archive" not in p.parts
+        if "archive" not in p.parts and p.name != "architecture2.md"
     )
     anchor_index: dict[Path, set[str]] = {p: _anchors_in(p) for p in md_files}
 
