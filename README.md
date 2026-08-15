@@ -10,7 +10,7 @@ Recertia is a self-improving agent system for recurring work. It solves a task a
 
 It does not improve by updating model weights. It improves by updating how knowledge is stored, retrieved, and re-certified.
 
-Related work: [SealedKeep](https://github.com/recertia/sealedkeep) keeps a code or experiment change only when a real evaluation metric improves. Recertia is the memory side of the same honesty rule — retrieve, solve, check, and keep only what still earns its place.
+Related work: [SealedKeep](https://github.com/recertia/sealedkeep) keeps a code or experiment change only when a real evaluation metric improves. Recertia is the memory side of the same honesty rule of retrieve, solve, check, and keep only what still earns its place.
 
 ## What matters
 
