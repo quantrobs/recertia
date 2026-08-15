@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/PatchTemplate",
+  "additionalProperties": false,
+  "properties": {
+    "template_id": {
+      "title": "Template Id",
+      "type": "string"
+    },
+    "failure_signature": {
+      "title": "Failure Signature",
+      "type": "string"
+    },
+    "failure_class": {
+      "enum": [
+        "environment",
+        "tool",
+        "retrieval",
+        "plan",
+        "execution",
+        "criteria",
+        "budget",
+        "merge"
+      ],
+      "title": "Failure Class",
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Operations",
+      "type": "array"
+    },
+    "published_from_job": {
+      "default": "practice",
+      "title": "Published From Job",
+      "type": "string"
+    },
+    "content_hash": {
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Published At"
+    }
+  },
+  "required": [
+    "template_id",
+    "failure_signature",
+    "failure_class",
+    "content_hash"
+  ],
+  "title": "PatchTemplate",
+  "type": "object"
+}

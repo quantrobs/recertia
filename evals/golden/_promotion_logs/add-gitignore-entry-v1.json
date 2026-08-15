@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-gitignore-entry",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-gitignore-entry",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-gitignore-entry-v1-ace3f5",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.090544+00:00"
+}

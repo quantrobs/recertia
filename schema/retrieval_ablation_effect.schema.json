@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/RetrievalAblationEffect",
+  "additionalProperties": false,
+  "description": "Class-level effect of making retrieval available versus suppressing it.\n\nThis quantity is randomized at the retrieval boundary.  It deliberately has\nno skill identifier: it answers whether the library helps this task class,\nnot whether one selected skill did.",
+  "properties": {
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "retrieval_enabled": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retrieval Enabled",
+      "type": "integer"
+    },
+    "retrieval_enabled_successes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retrieval Enabled Successes",
+      "type": "integer"
+    },
+    "retrieval_suppressed": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retrieval Suppressed",
+      "type": "integer"
+    },
+    "retrieval_suppressed_successes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retrieval Suppressed Successes",
+      "type": "integer"
+    },
+    "interval_low": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Interval Low"
+    },
+    "interval_high": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Interval High"
+    },
+    "last_evaluated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Evaluated At"
+    }
+  },
+  "required": [
+    "task_class"
+  ],
+  "title": "RetrievalAblationEffect",
+  "type": "object"
+}

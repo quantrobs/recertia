@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-license-mit",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-license-mit",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-license-mit-v1-b5bc45",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.167502+00:00"
+}

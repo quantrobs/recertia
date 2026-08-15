@@ -1,0 +1,4 @@
+{
+  "request": "Add a Makefile test target that runs pytest",
+  "expected_skill_id": "add-makefile-target"
+}

@@ -1,0 +1,10 @@
+{
+  "skill_id": "pin-python-version",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/pin-python-version",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-pin-python-version-v1-c9f764",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.130450+00:00"
+}

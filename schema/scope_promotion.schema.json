@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/ScopePromotion",
+  "$defs": {
+    "RedactionReport": {
+      "additionalProperties": false,
+      "description": "What was stripped or rewritten when promoting across scopes.",
+      "properties": {
+        "fields_removed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields Removed",
+          "type": "array"
+        },
+        "fields_rewritten": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Fields Rewritten",
+          "type": "object"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "title": "RedactionReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Audit record for a reviewed cross-scope promotion.",
+  "properties": {
+    "artifact_kind": {
+      "enum": [
+        "fact",
+        "skill"
+      ],
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "artifact_id": {
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "from_scope": {
+      "enum": [
+        "run",
+        "project",
+        "org",
+        "global"
+      ],
+      "title": "From Scope",
+      "type": "string"
+    },
+    "to_scope": {
+      "enum": [
+        "run",
+        "project",
+        "org",
+        "global"
+      ],
+      "title": "To Scope",
+      "type": "string"
+    },
+    "reviewer": {
+      "minLength": 1,
+      "title": "Reviewer",
+      "type": "string"
+    },
+    "redaction": {
+      "$ref": "#/$defs/RedactionReport"
+    },
+    "promoted_at": {
+      "format": "date-time",
+      "title": "Promoted At",
+      "type": "string"
+    },
+    "ledger_target": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ledger Target"
+    }
+  },
+  "required": [
+    "artifact_kind",
+    "artifact_id",
+    "from_scope",
+    "to_scope",
+    "reviewer",
+    "redaction",
+    "promoted_at"
+  ],
+  "title": "ScopePromotion",
+  "type": "object"
+}

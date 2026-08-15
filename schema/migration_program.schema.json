@@ -1,0 +1,789 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/MigrationProgram",
+  "$defs": {
+    "AcceptanceGate": {
+      "additionalProperties": false,
+      "properties": {
+        "terminal_in": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Terminal In",
+          "type": "array"
+        },
+        "require_program_bar": {
+          "default": true,
+          "title": "Require Program Bar",
+          "type": "boolean"
+        }
+      },
+      "title": "AcceptanceGate",
+      "type": "object"
+    },
+    "Constraint": {
+      "additionalProperties": false,
+      "description": "Hard limits that must not be violated.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "must_not_modify",
+            "must_pass_command",
+            "budget_ceiling",
+            "no_external_effects"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "value"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "DesiredState": {
+      "additionalProperties": false,
+      "description": "One atomic, checkable desired outcome.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "file_exists",
+            "file_contains",
+            "command",
+            "assertion",
+            "schema",
+            "metric",
+            "judge"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "expect_exit": {
+          "default": 0,
+          "title": "Expect Exit",
+          "type": "integer"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "schema_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Ref"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "enum": [
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "eq"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Op"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "timeout_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "DesiredState",
+      "type": "object"
+    },
+    "ExternalHandoff": {
+      "additionalProperties": false,
+      "description": "Git / PR continuity when Recertia is not the worktree owner (GP0 default).",
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch"
+        },
+        "pr_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pr Url"
+        },
+        "base_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Sha"
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head Sha"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "title": "ExternalHandoff",
+      "type": "object"
+    },
+    "Goal": {
+      "additionalProperties": false,
+      "description": "Primary task input. Compiles to TaskCriterion[] at intake.",
+      "properties": {
+        "goal_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Goal Id"
+        },
+        "desired": {
+          "items": {
+            "$ref": "#/$defs/DesiredState"
+          },
+          "minItems": 1,
+          "title": "Desired",
+          "type": "array"
+        },
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/Constraint"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional natural-language context / human label. Never the sole success contract.",
+          "title": "Context"
+        },
+        "task_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Class"
+        },
+        "preferences": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Soft guidance (style, verbosity, preferred tools). Advisory only.",
+          "title": "Preferences",
+          "type": "object"
+        },
+        "strategy_hint": {
+          "anyOf": [
+            {
+              "enum": [
+                "abstain",
+                "portfolio",
+                "decomposition"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strategy Hint"
+        }
+      },
+      "required": [
+        "desired"
+      ],
+      "title": "Goal",
+      "type": "object"
+    },
+    "MigrationStep": {
+      "additionalProperties": false,
+      "description": "One Goal in a linear migration program.",
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "role": {
+          "default": "custom",
+          "enum": [
+            "characterization",
+            "structural",
+            "behaviour_lock",
+            "custom"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "goal": {
+          "$ref": "#/$defs/Goal"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "freeze_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Freeze Paths",
+          "type": "array"
+        },
+        "mutate_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mutate Paths",
+          "type": "array"
+        },
+        "acceptance_gate": {
+          "$ref": "#/$defs/AcceptanceGate"
+        },
+        "status": {
+          "default": "planned",
+          "enum": [
+            "planned",
+            "ready",
+            "queued",
+            "running",
+            "succeeded",
+            "failed",
+            "skipped",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "run_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Run Ids",
+          "type": "array"
+        },
+        "current_run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Run Id"
+        },
+        "criteria_preview_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Criteria Preview Hash"
+        },
+        "external_handoff": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExternalHandoff"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "skip_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skip Note"
+        },
+        "goal_revision": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Goal Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step_id",
+        "ordinal",
+        "title",
+        "goal"
+      ],
+      "title": "MigrationStep",
+      "type": "object"
+    },
+    "ProgramBudget": {
+      "additionalProperties": false,
+      "description": "Pack-level ceilings; distinct from per-run ``Budget``.",
+      "properties": {
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Cost Usd"
+        },
+        "max_wall_clock_s": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Wall Clock S"
+        },
+        "spent_cost_usd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Spent Cost Usd",
+          "type": "number"
+        },
+        "spent_wall_clock_s": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Spent Wall Clock S",
+          "type": "number"
+        }
+      },
+      "title": "ProgramBudget",
+      "type": "object"
+    },
+    "RepoBinding": {
+      "additionalProperties": false,
+      "description": "Allowlisted git repository for ``handoff=git_tip`` (GP2).\n\n``root`` is relative to the tenant's ``repo_bindings/`` directory under the API root.\nAbsolute host paths outside that tree are rejected at registration time.",
+      "properties": {
+        "binding_id": {
+          "default": "default",
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "root": {
+          "description": "Relative path under tenant repo_bindings/",
+          "minLength": 1,
+          "title": "Root",
+          "type": "string"
+        },
+        "default_branch": {
+          "default": "main",
+          "title": "Default Branch",
+          "type": "string"
+        },
+        "remote_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remote Url"
+        }
+      },
+      "required": [
+        "root"
+      ],
+      "title": "RepoBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Durable Goal pack / migration program (tenant-scoped).",
+  "properties": {
+    "program_id": {
+      "title": "Program Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "intent": {
+      "default": "",
+      "title": "Intent",
+      "type": "string"
+    },
+    "task_class": {
+      "default": "repo-chore",
+      "title": "Task Class",
+      "type": "string"
+    },
+    "decomposition": {
+      "default": "custom",
+      "enum": [
+        "by_risk",
+        "by_layer",
+        "by_seam",
+        "custom"
+      ],
+      "title": "Decomposition",
+      "type": "string"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "active",
+        "blocked",
+        "completed",
+        "abandoned"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/MigrationStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "program_bar_desired": {
+      "items": {
+        "$ref": "#/$defs/DesiredState"
+      },
+      "title": "Program Bar Desired",
+      "type": "array"
+    },
+    "program_bar_constraints": {
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
+      "title": "Program Bar Constraints",
+      "type": "array"
+    },
+    "handoff": {
+      "default": "none",
+      "enum": [
+        "none",
+        "operator_workdir",
+        "copy_forward",
+        "git_tip"
+      ],
+      "title": "Handoff",
+      "type": "string"
+    },
+    "freeze_enforcement": {
+      "default": "advisory",
+      "enum": [
+        "advisory",
+        "hard"
+      ],
+      "title": "Freeze Enforcement",
+      "type": "string"
+    },
+    "repo_binding": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RepoBinding"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProgramBudget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "created_by": {
+      "default": "",
+      "title": "Created By",
+      "type": "string"
+    },
+    "created_at": {
+      "default": "",
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "default": "",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "source": {
+      "default": "human",
+      "enum": [
+        "human",
+        "heuristic",
+        "model",
+        "template"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "disclaimer_acked_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclaimer Acked At"
+    }
+  },
+  "required": [
+    "program_id",
+    "tenant_id",
+    "title"
+  ],
+  "title": "MigrationProgram",
+  "type": "object"
+}

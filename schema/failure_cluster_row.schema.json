@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/FailureClusterRow",
+  "additionalProperties": false,
+  "description": "One ``(task_class, signature)`` bucket, maintained incrementally.\n\n``run_ids_sample`` / ``session_ids_sample`` exist only to keep distinct counts\nhonest without storing unbounded history. Once a sample hits ``sample_cap`` the\ncounters keep incrementing for *new* ids only while they still fit; overflow\nids still bump the counter (we treat unseen-beyond-sample as new). Rebuild\nfrom the episodic store if the row is lost.",
+  "properties": {
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "signature": {
+      "title": "Signature",
+      "type": "string"
+    },
+    "n_runs": {
+      "default": 0,
+      "minimum": 0,
+      "title": "N Runs",
+      "type": "integer"
+    },
+    "n_sessions": {
+      "default": 0,
+      "minimum": 0,
+      "title": "N Sessions",
+      "type": "integer"
+    },
+    "run_ids_sample": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Run Ids Sample",
+      "type": "array"
+    },
+    "session_ids_sample": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Session Ids Sample",
+      "type": "array"
+    },
+    "last_case_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Case Hash"
+    },
+    "eligible": {
+      "default": false,
+      "title": "Eligible",
+      "type": "boolean"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    },
+    "sample_cap": {
+      "default": 32,
+      "maximum": 256,
+      "minimum": 1,
+      "title": "Sample Cap",
+      "type": "integer"
+    },
+    "min_runs": {
+      "default": 3,
+      "minimum": 1,
+      "title": "Min Runs",
+      "type": "integer"
+    },
+    "min_sessions": {
+      "default": 2,
+      "minimum": 1,
+      "title": "Min Sessions",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "task_class",
+    "signature"
+  ],
+  "title": "FailureClusterRow",
+  "type": "object"
+}

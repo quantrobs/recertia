@@ -1,0 +1,5 @@
+{
+  "request": "Synthesize a structured brief from the research notes",
+  "expected_skill_id": "draft-structured-brief",
+  "task_class": "research-synthesis"
+}

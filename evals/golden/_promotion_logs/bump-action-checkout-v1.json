@@ -1,0 +1,10 @@
+{
+  "skill_id": "bump-action-checkout",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/bump-action-checkout",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-bump-action-checkout-v1-8998f7",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.182981+00:00"
+}

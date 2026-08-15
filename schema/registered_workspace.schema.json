@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/RegisteredWorkspace",
+  "additionalProperties": false,
+  "description": "Allowlisted host directory a tenant may bind as a run workdir.",
+  "properties": {
+    "workspace_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Workspace Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "display_name": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Display Name",
+      "type": "string"
+    },
+    "host_root": {
+      "description": "Absolute host path (Windows drive-letter)",
+      "minLength": 1,
+      "title": "Host Root",
+      "type": "string"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "created_by": {
+      "minLength": 1,
+      "title": "Created By",
+      "type": "string"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "workspace_id",
+    "tenant_id",
+    "display_name",
+    "host_root",
+    "created_by"
+  ],
+  "title": "RegisteredWorkspace",
+  "type": "object"
+}

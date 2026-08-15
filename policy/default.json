@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "version": "p-2026.08.1",
+  "authoring_prior_version": "ap-2026.07.1",
+  "budgets": {
+    "default_max_attempts": 3,
+    "default_max_cost_usd": 1.0,
+    "ablation_rate": 0.1
+  },
+  "shadow_min_lift": 0.05,
+  "evidence_floor": 30,
+  "active_cap_per_task_class": 50,
+  "require_tool_approval_for_non_read": true,
+  "improvement": {
+    "miner_lint": true,
+    "fail_cluster_curriculum": true,
+    "provenance_diversity_gate": true,
+    "deterministic_guide": false,
+    "curator_compress": false,
+    "compose_chain_review": true,
+    "practice_hex_search": false
+  },
+  "improvement_limits": {
+    "fail_cluster_min_runs": 3,
+    "fail_cluster_min_sessions": 2,
+    "min_source_sessions": 2,
+    "compress_max_units": 12,
+    "compress_delta_hard": 0.0,
+    "compress_delta_cell": 0.02,
+    "compress_rho": 0.25,
+    "practice_hex_probe_budget": 8,
+    "practice_hex_patch_budget": 2,
+    "practice_hex_rounds": 2
+  },
+  "job_quota": {
+    "weekly_token_cap": 500000,
+    "hex_share": 0.25,
+    "max_hex_jobs_per_task_class": 1,
+    "max_status_writes_per_tick": 50,
+    "max_compress_candidates_per_tick": 1
+  },
+  "notes": [
+    "P0″ default policy. HEX and compress remain off until a lift interval exists.",
+    "JobQuota spend lives in .recertia/job_quota.json (T0 sidecar), not this document."
+  ]
+}

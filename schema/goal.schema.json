@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/Goal",
+  "$defs": {
+    "Constraint": {
+      "additionalProperties": false,
+      "description": "Hard limits that must not be violated.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "must_not_modify",
+            "must_pass_command",
+            "budget_ceiling",
+            "no_external_effects"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "value"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "DesiredState": {
+      "additionalProperties": false,
+      "description": "One atomic, checkable desired outcome.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "file_exists",
+            "file_contains",
+            "command",
+            "assertion",
+            "schema",
+            "metric",
+            "judge"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "expect_exit": {
+          "default": 0,
+          "title": "Expect Exit",
+          "type": "integer"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "schema_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Ref"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "enum": [
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "eq"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Op"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "timeout_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "DesiredState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Primary task input. Compiles to TaskCriterion[] at intake.",
+  "properties": {
+    "goal_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Goal Id"
+    },
+    "desired": {
+      "items": {
+        "$ref": "#/$defs/DesiredState"
+      },
+      "minItems": 1,
+      "title": "Desired",
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
+      "title": "Constraints",
+      "type": "array"
+    },
+    "context": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional natural-language context / human label. Never the sole success contract.",
+      "title": "Context"
+    },
+    "task_class": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Class"
+    },
+    "preferences": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Soft guidance (style, verbosity, preferred tools). Advisory only.",
+      "title": "Preferences",
+      "type": "object"
+    },
+    "strategy_hint": {
+      "anyOf": [
+        {
+          "enum": [
+            "abstain",
+            "portfolio",
+            "decomposition"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Strategy Hint"
+    }
+  },
+  "required": [
+    "desired"
+  ],
+  "title": "Goal",
+  "type": "object"
+}

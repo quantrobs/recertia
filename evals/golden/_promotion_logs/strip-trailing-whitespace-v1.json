@@ -1,0 +1,10 @@
+{
+  "skill_id": "strip-trailing-whitespace",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/strip-trailing-whitespace",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-strip-trailing-whitespace-v1-5f214c",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.150785+00:00"
+}

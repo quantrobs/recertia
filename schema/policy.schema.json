@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/Policy",
+  "$defs": {
+    "ImprovementFlags": {
+      "additionalProperties": false,
+      "description": "T2 algorithm flags. These MUST NOT gate graph topology (ADR-0015).",
+      "properties": {
+        "miner_lint": {
+          "default": true,
+          "title": "Miner Lint",
+          "type": "boolean"
+        },
+        "fail_cluster_curriculum": {
+          "default": true,
+          "title": "Fail Cluster Curriculum",
+          "type": "boolean"
+        },
+        "provenance_diversity_gate": {
+          "default": true,
+          "title": "Provenance Diversity Gate",
+          "type": "boolean"
+        },
+        "deterministic_guide": {
+          "default": false,
+          "title": "Deterministic Guide",
+          "type": "boolean"
+        },
+        "curator_compress": {
+          "default": false,
+          "title": "Curator Compress",
+          "type": "boolean"
+        },
+        "compose_chain_review": {
+          "default": true,
+          "title": "Compose Chain Review",
+          "type": "boolean"
+        },
+        "practice_hex_search": {
+          "default": false,
+          "title": "Practice Hex Search",
+          "type": "boolean"
+        }
+      },
+      "title": "ImprovementFlags",
+      "type": "object"
+    },
+    "ImprovementLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "fail_cluster_min_runs": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Fail Cluster Min Runs",
+          "type": "integer"
+        },
+        "fail_cluster_min_sessions": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Fail Cluster Min Sessions",
+          "type": "integer"
+        },
+        "min_source_sessions": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Min Source Sessions",
+          "type": "integer"
+        },
+        "compress_max_units": {
+          "default": 12,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Compress Max Units",
+          "type": "integer"
+        },
+        "compress_delta_hard": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Compress Delta Hard",
+          "type": "number"
+        },
+        "compress_delta_cell": {
+          "default": 0.02,
+          "minimum": 0.0,
+          "title": "Compress Delta Cell",
+          "type": "number"
+        },
+        "compress_rho": {
+          "default": 0.25,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Compress Rho",
+          "type": "number"
+        },
+        "practice_hex_probe_budget": {
+          "default": 8,
+          "minimum": 1,
+          "title": "Practice Hex Probe Budget",
+          "type": "integer"
+        },
+        "practice_hex_patch_budget": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Practice Hex Patch Budget",
+          "type": "integer"
+        },
+        "practice_hex_rounds": {
+          "default": 2,
+          "minimum": 1,
+          "title": "Practice Hex Rounds",
+          "type": "integer"
+        }
+      },
+      "title": "ImprovementLimits",
+      "type": "object"
+    },
+    "JobQuota": {
+      "additionalProperties": false,
+      "description": "Weekly improvement-plane token QoS (ADR-0015). HEX/compress are leftover-only.",
+      "properties": {
+        "weekly_token_cap": {
+          "default": 500000,
+          "minimum": 0,
+          "title": "Weekly Token Cap",
+          "type": "integer"
+        },
+        "hex_share": {
+          "default": 0.25,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Hex Share",
+          "type": "number"
+        },
+        "max_hex_jobs_per_task_class": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Max Hex Jobs Per Task Class",
+          "type": "integer"
+        },
+        "max_status_writes_per_tick": {
+          "default": 50,
+          "minimum": 1,
+          "title": "Max Status Writes Per Tick",
+          "type": "integer"
+        },
+        "max_compress_candidates_per_tick": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Max Compress Candidates Per Tick",
+          "type": "integer"
+        },
+        "tokens_spent": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tokens Spent",
+          "type": "integer"
+        },
+        "hex_tokens_spent": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Hex Tokens Spent",
+          "type": "integer"
+        },
+        "hex_jobs_by_class": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Hex Jobs By Class",
+          "type": "object"
+        }
+      },
+      "title": "JobQuota",
+      "type": "object"
+    },
+    "PolicyBudgets": {
+      "additionalProperties": false,
+      "properties": {
+        "default_max_attempts": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Default Max Attempts",
+          "type": "integer"
+        },
+        "default_max_cost_usd": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Default Max Cost Usd",
+          "type": "number"
+        },
+        "ablation_rate": {
+          "default": 0.1,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Ablation Rate",
+          "type": "number"
+        }
+      },
+      "title": "PolicyBudgets",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned T2 policy document: thresholds, budgets, and authoring prior pointer.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    },
+    "authoring_prior_version": {
+      "minLength": 1,
+      "title": "Authoring Prior Version",
+      "type": "string"
+    },
+    "budgets": {
+      "$ref": "#/$defs/PolicyBudgets"
+    },
+    "shadow_min_lift": {
+      "default": 0.05,
+      "minimum": 0.0,
+      "title": "Shadow Min Lift",
+      "type": "number"
+    },
+    "evidence_floor": {
+      "default": 30,
+      "minimum": 1,
+      "title": "Evidence Floor",
+      "type": "integer"
+    },
+    "active_cap_per_task_class": {
+      "default": 50,
+      "minimum": 1,
+      "title": "Active Cap Per Task Class",
+      "type": "integer"
+    },
+    "require_tool_approval_for_non_read": {
+      "default": true,
+      "title": "Require Tool Approval For Non Read",
+      "type": "boolean"
+    },
+    "improvement": {
+      "$ref": "#/$defs/ImprovementFlags"
+    },
+    "improvement_limits": {
+      "$ref": "#/$defs/ImprovementLimits"
+    },
+    "job_quota": {
+      "$ref": "#/$defs/JobQuota"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version",
+    "authoring_prior_version"
+  ],
+  "title": "Policy",
+  "type": "object"
+}

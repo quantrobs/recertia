@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-pytest-config",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-pytest-config",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-pytest-config-v1-447e52",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.103703+00:00"
+}

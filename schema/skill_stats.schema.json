@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/SkillStats",
+  "$defs": {
+    "ApplyDiversity": {
+      "additionalProperties": false,
+      "description": "Distinct *application* sessions for the ``self_distilled`` evidence floor (ADR-0015).\n\nAuthoring-time source sessions live on frozen ``Provenance``. This counter lives on\n``SkillStats`` because it grows after the version is written (ADR-0007). The sample\nis dropped once ``distinct_apply_sessions >= floor`` so the row stays bounded.",
+      "properties": {
+        "distinct_apply_sessions": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Distinct Apply Sessions",
+          "type": "integer"
+        },
+        "apply_session_sample": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Apply Session Sample",
+          "type": "array"
+        },
+        "floor": {
+          "default": 30,
+          "minimum": 1,
+          "title": "Floor",
+          "type": "integer"
+        }
+      },
+      "title": "ApplyDiversity",
+      "type": "object"
+    },
+    "Contribution": {
+      "additionalProperties": false,
+      "description": "Per-skill shadow-versus-suppression effect; the retirement input.\n\nScored from required non-``judge`` criteria only: a false-pass-biased model judge must not\nbe able to disable contribution-based retirement (``references.md`` \u00a71.8).",
+      "properties": {
+        "applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Applications",
+          "type": "integer"
+        },
+        "successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "suppressed_applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Suppressed Applications",
+          "type": "integer"
+        },
+        "suppressed_successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Suppressed Successes",
+          "type": "integer"
+        },
+        "interval_low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval Low"
+        },
+        "interval_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interval High"
+        },
+        "last_evaluated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Evaluated At"
+        }
+      },
+      "title": "Contribution",
+      "type": "object"
+    },
+    "PredictiveTrust": {
+      "additionalProperties": false,
+      "description": "Observed success calibration for one skill, not a causal effect.",
+      "properties": {
+        "applications": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Applications",
+          "type": "integer"
+        },
+        "successes": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Used At"
+        },
+        "decayed_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decayed Score"
+        }
+      },
+      "title": "PredictiveTrust",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "skill_id": {
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    },
+    "predictive_trust": {
+      "$ref": "#/$defs/PredictiveTrust",
+      "default": {
+        "applications": 0,
+        "successes": 0,
+        "last_used_at": null,
+        "decayed_score": null
+      }
+    },
+    "contribution": {
+      "$ref": "#/$defs/Contribution",
+      "default": {
+        "applications": 0,
+        "successes": 0,
+        "suppressed_applications": 0,
+        "suppressed_successes": 0,
+        "interval_low": null,
+        "interval_high": null,
+        "last_evaluated_at": null
+      }
+    },
+    "apply_diversity": {
+      "$ref": "#/$defs/ApplyDiversity",
+      "default": {
+        "distinct_apply_sessions": 0,
+        "apply_session_sample": [],
+        "floor": 30
+      }
+    }
+  },
+  "required": [
+    "skill_id",
+    "version"
+  ],
+  "title": "SkillStats",
+  "type": "object"
+}

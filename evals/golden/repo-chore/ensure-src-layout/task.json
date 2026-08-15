@@ -1,0 +1,4 @@
+{
+  "request": "Ensure a src/demo_pkg package layout exists",
+  "expected_skill_id": "ensure-src-layout"
+}

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Recertia Console</title>
+  <link rel="icon" href="/console/assets/mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/console/assets/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <aside class="nav">
+      <div class="brand">
+        <img class="brand-mark" src="/console/assets/mark.svg" width="28" height="28" alt="" />
+        Recertia
+      </div>
+      <p class="brand-sub">Pilot · Tower · Ops</p>
+      <nav>
+        <button data-view="pilot" class="active">Pilot</button>
+        <button data-view="programs">Programs</button>
+        <button data-view="runs">Runs</button>
+        <button data-view="skills">Skills</button>
+        <button data-view="tower">Tower</button>
+        <button data-view="metrics">Metrics</button>
+        <button data-view="auth">Auth / Tenant</button>
+      </nav>
+      <div class="nav-foot">
+        <label>API key</label>
+        <input id="apiKey" type="password" placeholder="rec_key_…" autocomplete="off" />
+        <label>Tenant header</label>
+        <input id="tenantHeader" type="text" placeholder="(key tenant)" />
+      </div>
+    </aside>
+    <main>
+      <section id="view-pilot" class="view active">
+        <h1>Pilot</h1>
+        <p class="lede">Compose a checkable Goal (draft → review → lock preview), then run.</p>
+        <div class="mode-toggle" role="tablist" aria-label="Pilot mode">
+          <button type="button" data-pilot-mode="compose" class="active">Compose</button>
+          <button type="button" data-pilot-mode="run">Run</button>
+        </div>
+
+        <div id="pilot-compose" class="pilot-pane">
+          <p class="banner">AI/heuristic drafts are suggestions only. You confirm before preview or submit — criteria are never auto-locked.</p>
+          <label>Context
+            <textarea id="goalContext" rows="3" placeholder="What should be true when the run succeeds?"></textarea>
+          </label>
+          <div class="row">
+            <label>Task class <input id="taskClass" type="text" value="repo-chore" /></label>
+            <label class="check-inline"><input id="useModel" type="checkbox" checked /> Prefer model draft</label>
+          </div>
+          <div class="actions">
+            <button type="button" id="suggestCriteria" class="primary">Suggest criteria</button>
+            <button type="button" id="dismissDraft" class="secondary">Dismiss draft</button>
+          </div>
+          <div id="draftPanel" class="draft-panel hidden">
+            <div class="draft-meta">
+              <span id="draftSource" class="pill"></span>
+              <span id="draftDisclaimer" class="muted"></span>
+            </div>
+            <div id="draftWarnings" class="warnings"></div>
+            <h2>Suggested desired states</h2>
+            <div id="draftDesired"></div>
+            <h2>Suggested constraints</h2>
+            <div id="draftConstraints"></div>
+            <div id="draftPackWrap" class="hidden">
+              <h2>Goal pack <span class="muted">(prefer for large work)</span></h2>
+              <div id="draftPack"></div>
+            </div>
+            <div class="actions">
+              <button type="button" id="applyDraft" class="primary">Apply selected to form</button>
+              <button type="button" id="applyPack0" class="secondary hidden">Apply pack goal 1</button>
+              <button type="button" id="savePackAsProgram" class="secondary hidden">Save pack as program</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="pilot-run" class="pilot-pane hidden">
+          <div class="row">
+            <label>Template
+              <select id="templateSelect"><option value="">— custom —</option></select>
+            </label>
+            <label>Mode
+              <select id="runMode"><option value="sync">sync</option><option value="async">async</option></select>
+            </label>
+          </div>
+          <div class="row">
+            <label>Workspace
+              <select id="workspaceSelect">
+                <option value="">sandbox — new empty workdir</option>
+              </select>
+            </label>
+            <label>Subpath
+              <input id="workspaceSubpath" type="text" placeholder="(repo root)" autocomplete="off" />
+            </label>
+          </div>
+          <p class="muted">Registered workspaces edit the real host tree. Sandbox is disposable under <code>.recertia/workspaces/…</code>.</p>
+          <div class="desired">
+            <h2>Desired states <span id="formSourceHint" class="muted"></span></h2>
+            <div id="desiredList"></div>
+            <button type="button" id="addDesired" class="secondary">Add desired</button>
+          </div>
+          <div id="constraintListWrap" class="desired">
+            <h2>Constraints</h2>
+            <div id="constraintList"></div>
+            <button type="button" id="addConstraint" class="secondary">Add constraint</button>
+          </div>
+          <div class="actions">
+            <button type="button" id="previewGoal">Preview criteria (lock compile)</button>
+            <button type="button" id="submitRun" class="primary">Submit run</button>
+          </div>
+          <pre id="previewOut" class="panel"></pre>
+        </div>
+      </section>
+
+      <section id="view-programs" class="view">
+        <h1>Migration programs</h1>
+        <p class="lede">Ordered Goals with human gates. Preview → submit run → bind. Freezes are advisory until GP1.</p>
+        <div class="actions">
+          <button type="button" id="refreshPrograms" class="secondary">Refresh list</button>
+          <button type="button" id="createProgramDraft" class="primary">New draft (2-step)</button>
+        </div>
+        <table id="programsTable"><thead><tr><th>ID</th><th>Title</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+        <div id="programBoard" class="panel hidden">
+          <h2 id="programTitle">Program</h2>
+          <p id="programMeta" class="muted"></p>
+          <div class="actions">
+            <button type="button" id="acceptProgram" class="primary">Accept disclaimer</button>
+            <button type="button" id="abandonProgram" class="danger">Abandon</button>
+          </div>
+          <div id="programSteps"></div>
+          <pre id="programOut" class="panel"></pre>
+        </div>
+      </section>
+
+      <section id="view-runs" class="view">
+        <h1>Runs</h1>
+        <button type="button" id="refreshRuns" class="secondary">Refresh</button>
+        <table id="runsTable"><thead><tr><th>ID</th><th>Class</th><th>Terminal</th><th>Cost</th><th></th></tr></thead><tbody></tbody></table>
+        <div id="runDetail" class="panel hidden"></div>
+        <pre id="eventStream" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-skills" class="view">
+        <h1>Skill library</h1>
+        <button type="button" id="refreshSkills" class="secondary">Refresh</button>
+        <table id="skillsTable"><thead><tr><th>Skill</th><th>Ver</th><th>Lifecycle</th><th>Active</th><th>Live mix</th><th></th></tr></thead><tbody></tbody></table>
+        <pre id="skillDetail" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-tower" class="view">
+        <h1>Tower — proposals & jobs</h1>
+        <div id="towerSummary" class="cards"></div>
+        <div class="actions">
+          <button type="button" id="runCurator" class="secondary">Run curator (dry)</button>
+          <button type="button" id="runPractice" class="secondary">Run practice (dry)</button>
+          <button type="button" id="refreshProposals" class="secondary">Refresh proposals</button>
+        </div>
+        <table id="proposalsTable"><thead><tr><th>ID</th><th>Kind</th><th>Skill</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+        <pre id="proposalDetail" class="panel hidden"></pre>
+      </section>
+
+      <section id="view-metrics" class="view">
+        <h1>Ops — metrics & canary</h1>
+        <button type="button" id="refreshMetrics" class="secondary">Refresh</button>
+        <pre id="metricsOut" class="panel"></pre>
+      </section>
+
+      <section id="view-auth" class="view">
+        <h1>Auth / tenant (C3–C5)</h1>
+        <p class="lede">Dev login issues a console session. Switch tenant when membership has more than one. Register host workspaces (admin) for Pilot binds.</p>
+        <div class="desired">
+          <h2>Registered workspaces</h2>
+          <div class="row">
+            <label>ID <input id="wsId" type="text" placeholder="recertia" /></label>
+            <label>Display name <input id="wsName" type="text" placeholder="example/recertia" /></label>
+          </div>
+          <label>Host root (Windows)
+            <input id="wsHostRoot" type="text" placeholder="D:\src\recertia" autocomplete="off" />
+          </label>
+          <label>Notes <input id="wsNotes" type="text" placeholder="optional" /></label>
+          <div class="actions">
+            <button type="button" id="registerWorkspace" class="primary">Register workspace</button>
+            <button type="button" id="refreshWorkspaces" class="secondary">Refresh list</button>
+          </div>
+          <pre id="workspacesOut" class="panel"></pre>
+        </div>
+        <div class="actions">
+          <button type="button" id="devLogin" class="primary">Dev login</button>
+          <button type="button" id="loadMe" class="secondary">GET /v1/me</button>
+          <button type="button" id="logout" class="secondary">Logout</button>
+        </div>
+        <label>Switch tenant <input id="switchTenant" type="text" placeholder="tenant-b" /></label>
+        <button type="button" id="doSwitch" class="secondary">Switch</button>
+        <pre id="authOut" class="panel"></pre>
+      </section>
+    </main>
+  </div>
+  <script src="/console/assets/app.js"></script>
+</body>
+</html>

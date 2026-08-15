@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/MergeAudit",
+  "additionalProperties": false,
+  "description": "Every fan-in records expected against received inputs (specs \u00a726.4).",
+  "properties": {
+    "merge_id": {
+      "title": "Merge Id",
+      "type": "string"
+    },
+    "expected": {
+      "minimum": 0,
+      "title": "Expected",
+      "type": "integer"
+    },
+    "received": {
+      "minimum": 0,
+      "title": "Received",
+      "type": "integer"
+    },
+    "missing": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing",
+      "type": "array"
+    },
+    "action": {
+      "enum": [
+        "proceeded",
+        "flagged",
+        "failed"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "layered": {
+      "default": false,
+      "title": "Layered",
+      "type": "boolean"
+    },
+    "batches": {
+      "description": "Actual fan-in batches in execution order; empty for a direct merge.",
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Batches",
+      "type": "array"
+    }
+  },
+  "required": [
+    "merge_id",
+    "expected",
+    "received",
+    "action"
+  ],
+  "title": "MergeAudit",
+  "type": "object"
+}

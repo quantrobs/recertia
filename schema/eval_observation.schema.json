@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/EvalObservation",
+  "additionalProperties": false,
+  "description": "One immutable, run-derived observation keyed for aggregation.",
+  "properties": {
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "arm": {
+      "default": "treatment",
+      "enum": [
+        "treatment",
+        "control",
+        "shadow",
+        "practice"
+      ],
+      "title": "Arm",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "first_attempt_success": {
+      "title": "First Attempt Success",
+      "type": "boolean"
+    },
+    "predicted_success": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predicted Success"
+    },
+    "terminal": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Terminal"
+    },
+    "fixture_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fixture Id"
+    },
+    "is_eval_fixture": {
+      "default": false,
+      "title": "Is Eval Fixture",
+      "type": "boolean"
+    },
+    "recorded_at": {
+      "format": "date-time",
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "strategy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Strategy"
+    },
+    "attempt_no": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attempt No"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Usd"
+    },
+    "abstention_confirmed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Confirmed"
+    },
+    "skill_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skill Id"
+    },
+    "skill_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skill Version"
+    },
+    "suppressed_skill_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suppressed Skill Id"
+    },
+    "suppressed_skill_version": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suppressed Skill Version"
+    },
+    "valid_non_judge_evidence": {
+      "default": false,
+      "title": "Valid Non Judge Evidence",
+      "type": "boolean"
+    },
+    "evidence_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Hash"
+    },
+    "curation": {
+      "anyOf": [
+        {
+          "enum": [
+            "human_authored",
+            "mined_from_human_artifact",
+            "self_distilled"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Curation"
+    },
+    "practice_converted": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Practice Converted"
+    }
+  },
+  "required": [
+    "run_id",
+    "task_class",
+    "snapshot_id",
+    "first_attempt_success",
+    "recorded_at"
+  ],
+  "title": "EvalObservation",
+  "type": "object"
+}

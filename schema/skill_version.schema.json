@@ -1,0 +1,960 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/SkillVersion",
+  "$defs": {
+    "FailureMode": {
+      "additionalProperties": false,
+      "properties": {
+        "symptom": {
+          "title": "Symptom",
+          "type": "string"
+        },
+        "response": {
+          "title": "Response",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symptom",
+        "response"
+      ],
+      "title": "FailureMode",
+      "type": "object"
+    },
+    "Hygiene": {
+      "additionalProperties": false,
+      "description": "Store-time secret/PII scan. A one-time gate, so it stays on the immutable version.",
+      "properties": {
+        "secret_scan": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ],
+          "title": "Secret Scan",
+          "type": "string"
+        },
+        "scanned_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scanned At"
+        },
+        "lint_content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lint Content Hash"
+        }
+      },
+      "required": [
+        "secret_scan"
+      ],
+      "title": "Hygiene",
+      "type": "object"
+    },
+    "InputBinding": {
+      "additionalProperties": false,
+      "description": "Bind one tool input to a named output from a predecessor step.",
+      "properties": {
+        "input": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Input",
+          "type": "string"
+        },
+        "source_step": {
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "title": "Source Step",
+          "type": "string"
+        },
+        "output": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "source_step",
+        "output"
+      ],
+      "title": "InputBinding",
+      "type": "object"
+    },
+    "Parameter": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "path",
+            "enum",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "enum_values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum Values"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "Parameter",
+      "type": "object"
+    },
+    "Precondition": {
+      "additionalProperties": false,
+      "description": "Evaluated by ``retrieve`` before a candidate is offered to ``plan`` (specs \u00a72.1).",
+      "properties": {
+        "kind": {
+          "enum": [
+            "file_exists",
+            "path_glob",
+            "env_present",
+            "tool_available",
+            "probe"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": true,
+          "title": "Arguments",
+          "type": "object"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "Precondition",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "distilled_from_run": {
+          "title": "Distilled From Run",
+          "type": "string"
+        },
+        "distilled_at": {
+          "format": "date-time",
+          "title": "Distilled At",
+          "type": "string"
+        },
+        "authored_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authored By"
+        },
+        "curation": {
+          "default": "self_distilled",
+          "enum": [
+            "human_authored",
+            "mined_from_human_artifact",
+            "self_distilled"
+          ],
+          "title": "Curation",
+          "type": "string"
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "enum": [
+                "success_transcript",
+                "failure_cluster",
+                "mined_artifact",
+                "hand_authored"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derivation"
+        },
+        "failure_cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Cluster Id"
+        },
+        "authoring_prior_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authoring Prior Version"
+        },
+        "evolved_because": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evolved Because"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "source_case_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Case Ids",
+          "type": "array"
+        },
+        "source_run_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Run Ids",
+          "type": "array"
+        },
+        "source_session_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Session Ids",
+          "type": "array"
+        },
+        "source_contributor_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Contributor Ids",
+          "type": "array"
+        },
+        "attribution_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution Summary"
+        }
+      },
+      "required": [
+        "distilled_from_run",
+        "distilled_at"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "ResourceClaim": {
+      "additionalProperties": false,
+      "description": "A declared claim on something shared outside the workspace.\n\nTwo units conflict when they claim the same ``id`` and at least one ``mode`` is ``write``\nor ``exclusive`` \u2014 whether or not an ``input_bindings``-derived dependency exists between them.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "file",
+            "path",
+            "service",
+            "rate_limit",
+            "lock",
+            "external_system"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "read",
+            "write",
+            "exclusive"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "mode"
+      ],
+      "title": "ResourceClaim",
+      "type": "object"
+    },
+    "SensitivityProof": {
+      "additionalProperties": false,
+      "description": "Evidence that a criterion rejects a known-bad artifact (specs \u00a715.2).",
+      "properties": {
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "negative_fixture": {
+          "title": "Negative Fixture",
+          "type": "string"
+        },
+        "rejected": {
+          "title": "Rejected",
+          "type": "boolean"
+        },
+        "checked_at": {
+          "format": "date-time",
+          "title": "Checked At",
+          "type": "string"
+        },
+        "checked_against": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked Against"
+        },
+        "evidence_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "sha256 hash binding the criterion definition to the negative-fixture fingerprint used for this proof",
+          "title": "Evidence Hash"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "negative_fixture",
+        "rejected",
+        "checked_at"
+      ],
+      "title": "SensitivityProof",
+      "type": "object"
+    },
+    "SkillCertificationCriterion": {
+      "additionalProperties": false,
+      "description": "Authored at ``distill`` time; validated on independent certification runs.\n\n``preregistered`` here means registered before the *certification runs* (shadow trials,\nscheduled recertifications) that validate it \u2014 not before the transcript that produced the\ndraft, which is impossible by construction. See the ADR-0003 amendment.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "command",
+            "assertion",
+            "schema",
+            "metric",
+            "judge"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "expect_exit": {
+          "default": 0,
+          "title": "Expect Exit",
+          "type": "integer"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "schema_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Ref"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "op": {
+          "anyOf": [
+            {
+              "enum": [
+                "lt",
+                "lte",
+                "gt",
+                "gte",
+                "eq"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Op"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "isolation": {
+          "default": "fresh_context",
+          "enum": [
+            "fresh_context",
+            "inherits_context"
+          ],
+          "title": "Isolation",
+          "type": "string"
+        },
+        "lens": {
+          "anyOf": [
+            {
+              "enum": [
+                "correctness",
+                "currency",
+                "provenance",
+                "scope",
+                "safety"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lens"
+        },
+        "timeout_s": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Timeout S",
+          "type": "integer"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "sensitivity_proof": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SensitivityProof"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "authored_by": {
+          "default": "distiller",
+          "enum": [
+            "distiller",
+            "human"
+          ],
+          "title": "Authored By",
+          "type": "string"
+        },
+        "preregistered": {
+          "default": false,
+          "description": "True once locked ahead of the certification runs that validate it.",
+          "title": "Preregistered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "SkillCertificationCriterion",
+      "type": "object"
+    },
+    "SkillUse": {
+      "additionalProperties": false,
+      "properties": {
+        "skill_id": {
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "skill_id",
+        "version"
+      ],
+      "title": "SkillUse",
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "description": "One node in a skill's step DAG (specs \u00a726.1).\n\nDependencies are derived exclusively from ``input_bindings``.  This makes each edge\ndata-carrying by construction instead of allowing ordering-only authoring edges.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9]+(_[a-z0-9]+)*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "tool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool"
+        },
+        "intent": {
+          "minLength": 5,
+          "title": "Intent",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/StepOutput"
+          },
+          "title": "Outputs",
+          "type": "array"
+        },
+        "input_bindings": {
+          "items": {
+            "$ref": "#/$defs/InputBinding"
+          },
+          "title": "Input Bindings",
+          "type": "array"
+        },
+        "optional": {
+          "default": false,
+          "title": "Optional",
+          "type": "boolean"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/ResourceClaim"
+          },
+          "title": "Resources",
+          "type": "array"
+        },
+        "loop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepLoop"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "intent"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "StepLoop": {
+      "additionalProperties": false,
+      "properties": {
+        "until": {
+          "enum": [
+            "criteria_pass",
+            "no_change",
+            "predicate"
+          ],
+          "title": "Until",
+          "type": "string"
+        },
+        "predicate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predicate"
+        },
+        "max_iterations": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Max Iterations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "until",
+        "max_iterations"
+      ],
+      "title": "StepLoop",
+      "type": "object"
+    },
+    "StepOutput": {
+      "additionalProperties": false,
+      "description": "A typed value a step exposes for later steps to consume.",
+      "properties": {
+        "name": {
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "path",
+            "json"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "value_from": {
+          "default": "stdout",
+          "enum": [
+            "stdout",
+            "stderr",
+            "exit_code"
+          ],
+          "title": "Value From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "StepOutput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable once written (specs \u00a71). Evolution produces version N+1 with ``supersedes``.\n\nNothing on this model may be edited in place; there is no setter path, no mutable field, and\nthe model is frozen at the Pydantic level so an attempted mutation raises rather than\nsilently succeeding.",
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "default": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "skill_id": {
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "supersedes": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Supersedes"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 8,
+      "title": "Title",
+      "type": "string"
+    },
+    "intent": {
+      "minLength": 20,
+      "title": "Intent",
+      "type": "string"
+    },
+    "task_class": {
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "title": "Task Class",
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "scope": {
+      "default": "project",
+      "enum": [
+        "run",
+        "project",
+        "org",
+        "global"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "uses": {
+      "items": {
+        "$ref": "#/$defs/SkillUse"
+      },
+      "title": "Uses",
+      "type": "array"
+    },
+    "parameters": {
+      "items": {
+        "$ref": "#/$defs/Parameter"
+      },
+      "title": "Parameters",
+      "type": "array"
+    },
+    "preconditions": {
+      "items": {
+        "$ref": "#/$defs/Precondition"
+      },
+      "title": "Preconditions",
+      "type": "array"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    },
+    "certification_criteria": {
+      "items": {
+        "$ref": "#/$defs/SkillCertificationCriterion"
+      },
+      "minItems": 1,
+      "title": "Certification Criteria",
+      "type": "array"
+    },
+    "failure_modes": {
+      "items": {
+        "$ref": "#/$defs/FailureMode"
+      },
+      "title": "Failure Modes",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "hygiene": {
+      "$ref": "#/$defs/Hygiene"
+    }
+  },
+  "required": [
+    "skill_id",
+    "version",
+    "title",
+    "intent",
+    "task_class",
+    "steps",
+    "certification_criteria",
+    "provenance",
+    "hygiene"
+  ],
+  "title": "SkillVersion",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "goal_id": "add-editorconfig-v1",
+  "desired": [
+    {
+      "id": "ec-exists",
+      "kind": "file_exists",
+      "path": ".editorconfig",
+      "weight": 1.0
+    },
+    {
+      "id": "ec-python",
+      "kind": "file_contains",
+      "path": ".editorconfig",
+      "pattern": "\\[\\*\\.py\\]",
+      "weight": 1.0
+    }
+  ],
+  "constraints": [],
+  "context": "Add a root EditorConfig with Python indent settings",
+  "task_class": "repo-chore"
+}

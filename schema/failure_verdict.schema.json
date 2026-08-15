@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/FailureVerdict",
+  "additionalProperties": false,
+  "properties": {
+    "failure_class": {
+      "enum": [
+        "environment",
+        "tool",
+        "retrieval",
+        "plan",
+        "execution",
+        "criteria",
+        "budget",
+        "merge"
+      ],
+      "title": "Failure Class",
+      "type": "string"
+    },
+    "evidence": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "implicated_skill": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Implicated Skill"
+    },
+    "counts_against_trust": {
+      "title": "Counts Against Trust",
+      "type": "boolean"
+    },
+    "escalate_to_human": {
+      "default": false,
+      "title": "Escalate To Human",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "failure_class",
+    "counts_against_trust"
+  ],
+  "title": "FailureVerdict",
+  "type": "object"
+}

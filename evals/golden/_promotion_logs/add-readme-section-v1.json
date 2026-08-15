@@ -1,0 +1,10 @@
+{
+  "skill_id": "add-readme-section",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/add-readme-section",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-add-readme-section-v1-3d95e4",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.194475+00:00"
+}

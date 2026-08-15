@@ -1,0 +1,10 @@
+{
+  "skill_id": "ensure-src-layout",
+  "version": 1,
+  "golden_path": "/workspace/evals/golden/repo-chore/ensure-src-layout",
+  "passed": true,
+  "terminal": "solved",
+  "run_id": "golden-ensure-src-layout-v1-311f23",
+  "detail": "expected terminal='solved', got 'solved'",
+  "at": "2026-07-31T01:13:17.205629+00:00"
+}

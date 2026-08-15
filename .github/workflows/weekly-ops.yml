@@ -1,0 +1,93 @@
+name: weekly-ops
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  metrics-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Retrieval probes
+        run: |
+          mkdir -p artifacts .recertia
+          recertia probes run \
+            --probes evals/probes/repo-chore.json \
+            --skills-root skills \
+            --eval-db .recertia/evals.db \
+            --output artifacts/probes.json
+      - name: Golden suite (eval firewall; local backend)
+        env:
+          RECERTIA_EXECUTION_BACKEND: local
+        run: |
+          recertia eval run \
+            --task-class repo-chore \
+            --golden-root evals/golden \
+            --skills-root skills \
+            --runs-root .recertia/eval-runs \
+            --eval-db .recertia/evals.db \
+            --snapshot-id weekly-ops
+      - name: Weekly metrics report (honest unavailable when empty)
+        run: |
+          python3 scripts/weekly_metrics_report.py \
+            --eval-db .recertia/evals.db \
+            --output artifacts/weekly-metrics.json
+      - name: Judge canary (planted failures, synthetic shell)
+        run: recertia canary --output artifacts/canary.json
+      - name: Live verifier canary (optional; does not update a4)
+        env:
+          RECERTIA_MODEL_PROVIDER: ${{ secrets.RECERTIA_MODEL_PROVIDER }}
+          RECERTIA_MODEL_ID: ${{ secrets.RECERTIA_MODEL_ID }}
+          RECERTIA_VERIFIER_MODEL_ID: ${{ secrets.RECERTIA_VERIFIER_MODEL_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${RECERTIA_VERIFIER_MODEL_ID:-}" ]; then
+            echo "live canary skipped: RECERTIA_VERIFIER_MODEL_ID unset"
+            exit 0
+          fi
+          recertia canary --live --output artifacts/canary-live.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weekly-metrics
+          if-no-files-found: warn
+          path: |
+            artifacts/weekly-metrics.json
+            artifacts/probes.json
+            artifacts/canary.json
+            artifacts/canary-live.json
+
+  postgres-soak:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: recertia
+          POSTGRES_PASSWORD: recertia
+          POSTGRES_DB: recertia
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recertia -d recertia"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://recertia:recertia@localhost:5432/recertia
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev,postgres]"
+      - name: Soak migrations
+        run: python3 scripts/soak_postgres.py --recertia-root .recertia

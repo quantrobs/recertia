@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/ControlBaseline",
+  "$defs": {
+    "BinomialSample": {
+      "additionalProperties": false,
+      "properties": {
+        "successes": {
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "trials": {
+          "minimum": 0,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "successes",
+        "trials"
+      ],
+      "title": "BinomialSample",
+      "type": "object"
+    },
+    "ConfidenceInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "title": "Low",
+          "type": "number"
+        },
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "level": {
+          "default": 0.95,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Level",
+          "type": "number"
+        },
+        "method": {
+          "default": "newcombe_wilson",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "high"
+      ],
+      "title": "ConfidenceInterval",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Persisted per-task-class control-arm baseline (specs \u00a724.2; M5 contribution input).",
+  "properties": {
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "control": {
+      "$ref": "#/$defs/BinomialSample"
+    },
+    "interval": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConfidenceInterval"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "report_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Report Id"
+    }
+  },
+  "required": [
+    "task_class",
+    "snapshot_id",
+    "control",
+    "created_at"
+  ],
+  "title": "ControlBaseline",
+  "type": "object"
+}

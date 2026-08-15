@@ -1,0 +1,2 @@
+# Generated JSON Schema is compared byte-for-byte in CI; pin LF.
+schema/*.schema.json text eol=lf

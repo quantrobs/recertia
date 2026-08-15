@@ -1,0 +1,65 @@
+{
+  "description": "Labelled probe set for retrieval_precision_at_3 (M1 done-when).",
+  "probes": [
+    {
+      "id": "p1",
+      "request": "Add *.pyc to the repository .gitignore",
+      "workdir_files": {".gitignore": ".venv/\n"},
+      "relevant": ["add-gitignore-entry"]
+    },
+    {
+      "id": "p2",
+      "request": "Add a pytest.ini that sets testpaths to tests",
+      "workdir_files": {"pyproject.toml": "[project]\nname=\"x\"\n"},
+      "relevant": ["add-pytest-config"]
+    },
+    {
+      "id": "p3",
+      "request": "Pin the repository Python version to 3.12",
+      "workdir_files": {},
+      "relevant": ["pin-python-version"]
+    },
+    {
+      "id": "p4",
+      "request": "Add a root EditorConfig with Python indent settings",
+      "workdir_files": {},
+      "relevant": ["add-editorconfig"]
+    },
+    {
+      "id": "p5",
+      "request": "Add an MIT LICENSE file at the repository root",
+      "workdir_files": {},
+      "relevant": ["add-license-mit"]
+    },
+    {
+      "id": "p6",
+      "request": "Bump actions/checkout to v4 in GitHub workflows",
+      "workdir_files": {".github/workflows/ci.yml": "uses: actions/checkout@v3\n"},
+      "relevant": ["bump-action-checkout"]
+    },
+    {
+      "id": "p7",
+      "request": "Add an Installation section to the README",
+      "workdir_files": {"README.md": "# Demo\n"},
+      "relevant": ["add-readme-section"]
+    },
+    {
+      "id": "p8",
+      "request": "Ensure a src/demo_pkg package layout exists",
+      "workdir_files": {"pyproject.toml": "[project]\nname=\"x\"\n"},
+      "relevant": ["ensure-src-layout"]
+    },
+    {
+      "id": "p9",
+      "request": "Add a Makefile test target that runs pytest",
+      "workdir_files": {},
+      "relevant": ["add-makefile-target"]
+    },
+    {
+      "id": "p10",
+      "request": "Strip trailing whitespace from README.md",
+      "workdir_files": {"README.md": "hello   \n"},
+      "relevant": ["strip-trailing-whitespace"]
+    }
+  ]
+}

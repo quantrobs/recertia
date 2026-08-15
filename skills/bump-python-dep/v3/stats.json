@@ -1,0 +1,31 @@
+{
+  "skill_id": "bump-python-dep",
+  "version": 3,
+  "predictive_trust": {
+    "applications": 14,
+    "successes": 12,
+    "last_used_at": "2026-07-30T15:22:11Z",
+    "decayed_score": null
+  },
+  "contribution": {
+    "applications": 14,
+    "successes": 12,
+    "suppressed_applications": 9,
+    "suppressed_successes": 5,
+    "interval_low": 0.02,
+    "interval_high": 0.38,
+    "last_evaluated_at": "2026-07-30T15:22:11Z"
+  },
+  "apply_diversity": {
+    "distinct_apply_sessions": 6,
+    "apply_session_sample": [
+      "s1",
+      "s2",
+      "s3",
+      "s4",
+      "s5",
+      "s6"
+    ],
+    "floor": 30
+  }
+}
