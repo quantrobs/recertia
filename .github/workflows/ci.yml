@@ -26,6 +26,7 @@ on:
       - "SECURITY.md"
       - "CHANGELOG.md"
       - "LICENSE"
+      - "NOTICE"
       - "assets/**"
 
 jobs:

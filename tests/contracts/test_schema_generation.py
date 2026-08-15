@@ -70,7 +70,10 @@ def test_readme_and_pyproject_declare_polyform_license():
     agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
     assert "PolyForm Noncommercial" in readme
     assert "PolyForm Noncommercial" in license_text
-    assert 'license = { file = "LICENSE" }' in pyproject
+    assert license_text.lstrip().startswith("# PolyForm Noncommercial License 1.0.0")
+    assert "PolyForm-Noncommercial-1.0.0" in pyproject
+    assert (REPO_ROOT / "NOTICE").is_file()
+    assert "Copyright (c) 2026 Robert Schmidt" in (REPO_ROOT / "NOTICE").read_text(encoding="utf-8")
     assert (REPO_ROOT / "SECURITY.md").is_file()
     assert (REPO_ROOT / "CONTRIBUTING.md").is_file()
     assert (REPO_ROOT / "CHANGELOG.md").is_file()

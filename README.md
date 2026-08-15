@@ -176,9 +176,9 @@ Research outcomes that are still open are listed in [`docs/assumptions.md`](docs
 
 ## License
 
-[PolyForm Noncommercial](LICENSE). Personal use, research, experimentation, and use by many noncommercial organizations are permitted. This is **not** MIT. Commercial production use requires a separate license from the copyright holder.
+[PolyForm Noncommercial](LICENSE) 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal use, research, experimentation, and use by many noncommercial organizations are permitted. This is **not** MIT. Commercial production use requires a separate license from the copyright holder.
 
-Copyright (c) 2026 Robert Schmidt.
+Copyright (c) 2026 Robert Schmidt. See [`NOTICE`](NOTICE).
 
 ## More detail
 

@@ -18,7 +18,7 @@ this version as production-ready.
 - CLI (`recertia`) and optional FastAPI console (Pilot / Tower / Ops)
 - Container execution backend (Docker/Podman); `--local-exec` for development
 - Seed skills and golden evals under `skills/` and `evals/`
-- PolyForm Noncommercial license, `SECURITY.md`, and `CONTRIBUTING.md`
+- PolyForm Noncommercial license (`LICENSE`, `NOTICE`), `SECURITY.md`, and `CONTRIBUTING.md`
 
 ### Notes
 
