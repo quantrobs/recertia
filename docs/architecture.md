@@ -1,6 +1,8 @@
 # Recertia Architecture
 
 > This index replaces the former monolithic architecture document. Existing links remain valid; use the topic files below for direct references.
+>
+> All-in-one download (architecture + specifications + ADRs): [`architecture2.md`](architecture2.md).
 
 - [Overview: purpose, graph rationale, planes, and memory](architecture/overview.md)
 - [Task plane](architecture/task-plane.md)

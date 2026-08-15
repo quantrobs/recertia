@@ -1,6 +1,8 @@
 # Recertia Specifications
 
 > This index replaces the former monolithic specifications document. Existing links remain valid; use the topic files below for direct references.
+>
+> All-in-one download (architecture + specifications + ADRs): [`architecture2.md`](architecture2.md).
 
 - [Core entities and skill contracts](specifications/core-entities.md)
 - [Graph state and node contracts](specifications/graph-execution.md)
