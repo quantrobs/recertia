@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `recompute_active_set` is the portfolio controller only. The legacy ranker
+- ADR-0016 non-goals: RW-PC shipped (dual active-set path is gone).
   and `RECERTIA_PORTFOLIO_CONTROLLER` are gone (RW-PC /
   [`portfolio-measurement.md`](docs/architecture/portfolio-measurement.md)).
 - Retirement benches on `interval_high < −τ`, not the point estimate (ADR-0016).
