@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `recertia soak record` / `recertia soak status` — empty-eval-DB weeks are
+  recorded and not counted. Does not declare GA (RW-GA harness).
 - Phase-2 portfolio measurement report
   (`docs/architecture/portfolio-measurement.md`).
 - ADR-0016 (interval-bounded retirement) and ADR-0017 (version-write budget).

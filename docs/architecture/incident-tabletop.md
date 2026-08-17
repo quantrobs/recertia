@@ -21,6 +21,7 @@ looks partially written.
 7. Re-run `recertia gc --older-than-days 14` only after restore verification.
 8. Keep the tabletop JSON: date, run id, restore source, time-to-recover, follow-up.
    `ga_claimed` MUST stay false until the four-week soak gate also passes.
+   Pass the file to `recertia soak status --tabletop tabletop.json`.
 
 ## Pass criteria
 

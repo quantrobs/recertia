@@ -29,7 +29,7 @@ time.
 
 | ID | Kind | Item | Status |
 | --- | --- | --- | --- |
-| **RW-GA** | ops | Four consecutive soak weeks; tabletop log; baseline traffic metrics | open (backup/tabletop/canary tooling shipped) |
+| **RW-GA** | ops | Four consecutive soak weeks; tabletop log; baseline traffic metrics | open (soak log harness shipped) |
 | **RW-M2** | engineering + ops | Scheduled probe + golden + ablation cadence; fill `MetricReport` holes | engineering shipped; live eval DB is ops |
 | **RW-A** | research | Resolve `a1`, `a2`; instrument `a4` on live verifier versions | harness ready |
 | **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
@@ -102,15 +102,17 @@ untrusted fetch delimiters; observe–act scratch loop; `RunManifest` pins;
 `docker-compose.soak.yml` + `.github/workflows/weekly-ops.yml`;
 [incident-tabletop.md](incident-tabletop.md); `recertia backup` / `recertia restore`;
 `recertia tabletop`; `recertia canary` (synthetic + optional `--live`);
-`scripts/backup_recertia.py`.
+`scripts/backup_recertia.py`; `recertia soak record` / `recertia soak status`
+([`ops/soak.py`](../../src/recertia/ops/soak.py)) — empty-eval-DB weeks are
+written and **not counted**.
 
 ### Remaining work
 
 | Item | Kind | Detail |
 | --- | --- | --- |
-| Soak log | ops | Four consecutive Monday `weekly-ops` runs (or equivalent self-hosted cadence) with artifacts retained. Empty-eval-DB JSON is **not** a soak week. |
+| Soak log | ops | Four consecutive Monday `weekly-ops` runs (or `recertia soak record` on a host with live eval rows) with artifacts retained. Empty-eval-DB JSON is **not** a soak week; the harness refuses to count it. |
 | Live traffic | ops | Operator runs against a real repo with `RECERTIA_EXECUTION_BACKEND=container` and a non-stub model. Record `reuse_rate`, `first_attempt_success`, `attempts_to_success`, `cost_per_solved_task`. |
-| Tabletop log | ops | Run `recertia tabletop <run_id> --restore-from <backup.tar.gz>` and keep the JSON (date, run id, restore source, TTR, follow-up). Tooling is shipped; the filled log is ops. |
+| Tabletop log | ops | Run `recertia tabletop <run_id> --restore-from <backup.tar.gz>` and keep the JSON (date, run id, restore source, TTR, follow-up). Pass it to `recertia soak status --tabletop`. Tooling is shipped; the filled log is ops. |
 | Postgres soak | ops | `scripts/soak_postgres.py --recertia-root .recertia` against compose Postgres **with** a snapshot if one exists. CI already migrates an empty DB and reports `recertia_snapshot=absent`. |
 | Backup cron | ops | Nightly `python3 scripts/backup_recertia.py` (or volume snapshot); target RPO ≤ 24h. |
 | Verifier split | ops | Distinct `RECERTIA_VERIFIER_MODEL_ID` on the soak host; `recertia canary --live` when that env is set. |

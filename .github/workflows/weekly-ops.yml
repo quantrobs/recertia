@@ -54,6 +54,13 @@ jobs:
             exit 0
           fi
           recertia canary --live --output artifacts/canary-live.json
+      - name: Soak log (empty eval is recorded, not counted)
+        run: |
+          recertia soak record \
+            --metrics artifacts/weekly-metrics.json \
+            --probes artifacts/probes.json \
+            --canary artifacts/canary.json \
+            --log artifacts/soak-log.json
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-metrics
@@ -63,6 +70,7 @@ jobs:
             artifacts/probes.json
             artifacts/canary.json
             artifacts/canary-live.json
+            artifacts/soak-log.json
 
   postgres-soak:
     runs-on: ubuntu-latest
