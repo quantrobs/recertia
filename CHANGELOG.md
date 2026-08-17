@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `recompute_active_set` is the portfolio controller only. The legacy ranker
+  and `RECERTIA_PORTFOLIO_CONTROLLER` are gone (RW-PC /
+  [`portfolio-measurement.md`](docs/architecture/portfolio-measurement.md)).
 - Retirement benches on `interval_high < −τ`, not the point estimate (ADR-0016).
   A missing interval cannot retire.
 - `budget_excess` includes `versions_written`. Distill / review refuse a write
@@ -27,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase-2 portfolio measurement report
+  (`docs/architecture/portfolio-measurement.md`).
 - ADR-0016 (interval-bounded retirement) and ADR-0017 (version-write budget).
 - `charge_version_write` — sole writer of `spent.versions_written`.
 - `assemble_bundle` shared by retrieve and the debug query. Affordance flake

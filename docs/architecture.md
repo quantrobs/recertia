@@ -8,6 +8,7 @@
 - [Task plane](architecture/task-plane.md)
 - [Skill composition](architecture/skill-composition.md)
 - [Library lifecycle](architecture/library-lifecycle.md)
+- [Portfolio measurement (Phase-2 / RW-PC)](architecture/portfolio-measurement.md)
 - [Improvement plane](architecture/improvement-plane.md)
 - [Operations: storage, budgets, and attempt isolation](architecture/operations.md)
 - [Container sandbox: Docker/Podman setup and hardening](architecture/container-sandbox.md)

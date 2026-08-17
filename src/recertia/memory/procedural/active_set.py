@@ -1,24 +1,12 @@
-"""Bounded active set per task class (specs §24.1, M5).
+"""Bounded active set per task class (specs §24.1, M5, RW-PC).
 
-``recompute_active_set`` currently carries two implementations of the same behavior. The
-legacy one is the code that shipped; the other delegates ranking, selection, and retirement
-proposals to the pure controller in :mod:`recertia.memory.procedural.portfolio`. Which one
-runs is decided by the ``RECERTIA_PORTFOLIO_CONTROLLER`` environment flag.
-
-That flag is scaffolding for the equivalence proof, not a tunable. A switch that changes
-which skills are retrievable is measurement semantics, which ADR-0005 places at T3, so it
-MUST NOT be offered as user-facing configuration or documented as such. Both the flag and
-``_recompute_active_set_legacy`` are to be **deleted at the end of Phase 2**, once the pure
-path is the only path.
-
-That expiry is enforced rather than merely intended: writing Phase 2's measurement report to
-``docs/architecture/portfolio-measurement.md`` makes
-``tests/unit/memory/test_portfolio_equivalence.py`` fail until both are gone.
+``recompute_active_set`` ranks through the pure controller in
+:mod:`recertia.memory.procedural.portfolio`. Cap membership is not benching —
+``propose_retirements`` is the Curator's job.
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -107,16 +95,6 @@ def select_shadow_slots(
     return slots
 
 
-def _portfolio_controller_enabled() -> bool:
-    """Temporary Phase 1 flag; removed with the legacy branch at the end of Phase 2."""
-
-    return os.environ.get("RECERTIA_PORTFOLIO_CONTROLLER", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-
-
 def recompute_active_set(
     store: SkillStore,
     *,
@@ -128,13 +106,28 @@ def recompute_active_set(
     Returns ``(updated_statuses, active_cap_pressure_by_task_class)`` where pressure is
     ``max(0, approved_count - cap) / cap``.
 
-    Both branches below are required to produce identical statuses, pressure, and writes;
-    the flag exists only so that equivalence can be asserted in CI (see module docstring).
+    Ranking and the top-``cap`` cut live in :mod:`recertia.memory.procedural.portfolio`.
+    This function still owns pool construction, contribution refresh, and the active-bit
+    writes. It does not bench.
     """
 
-    if _portfolio_controller_enabled():
-        return _recompute_active_set_portfolio(store, config=config, eval_store=eval_store)
-    return _recompute_active_set_legacy(store, config=config, eval_store=eval_store)
+    by_class: dict[str, list[tuple]] = {}
+    for version, status, stats in store.iter_loaded():
+        by_class.setdefault(version.task_class, []).append((version, status, stats))
+
+    updated: list[SkillStatus] = []
+    pressure: dict[str, float] = {}
+    for task_class, rows in by_class.items():
+        approved, ranked_pool, stats_by_id = _pool_for_class(
+            store, rows, task_class=task_class, eval_store=eval_store
+        )
+        cap = config.active_cap_per_task_class
+        pressure[task_class] = max(0, len(approved) - cap) / cap if cap else 0.0
+        top_ids = select_active(rank_skills(ranked_pool, config), cap)
+        updated.extend(
+            _apply_active_bits(store, rows, top_ids=top_ids, stats_by_id=stats_by_id)
+        )
+    return updated, pressure
 
 
 def _pool_for_class(
@@ -217,81 +210,6 @@ def _apply_active_bits(
             store.write_status(new_status)
         updated.append(new_status)
     return updated
-
-
-def _recompute_active_set_legacy(
-    store: SkillStore,
-    *,
-    config: AutonomyConfig = DEFAULT_AUTONOMY,
-    eval_store: EvalStore | None = None,
-) -> tuple[list[SkillStatus], dict[str, float]]:
-    """The pre-controller implementation, kept as the equivalence reference."""
-
-    by_class: dict[str, list[tuple]] = {}
-    for version, status, stats in store.iter_loaded():
-        by_class.setdefault(version.task_class, []).append((version, status, stats))
-
-    updated: list[SkillStatus] = []
-    pressure: dict[str, float] = {}
-    for task_class, rows in by_class.items():
-        approved, ranked_pool, stats_by_id = _pool_for_class(
-            store, rows, task_class=task_class, eval_store=eval_store
-        )
-
-        def rank(row: tuple) -> tuple[float, float]:
-            _v, _s, st = row
-            est = st.contribution.estimate
-            trust = st.predictive_trust.score
-            return (est if est is not None else float("-inf"), trust)
-
-        ranked_pool.sort(key=rank, reverse=True)
-        cap = config.active_cap_per_task_class
-        pressure[task_class] = max(0, len(approved) - cap) / cap if cap else 0.0
-        top_ids = {(v.skill_id, v.version) for v, _s, _st in ranked_pool[:cap]}
-        updated.extend(
-            _apply_active_bits(store, rows, top_ids=top_ids, stats_by_id=stats_by_id)
-        )
-    return updated, pressure
-
-
-def _recompute_active_set_portfolio(
-    store: SkillStore,
-    *,
-    config: AutonomyConfig = DEFAULT_AUTONOMY,
-    eval_store: EvalStore | None = None,
-) -> tuple[list[SkillStatus], dict[str, float]]:
-    """Same contract as the legacy path, with ranking delegated to the pure controller.
-
-    Candidate selection, the refreshed-contribution writes, and the active-bit writes are
-    unchanged; only the ordering and the top-``cap`` cut move into
-    :mod:`recertia.memory.procedural.portfolio`.
-
-    Candidates are still narrowed to skills with a fresh, non-``None`` estimate when an
-    ``eval_store`` is supplied. That narrowing is a property of *this* orchestrator, not of
-    ``rank_skills``, which keeps below-floor and ``None``-estimate skills in the pool as
-    FR-2 requires.
-
-    ``propose_retirements`` is deliberately not called here: nothing in this function may
-    bench a skill. Wiring the proposer into the Curator is Phase 5.
-    """
-
-    by_class: dict[str, list[tuple]] = {}
-    for version, status, stats in store.iter_loaded():
-        by_class.setdefault(version.task_class, []).append((version, status, stats))
-
-    updated: list[SkillStatus] = []
-    pressure: dict[str, float] = {}
-    for task_class, rows in by_class.items():
-        approved, ranked_pool, stats_by_id = _pool_for_class(
-            store, rows, task_class=task_class, eval_store=eval_store
-        )
-        cap = config.active_cap_per_task_class
-        pressure[task_class] = max(0, len(approved) - cap) / cap if cap else 0.0
-        top_ids = select_active(rank_skills(ranked_pool, config), cap)
-        updated.extend(
-            _apply_active_bits(store, rows, top_ids=top_ids, stats_by_id=stats_by_id)
-        )
-    return updated, pressure
 
 
 def now() -> datetime:
