@@ -181,3 +181,112 @@ def test_weekly_ops_does_not_swallow_failures() -> None:
     assert "recertia eval run" in text
     assert "recertia canary" in text
     assert "RECERTIA_VERIFIER_MODEL_ID" in text
+    assert "recertia soak record" in text
+    assert "recertia soak status" not in text
+
+
+def _empty_weekly() -> dict:
+    return {
+        "report": {
+            "snapshot_id": "none",
+            "first_attempt_success": None,
+            "reuse_rate": None,
+            "attempts_to_success": None,
+            "cost_per_solved_task": None,
+            "causal_lift": {
+                "status": "insufficient_data",
+                "treatment": {"successes": 0, "trials": 0},
+                "control": {"successes": 0, "trials": 0},
+            },
+            "unavailable": {"causal_lift": "insufficient_data"},
+            "at": "2026-08-17T12:00:00+00:00",
+        },
+        "claim": "insufficient_data",
+        "canary": {"trials": 2, "false_passes": 0, "attribution": "synthetic"},
+    }
+
+
+def _live_weekly(*, treatment: int = 8, control: int = 8) -> dict:
+    return {
+        "report": {
+            "snapshot_id": "soak",
+            "first_attempt_success": 0.5,
+            "reuse_rate": 0.25,
+            "attempts_to_success": 1.4,
+            "cost_per_solved_task": 0.12,
+            "retrieval_precision_at_3": 0.8,
+            "causal_lift": {
+                "status": "not_established",
+                "treatment": {"successes": 4, "trials": treatment},
+                "control": {"successes": 4, "trials": control},
+                "interval": {"low": -0.2, "high": 0.2, "level": 0.95},
+            },
+            "unavailable": {},
+            "at": "2026-08-17T12:00:00+00:00",
+        },
+        "claim": "not established",
+        "canary": {"trials": 2, "false_passes": 0, "attribution": "openai × gpt-4o"},
+    }
+
+
+def test_empty_eval_week_is_recorded_and_not_counted(tmp_path: Path) -> None:
+    from recertia.ops.soak import classify_week
+
+    week = classify_week(_empty_weekly(), week="2026-W34")
+    assert week.counted is False
+    assert week.reason == "empty_eval_db"
+    assert week.as_dict()["ga_claimed"] is False
+
+    metrics = tmp_path / "weekly.json"
+    metrics.write_text(json.dumps(_empty_weekly()), encoding="utf-8")
+    log = tmp_path / "soak-log.json"
+    recorded = runner.invoke(
+        app,
+        ["soak", "record", "--metrics", str(metrics), "--log", str(log), "--week", "2026-W34"],
+    )
+    assert recorded.exit_code == 0, recorded.output
+    assert "empty_eval_db" in recorded.output
+    stored = json.loads(log.read_text(encoding="utf-8"))
+    assert stored["ga_claimed"] is False
+    assert stored["weeks"][0]["counted"] is False
+
+
+def test_four_consecutive_live_weeks_plus_tabletop_is_gate_ready(tmp_path: Path) -> None:
+    log = tmp_path / "soak-log.json"
+    for week in ("2026-W31", "2026-W32", "2026-W33", "2026-W34"):
+        metrics = tmp_path / f"{week}.json"
+        metrics.write_text(json.dumps(_live_weekly()), encoding="utf-8")
+        recorded = runner.invoke(
+            app,
+            ["soak", "record", "--metrics", str(metrics), "--log", str(log), "--week", week],
+        )
+        assert recorded.exit_code == 0, recorded.output
+        assert json.loads(recorded.output)["counted"] is True
+
+    tabletop = tmp_path / "tabletop.json"
+    tabletop.write_text(
+        json.dumps({"pass": True, "ga_claimed": False, "run_id": "soak-run-1"}),
+        encoding="utf-8",
+    )
+    ready = runner.invoke(
+        app, ["soak", "status", "--log", str(log), "--tabletop", str(tabletop)]
+    )
+    assert ready.exit_code == 0, ready.output
+    payload = json.loads(ready.output)
+    assert payload["counted_weeks"] == 4
+    assert payload["gate_ready"] is True
+    assert payload["ga_claimed"] is False
+
+
+def test_broken_streak_and_tabletop_ga_claim_block_the_gate(tmp_path: Path) -> None:
+    from recertia.ops.soak import classify_week, consecutive_counted, record_week, status
+
+    log: dict = {"weeks": [], "ga_claimed": False}
+    for week in ("2026-W31", "2026-W33"):
+        log = record_week(log, classify_week(_live_weekly(), week=week))
+    assert consecutive_counted(log["weeks"]) == 1
+
+    blocked = status(log, tabletop={"pass": True, "ga_claimed": True})
+    assert blocked["gate_ready"] is False
+    assert "tabletop_claimed_ga" in blocked["missing"]
+    assert blocked["ga_claimed"] is False
