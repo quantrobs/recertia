@@ -78,18 +78,20 @@ durations, so they hold on any machine and in CI.
 | `max_branches` | `fan_out` | 3 |
 | `max_parallel_steps` | step scheduler in `solve` | 8 |
 | `claim_timeout_s` | resource claim acquisition | 60 |
-| `max_versions_written` | `store` | 2 |
+| `max_versions_written` | `budget_excess` + `distill` / `review` / `store` ([ADR-0017](../adr/0017-version-write-budget.md)) | 2 |
 
 Exhausting any budget routes to `classify_failure` then `record_dead_end`, never to another
 `solve`. No-progress detection short-circuits when two consecutive attempts produce an
 identical result vector: the same failure twice means the current strategy is exhausted, not
 unlucky.
 
-A budget is only as good as the meter behind it, so `RunState.spent` has exactly one writer:
-`AttemptMeter` in `recertia.nodes.attempt`. Each `solve` path opens a meter, charges what it
-uses, and closes through the meter's outcome helpers, which means no exit can record an
-attempt while omitting a dimension — the failure mode that left wall clock uncharged and
-therefore unenforceable.
+A budget is only as good as the meter behind it, so `RunState.spent` has exactly one writer
+module: `recertia.nodes.attempt`. `AttemptMeter` charges attempt-scoped dimensions
+(attempts, tools, tokens, wall clock, cost). `charge_version_write` charges
+`versions_written` at the `store` hop ([ADR-0017](../adr/0017-version-write-budget.md)).
+Each `solve` path opens a meter, charges what it uses, and closes through the meter's
+outcome helpers, which means no exit can record an attempt while omitting a dimension —
+the failure mode that left wall clock uncharged and therefore unenforceable.
 
 Charging is per attempt, while the model client, tool runtime, and claim scheduler count
 cumulatively for the whole run. `RuntimeWindow` reports the difference between two reads of

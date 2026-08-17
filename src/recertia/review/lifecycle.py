@@ -185,6 +185,7 @@ def maybe_bench_on_contribution(
     decision = retirement_decision(
         applications=apps,
         estimate=contrib.estimate,
+        interval_high=contrib.interval_high,
         evidence_floor=config.evidence_floor,
         tau=config.retirement_threshold,
     )
@@ -193,7 +194,10 @@ def maybe_bench_on_contribution(
             f"below evidence floor ({apps} < {config.evidence_floor}); never bench"
         )
     if not decision.should_retire:
-        raise LifecycleError(f"contribution not negative enough: estimate={contrib.estimate}")
+        raise LifecycleError(
+            f"contribution not confidently negative: "
+            f"estimate={contrib.estimate} interval_high={contrib.interval_high}"
+        )
     benched = status.model_copy(
         update={
             "lifecycle": "benched",
@@ -222,7 +226,11 @@ def maybe_bench_on_contribution(
             actor="m5-retirement",
             action="deprecate",
             target=f"{skill_id}@v{version}",
-            evidence={"estimate": contrib.estimate, "state": "benched"},
+            evidence={
+                "estimate": contrib.estimate,
+                "interval_high": contrib.interval_high,
+                "state": "benched",
+            },
             at=datetime.now(timezone.utc),
         )
     # Parents of a benched child → needs_recert (M5 + M8).

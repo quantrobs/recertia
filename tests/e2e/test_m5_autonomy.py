@@ -230,13 +230,15 @@ def test_harsh_config_over_prunes_vs_defaults(tmp_path: Path) -> None:
         for i in range(5):
             sid = f"skill-{config_name}-{i}"
             _seed(store, _skill(sid), lifecycle="approved")
-            # 25 apps, 10 successes vs baseline 0.5 → mild negative/near-zero
+            # 25 apps (past HARSH floor 20, below default 30). Strong enough
+            # that interval_high < 0 so HARSH (τ=0) benches; DEFAULT never
+            # reaches the floor (ADR-0016).
             _record_evidence(
                 eval_store,
                 skill_id=sid,
                 prefix=sid,
-                shadow=(10, 25),
-                suppression=(13, 25),
+                shadow=(4, 25),
+                suppression=(20, 25),
             )
             cfg = HARSH_AUTONOMY if config_name == "harsh" else DEFAULT_AUTONOMY
             try:

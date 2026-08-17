@@ -174,6 +174,10 @@ report can show yield/decay or an honest hole; no silent zeros.
 `RECERTIA_PORTFOLIO_CONTROLLER`. That flag is T3-adjacent scaffolding, not operator
 config ([`active_set.py`](../../src/recertia/memory/procedural/active_set.py)).
 
+Interval-bounded retirement ([ADR-0016](../adr/0016-interval-bounded-retirement.md))
+and the version-write budget ([ADR-0017](../adr/0017-version-write-budget.md)) shipped
+without deleting the dual path.
+
 **Done when:** `docs/architecture/portfolio-measurement.md` exists (Phase-2
 measurement report); `_recompute_active_set_legacy` and the env flag are deleted;
 `tests/unit/memory/test_portfolio_equivalence.py` expiry guard is green because both

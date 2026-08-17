@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from contracts.budget import BudgetReservation, budget_excess
 from contracts.run import ReusabilityVerdict, RunState
 from contracts.skill import SkillVersion
 from recertia.distill.prior import load_authoring_prior
@@ -25,6 +26,9 @@ def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
     applied = _existing_skill_is_evidence(state, ctx)
     if applied is not None:
         return applied
+    blocked_write = _version_write_budget(state)
+    if blocked_write is not None:
+        return blocked_write
     return _author_or_reject(state, ctx)
 
 
@@ -117,6 +121,35 @@ def _existing_skill_is_evidence(state: RunState, ctx: NodeContext) -> NodeOutcom
     _record_one_off(ctx, state, verdict)
     new_state = state.model_copy(update={"reusability": verdict, "facts_extracted": []})
     return NodeOutcome(state=new_state, route="one_off", note=verdict.reason)
+
+
+def _version_write_budget(state: RunState) -> NodeOutcome | None:
+    """Refuse to author when another version write would exceed the run cap (ADR-0017)."""
+
+    if (
+        budget_excess(
+            state.budget,
+            state.spent,
+            state.reserved,
+            BudgetReservation(versions_written=1),
+        )
+        != "versions_written"
+    ):
+        return None
+    verdict = ReusabilityVerdict(
+        verdict="one_off",
+        parameterisable=False,
+        context_free=True,
+        checkable=True,
+        not_duplicate=True,
+        bounded=True,
+        reason="version write budget exhausted — not a new draft",
+    )
+    return NodeOutcome(
+        state=state.model_copy(update={"reusability": verdict, "draft": None}),
+        route="one_off",
+        note=verdict.reason,
+    )
 
 
 def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:

@@ -97,19 +97,26 @@ retired (or protected from retirement) on contribution grounds. Class-level
 
 ```text
 bench(s)  : applications >= evidence_floor          (default 30)
-            AND estimate <= -retirement_threshold   (default 0.10)
-restore(s): estimate > -retirement_threshold on later evidence,
+            AND interval_high is present
+            AND interval_high < -retirement_threshold   (default 0.10)
+restore(s): operator / Curator restore_benched,
             OR Curator revision produces a new version that validates
 never     : applications < evidence_floor           → demote score only
+            missing estimate or missing interval    → keep
 ```
 
 Additional rules: retirement is per version, not per skill; a benched version's parents (§14) are
 marked `needs_recert`, since composition pins may now reference a non-active child; benching MUST
-be recorded in the ledger (§21) with the contribution evidence that justified it.
+be recorded in the ledger (§21) with the contribution *interval* that justified it.
+
+The point estimate `ĉ(s)` is still computed and stored. It is not the retirement predicate
+([ADR-0016](../adr/0016-interval-bounded-retirement.md)). A negative point sitting inside a
+wide interval is not evidence of harm.
 
 Defaults are deliberately loose. A harsh configuration (evidence floor 20, threshold 0) measured
-*below* the no-library baseline (`references.md` §1.2), so `evidence_floor` and
-`retirement_threshold` MUST be changed together and validated jointly against the golden sets.
+*below* the no-library baseline (`references.md` §1.2) when it acted on the point estimate, so
+`evidence_floor` and `retirement_threshold` MUST be changed together and validated jointly
+against the golden sets. `τ = 0` benches only when the interval is entirely negative.
 
 ### 24.4 Floor property
 

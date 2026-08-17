@@ -81,6 +81,8 @@ the chapter text itself is inlined here so this file is readable offline.
 - [ADR-0013: OpenRouter and peers as OpenAI-compatible gateways](#ch-adr-0013-openai-compat-gateways) — `adr/0013-openai-compat-gateways.md`
 - [ADR-0014: Goal packs as migration programs (not mega-Goals)](#ch-adr-0014-goal-packs-as-migration-programs) — `adr/0014-goal-packs-as-migration-programs.md`
 - [ADR-0015: Search and compression live on the improvement plane](#ch-adr-0015-improvement-plane-search) — `adr/0015-improvement-plane-search.md`
+- [ADR-0016: Interval-bounded retirement](#ch-adr-0016-interval-bounded-retirement) — `adr/0016-interval-bounded-retirement.md`
+- [ADR-0017: Version-write budget is a first-class dimension](#ch-adr-0017-version-write-budget) — `adr/0017-version-write-budget.md`
 
 ### Part IV — Assumptions and references
 
@@ -646,7 +648,7 @@ The library is capped, and skills are retired on measured contribution. See
 | **Retrieval ablation** | Class-level effect of retrieval available vs suppressed (randomized at the retrieval boundary) | — |
 | **Contribution** | `ĉ(s) =` shadow success rate minus this skill's suppressed success rate; success from required non-`judge` criteria only | — |
 | **Evidence floor** | No retirement decision before this many shadow applications | 30 |
-| **Retirement threshold** | Bench when `ĉ(s) ≤ −τ` and the evidence floor is met | `τ = 0.10` |
+| **Retirement threshold** | Bench when `interval_high < −τ` and the evidence floor is met ([ADR-0016](adr/0016-interval-bounded-retirement.md)) | `τ = 0.10` |
 | **Shadow / exploration slots** | Bounded offline slots for `benched` and inactive `approved` versions; never expand the active set | 3 / class |
 | **Low evidence** | Score-demote in ranking; never drop | — |
 
@@ -659,8 +661,10 @@ rule, that bound does not exist at all — which is the configuration the earlie
 **Retirement that measures the right thing.** Contribution is this skill's lift under
 randomized shadow versus suppression, not a raw success ratio and not a class-level control
 baseline subtracted from a selected skill. Class-level retrieval help is a separate
-`RetrievalAblationEffect`. And contribution is scored from required non-`judge` criteria only: a
-false-pass-biased model judge does not add noise to retirement, it *switches retirement off*
+`RetrievalAblationEffect`. Retirement reads the Newcombe–Wilson optimistic bound
+(`interval_high < −τ`), not the point estimate ([ADR-0016](adr/0016-interval-bounded-retirement.md)).
+And contribution is scored from required non-`judge` criteria only: a false-pass-biased
+model judge does not add noise to retirement, it *switches retirement off*
 ([`references.md`](references.md) §1.8), so a skill whose only required criteria are
 model-scored has `contribution = null` rather than a flattering estimate.
 
@@ -872,18 +876,20 @@ durations, so they hold on any machine and in CI.
 | `max_branches` | `fan_out` | 3 |
 | `max_parallel_steps` | step scheduler in `solve` | 8 |
 | `claim_timeout_s` | resource claim acquisition | 60 |
-| `max_versions_written` | `store` | 2 |
+| `max_versions_written` | `budget_excess` + `distill` / `review` / `store` ([ADR-0017](adr/0017-version-write-budget.md)) | 2 |
 
 Exhausting any budget routes to `classify_failure` then `record_dead_end`, never to another
 `solve`. No-progress detection short-circuits when two consecutive attempts produce an
 identical result vector: the same failure twice means the current strategy is exhausted, not
 unlucky.
 
-A budget is only as good as the meter behind it, so `RunState.spent` has exactly one writer:
-`AttemptMeter` in `recertia.nodes.attempt`. Each `solve` path opens a meter, charges what it
-uses, and closes through the meter's outcome helpers, which means no exit can record an
-attempt while omitting a dimension — the failure mode that left wall clock uncharged and
-therefore unenforceable.
+A budget is only as good as the meter behind it, so `RunState.spent` has exactly one writer
+module: `recertia.nodes.attempt`. `AttemptMeter` charges attempt-scoped dimensions
+(attempts, tools, tokens, wall clock, cost). `charge_version_write` charges
+`versions_written` at the `store` hop ([ADR-0017](adr/0017-version-write-budget.md)).
+Each `solve` path opens a meter, charges what it uses, and closes through the meter's
+outcome helpers, which means no exit can record an attempt while omitting a dimension —
+the failure mode that left wall clock uncharged and therefore unenforceable.
 
 Charging is per attempt, while the model client, tool runtime, and claim scheduler count
 cumulatively for the whole run. `RuntimeWindow` reports the difference between two reads of
@@ -1751,6 +1757,10 @@ report can show yield/decay or an honest hole; no silent zeros.
 `recompute_active_set` still has a legacy implementation behind
 `RECERTIA_PORTFOLIO_CONTROLLER`. That flag is T3-adjacent scaffolding, not operator
 config ([`active_set.py`](../src/recertia/memory/procedural/active_set.py)).
+
+Interval-bounded retirement ([ADR-0016](adr/0016-interval-bounded-retirement.md))
+and the version-write budget ([ADR-0017](adr/0017-version-write-budget.md)) shipped
+without deleting the dual path.
 
 **Done when:** `docs/architecture/portfolio-measurement.md` exists (Phase-2
 measurement report); `_recompute_active_set_legacy` and the env flag are deleted;
@@ -4159,19 +4169,26 @@ retired (or protected from retirement) on contribution grounds. Class-level
 
 ```text
 bench(s)  : applications >= evidence_floor          (default 30)
-            AND estimate <= -retirement_threshold   (default 0.10)
-restore(s): estimate > -retirement_threshold on later evidence,
+            AND interval_high is present
+            AND interval_high < -retirement_threshold   (default 0.10)
+restore(s): operator / Curator restore_benched,
             OR Curator revision produces a new version that validates
 never     : applications < evidence_floor           → demote score only
+            missing estimate or missing interval    → keep
 ```
 
 Additional rules: retirement is per version, not per skill; a benched version's parents (§14) are
 marked `needs_recert`, since composition pins may now reference a non-active child; benching MUST
-be recorded in the ledger (§21) with the contribution evidence that justified it.
+be recorded in the ledger (§21) with the contribution *interval* that justified it.
+
+The point estimate `ĉ(s)` is still computed and stored. It is not the retirement predicate
+([ADR-0016](adr/0016-interval-bounded-retirement.md)). A negative point sitting inside a
+wide interval is not evidence of harm.
 
 Defaults are deliberately loose. A harsh configuration (evidence floor 20, threshold 0) measured
-*below* the no-library baseline (`references.md` §1.2), so `evidence_floor` and
-`retirement_threshold` MUST be changed together and validated jointly against the golden sets.
+*below* the no-library baseline (`references.md` §1.2) when it acted on the point estimate, so
+`evidence_floor` and `retirement_threshold` MUST be changed together and validated jointly
+against the golden sets. `τ = 0` benches only when the interval is entirely negative.
 
 ### 24.4 Floor property
 
@@ -5059,6 +5076,12 @@ already produces one. The two mechanisms compose rather than competing for the s
 - Adopting the cap without the evidence floor would reproduce the harsh-retirement failure, so
   the two defaults must be changed together and are validated jointly in the eval harness.
 
+## Amendment — interval-bounded retirement (2026-08-17)
+
+Decision 2's point-estimate test (`ĉ(s) ≤ −τ`) is superseded by
+[ADR-0016](adr/0016-interval-bounded-retirement.md): bench only when `interval_high < −τ`.
+The evidence floor, reversible benching, and finite cap are unchanged.
+
 <a id="ch-adr-0007-skill-identity-status-and-stats-split"></a>
 
 > Source: [`adr/0007-skill-identity-status-and-stats-split.md`](adr/0007-skill-identity-status-and-stats-split.md)
@@ -5688,6 +5711,128 @@ on the version document.
   `hygiene.lint_content_hash` and records the lineage idx. Quarantine enqueues revoke.
   Recertify drains. Practice prefers eligible cluster rows. Lineage lookup is a point get
   (`lineage.idx.json`); the JSONL is WAL only. R1.3 stays a warning.
+
+<a id="ch-adr-0016-interval-bounded-retirement"></a>
+
+> Source: [`adr/0016-interval-bounded-retirement.md`](adr/0016-interval-bounded-retirement.md)
+
+# ADR-0016: Interval-bounded retirement
+
+- **Status:** accepted
+- **Date:** 2026-08-17
+- **Amends:** [ADR-0006](adr/0006-bounded-library-and-retirement.md) decision 2
+
+## Context
+
+[ADR-0006](adr/0006-bounded-library-and-retirement.md) benches a skill when
+`applications >= evidence_floor` and the point estimate `ĉ(s) ≤ −τ`. The Newcombe–Wilson
+interval is already stored on `Contribution` (`interval_low` / `interval_high`) and is
+what `classify_lift` uses for class-level claims. Retirement ignored it.
+
+A point estimate of `−τ` with a wide interval is not evidence of harm. The harsh-retirement
+ablation that landed *below* the no-skill floor ([`references.md`](references.md) §1.2)
+is exactly this failure: acting on a noisy negative number. Using the optimistic bound is
+the same honesty rule the eval report already applies — a claim is established only when
+the interval excludes the threshold.
+
+Track A/B unified the predicate (`retirement_decision`) but kept the point-estimate test
+so the walk could land without changing measurement semantics. This ADR is that change.
+
+## Decision
+
+1. **Bench when, and only when,** `applications >= evidence_floor` **and**
+   `interval_high` is present **and** `interval_high < −τ`.
+2. **No interval is no decision.** A missing estimate *or* a missing `interval_high` is
+   `no_estimate` / `no_interval`. The skill is kept. Judge-only samples already produce
+   `estimate is None` (Track B); they still cannot retire.
+3. **The bound is strict.** `interval_high == −τ` is not confident harm. `τ = 0`
+   (`HARSH_AUTONOMY`) benches only when the interval is entirely negative — the same
+   test as `classify_lift` → `established_negative`.
+4. **One predicate.** `retirement_decision` is still the only bench function.
+   `propose_retirements` and `maybe_bench_on_contribution` stay adapters. They pass
+   `interval_high` through; they do not re-derive a second interval.
+5. **Restore is unchanged.** `restore_benched` remains an operator / Curator action,
+   not an automatic flip when the interval widens.
+
+## Non-goals
+
+- Deleting `_recompute_active_set_legacy` (RW-PC; still waits on the Phase-2
+  measurement report).
+- Interval-based *promotion*. Shadow → candidate still uses the point lift bar.
+- Changing `evidence_floor` or `retirement_threshold` defaults.
+
+## Consequences
+
+- Existing skills with a negative point estimate and a wide interval stay active.
+  That is the intended correction, not a regression.
+- Tests that retired on `estimate <= −τ` without an interval must supply
+  `interval_high < −τ` or they now expect `keep`.
+- The floor property in ADR-0006 still holds: cap and `τ` remain finite. The interval
+  rule makes retirement *harder*, which is the direction the harsh-ablation evidence
+  requires.
+
+<a id="ch-adr-0017-version-write-budget"></a>
+
+> Source: [`adr/0017-version-write-budget.md`](adr/0017-version-write-budget.md)
+
+# ADR-0017: Version-write budget is a first-class dimension
+
+- **Status:** accepted
+- **Date:** 2026-08-17
+
+## Context
+
+`Budget.max_versions_written` (default 2) and `Spend.versions_written` have been on the
+contract since the budget split. Architecture docs say the cap is enforced at `store`.
+It was not. `budget_excess` never read the dimension. `store` never incremented spend.
+A run could author without bound while the meter reported `versions_written = 0`.
+
+That is the same class of lie Track A/B closed for retrieve (stale index rebuilt itself)
+and for contribution (judge-only samples minted an estimate). A documented bound that
+does not fire is worse than no bound: operators read the default and believe the walk
+is finite.
+
+`store` is a terminal node (`store → finalize` only). Enforcing the cap must not add a
+route or a sixteenth node ([ADR-0005](adr/0005-self-modification-boundary.md),
+[ADR-0015](adr/0015-improvement-plane-search.md)).
+
+## Decision
+
+1. **`budget_excess` includes `versions_written`.** Same machinery as attempts and tool
+   calls. `BudgetReservation` carries the dimension so a requested write is counted
+   before it happens. The test is `spent + reserved + requested > max` (inclusive cap).
+2. **`distill` is the named gate.** `_version_write_budget` runs after the eval / arm /
+   existing-skill gates and before `_author_or_reject`. An exhausted write budget is
+   `one_off` — not a new draft. The route already exists.
+3. **`review` refuses an approval that cannot be stored.** Same predicate, existing
+   `rejected` route. A policy yes does not override a spent cap.
+4. **`store` is the hard stop.** A hop that would exceed raises. This is a leaked gate,
+   not a soft skip. `store` still always finalises *after* a successful write.
+5. **`charge_version_write` in `recertia.nodes.attempt` is the sole writer of
+   `spent.versions_written`.** Attempt-scoped dimensions stay on `AttemptMeter`. The
+   version counter is not attempt-scoped (writes happen at `store`, not `solve`) but
+   it still must not be hand-rolled at the node. The spend-accounting AST fence stays
+   closed.
+6. **The orchestrator asserts the invariant** after every hop:
+   `spent.versions_written <= budget.max_versions_written`. A violation is a
+   `RoutingError`, not a swallowed skip.
+7. **No `ROUTES` edit.** Distill `one_off` and review `rejected` already leave the
+   write path.
+
+## Non-goals
+
+- Charging fact writes or ledger appends against this cap. The dimension is skill
+  versions, matching the field name.
+- Per-branch version caps. Fan-out copies the parent `max_versions_written`; the run
+  spend is shared.
+- Changing the default of 2.
+
+## Consequences
+
+- A run that already stored `max_versions_written` versions will not author another
+  candidate. The solved work still finalises; it is recorded as one-off evidence.
+- `max_versions_written = 0` is a finite cap that admits no writes.
+- Schema regeneration is required (`BudgetReservation.versions_written`).
 
 ---
 

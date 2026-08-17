@@ -111,6 +111,12 @@
           "minimum": 0,
           "title": "Cost Usd",
           "type": "number"
+        },
+        "versions_written": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Versions Written",
+          "type": "integer"
         }
       },
       "title": "BudgetReservation",
@@ -437,7 +443,8 @@
         "tool_calls": 0,
         "tokens": 0,
         "wall_clock_s": 0.0,
-        "cost_usd": 0.0
+        "cost_usd": 0.0,
+        "versions_written": 0
       }
     },
     "results": {

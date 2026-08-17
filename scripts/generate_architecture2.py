@@ -87,6 +87,8 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "adr/0013-openai-compat-gateways.md",
             "adr/0014-goal-packs-as-migration-programs.md",
             "adr/0015-improvement-plane-search.md",
+            "adr/0016-interval-bounded-retirement.md",
+            "adr/0017-version-write-budget.md",
         ),
     ),
     (

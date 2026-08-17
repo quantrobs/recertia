@@ -44,6 +44,7 @@ class BudgetReservation(BaseModel):
     tokens: int = Field(default=0, ge=0)
     wall_clock_s: float = Field(default=0.0, ge=0)
     cost_usd: float = Field(default=0.0, ge=0)
+    versions_written: int = Field(default=0, ge=0)
 
 
 def budget_excess(
@@ -57,6 +58,9 @@ def budget_excess(
         "tokens": spent.tokens + reservation.tokens + requested.tokens,
         "wall_clock_s": spent.wall_clock_s + reservation.wall_clock_s + requested.wall_clock_s,
         "cost_usd": spent.cost_usd + reservation.cost_usd + requested.cost_usd,
+        "versions_written": (
+            spent.versions_written + reservation.versions_written + requested.versions_written
+        ),
     }
     limits = {
         "attempts": budget.max_attempts,
@@ -64,6 +68,7 @@ def budget_excess(
         "tokens": budget.max_tokens,
         "wall_clock_s": budget.max_wall_clock_s,
         "cost_usd": budget.max_cost_usd,
+        "versions_written": budget.max_versions_written,
     }
     for dimension, limit in limits.items():
         if limit is not None and totals[dimension] > limit:
@@ -81,5 +86,6 @@ def commit_reservation(spent: Spend, reservation: BudgetReservation) -> Spend:
             "tokens": spent.tokens + reservation.tokens,
             "wall_clock_s": spent.wall_clock_s + reservation.wall_clock_s,
             "cost_usd": spent.cost_usd + reservation.cost_usd,
+            "versions_written": spent.versions_written + reservation.versions_written,
         }
     )

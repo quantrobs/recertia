@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Retirement benches on `interval_high < −τ`, not the point estimate (ADR-0016).
+  A missing interval cannot retire.
+- `budget_excess` includes `versions_written`. Distill / review refuse a write
+  that would exceed `max_versions_written`; `store` is the hard stop (ADR-0017).
 - Extract Method on the walk: `solve` is a strategy switch into sibling modules,
   `distill` is named honesty gates, `Retriever.search` is stage calls, `_execute`
   is hop / route / snapshot / checkpoint.
@@ -23,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ADR-0016 (interval-bounded retirement) and ADR-0017 (version-write budget).
+- `charge_version_write` — sole writer of `spent.versions_written`.
 - `assemble_bundle` shared by retrieve and the debug query. Affordance flake
   thresholds live on `RetrievalConfig`.
 - `GraphOrchestrator(on_finalize=...)` callback. Eval recording moved to the

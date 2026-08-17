@@ -206,6 +206,22 @@ class AttemptMeter:
         )
 
 
+def charge_version_write(state: RunState) -> RunState:
+    """Sole writer of ``spent.versions_written`` (ADR-0017). Store hop only.
+
+    Attempt-scoped dimensions stay on :class:`AttemptMeter`. Version writes happen at
+    ``store``, not ``solve``, so they are not folded into ``commit``.
+    """
+
+    return state.model_copy(
+        update={
+            "spent": state.spent.model_copy(
+                update={"versions_written": state.spent.versions_written + 1}
+            )
+        }
+    )
+
+
 def record_new_affordances(ctx: NodeContext, window: RuntimeWindow) -> None:
     """Record only what this window observed; the affordance store outlives the attempt."""
 
