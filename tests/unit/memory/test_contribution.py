@@ -41,7 +41,9 @@ def test_estimate_contribution_skips_without_required_non_judge() -> None:
     )
     assert contrib.interval_low is None
     assert contrib.interval_high is None
-    assert contrib.estimate == pytest.approx(0.4)
+    assert contrib.estimate is None
+    assert contrib.applications == 100
+    assert contrib.suppressed_applications == 0
 
 
 def test_estimate_retrieval_ablation_records_class_effect() -> None:

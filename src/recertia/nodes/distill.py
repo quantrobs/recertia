@@ -18,81 +18,108 @@ from recertia.nodes.context import NodeContext, NodeOutcome
 
 
 def distill(state: RunState, ctx: NodeContext) -> NodeOutcome:
-    # Eval firewall (specs §19): fixture runs must not write episodic / draft / facts / store.
-    if state.task.is_eval_fixture:
-        verdict = ReusabilityVerdict(
-            verdict="one_off",
-            parameterisable=False,
-            context_free=True,
-            checkable=True,
-            not_duplicate=True,
-            bounded=True,
-            reason="eval firewall: fixture run — distillation and memory writes suppressed",
-        )
-        return NodeOutcome(
-            state=state.model_copy(update={"reusability": verdict, "draft": None, "facts_extracted": []}),
-            route="one_off",
-            note=verdict.reason,
-        )
+    blocked = _eval_firewall(state) or _arm_must_not_learn(state)
+    if blocked is not None:
+        return blocked
+    _record_solved_case(state, ctx)
+    applied = _existing_skill_is_evidence(state, ctx)
+    if applied is not None:
+        return applied
+    return _author_or_reject(state, ctx)
 
-    # Non-treatment arms: measure without learning — before any episodic/fact/draft writes.
-    if state.arm in ("control", "shadow"):
-        verdict = ReusabilityVerdict(
-            verdict="one_off",
-            parameterisable=False,
-            context_free=True,
-            checkable=True,
-            not_duplicate=True,
-            bounded=True,
-            reason=f"{state.arm} arm — distillation suppressed",
-        )
-        return NodeOutcome(
-            state=state.model_copy(update={"reusability": verdict}),
-            route="one_off",
-            note=verdict.reason,
-        )
 
-    # Always record the solved attempt episodically (M2 behaviour retained) for non-fixture runs.
-    if ctx.episodic is not None:
-        approach = (
-            f"skill:{state.chosen.skill_id}@v{state.chosen.version}"
-            if state.chosen
-            else f"strategy:{state.strategy or 'scratch'}"
-        )
-        case = CaseRecord(
-            case_id=f"{ctx.run_id}-a{state.attempt_no}",
-            run_id=ctx.run_id,
-            attempt_no=state.attempt_no,
-            task_class=state.task.task_class,
-            request_excerpt=(state.task.request or "")[:200],
-            outcome="solved",
-            transcript_ref=state.transcript_ref,
-            approach=approach,
-            skill_id=state.chosen.skill_id if state.chosen else None,
-            skill_version=state.chosen.version if state.chosen else None,
-            session_id=state.task.submitted_by or ctx.run_id,
-        )
-        ctx.episodic.write(case)
+def _eval_firewall(state: RunState) -> NodeOutcome | None:
+    """Eval firewall (specs §19): fixture runs must not write episodic / draft / facts / store."""
 
-    # Applying an existing skill is evidence, not a new library entry (unless scratch).
-    if state.strategy in ("apply", "adapt") and state.chosen is not None:
-        _note_apply_session(ctx, state)
-        verdict = ReusabilityVerdict(
-            verdict="one_off",
-            parameterisable=True,
-            context_free=True,
-            checkable=True,
-            not_duplicate=True,
-            bounded=True,
-            reason=(
-                f"solved via existing skill {state.chosen.skill_id}@v{state.chosen.version}; "
-                "recorded as evidence, not a new draft"
-            ),
-        )
-        _record_one_off(ctx, state, verdict)
-        new_state = state.model_copy(update={"reusability": verdict, "facts_extracted": []})
-        return NodeOutcome(state=new_state, route="one_off", note=verdict.reason)
+    if not state.task.is_eval_fixture:
+        return None
+    verdict = ReusabilityVerdict(
+        verdict="one_off",
+        parameterisable=False,
+        context_free=True,
+        checkable=True,
+        not_duplicate=True,
+        bounded=True,
+        reason="eval firewall: fixture run — distillation and memory writes suppressed",
+    )
+    return NodeOutcome(
+        state=state.model_copy(update={"reusability": verdict, "draft": None, "facts_extracted": []}),
+        route="one_off",
+        note=verdict.reason,
+    )
 
+
+def _arm_must_not_learn(state: RunState) -> NodeOutcome | None:
+    """Non-treatment arms: measure without learning — before any episodic/fact/draft writes."""
+
+    if state.arm not in ("control", "shadow"):
+        return None
+    verdict = ReusabilityVerdict(
+        verdict="one_off",
+        parameterisable=False,
+        context_free=True,
+        checkable=True,
+        not_duplicate=True,
+        bounded=True,
+        reason=f"{state.arm} arm — distillation suppressed",
+    )
+    return NodeOutcome(
+        state=state.model_copy(update={"reusability": verdict}),
+        route="one_off",
+        note=verdict.reason,
+    )
+
+
+def _record_solved_case(state: RunState, ctx: NodeContext) -> None:
+    """Always record the solved attempt episodically (M2 behaviour retained) for non-fixture runs."""
+
+    if ctx.episodic is None:
+        return
+    approach = (
+        f"skill:{state.chosen.skill_id}@v{state.chosen.version}"
+        if state.chosen
+        else f"strategy:{state.strategy or 'scratch'}"
+    )
+    case = CaseRecord(
+        case_id=f"{ctx.run_id}-a{state.attempt_no}",
+        run_id=ctx.run_id,
+        attempt_no=state.attempt_no,
+        task_class=state.task.task_class,
+        request_excerpt=(state.task.request or "")[:200],
+        outcome="solved",
+        transcript_ref=state.transcript_ref,
+        approach=approach,
+        skill_id=state.chosen.skill_id if state.chosen else None,
+        skill_version=state.chosen.version if state.chosen else None,
+        session_id=state.task.submitted_by or ctx.run_id,
+    )
+    ctx.episodic.write(case)
+
+
+def _existing_skill_is_evidence(state: RunState, ctx: NodeContext) -> NodeOutcome | None:
+    """Applying an existing skill is evidence, not a new library entry (unless scratch)."""
+
+    if not (state.strategy in ("apply", "adapt") and state.chosen is not None):
+        return None
+    _note_apply_session(ctx, state)
+    verdict = ReusabilityVerdict(
+        verdict="one_off",
+        parameterisable=True,
+        context_free=True,
+        checkable=True,
+        not_duplicate=True,
+        bounded=True,
+        reason=(
+            f"solved via existing skill {state.chosen.skill_id}@v{state.chosen.version}; "
+            "recorded as evidence, not a new draft"
+        ),
+    )
+    _record_one_off(ctx, state, verdict)
+    new_state = state.model_copy(update={"reusability": verdict, "facts_extracted": []})
+    return NodeOutcome(state=new_state, route="one_off", note=verdict.reason)
+
+
+def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
     prior = load_authoring_prior()
     commands = _commands_from_context(state, ctx)
     sightings = _task_class_sightings(ctx, state.task.task_class)

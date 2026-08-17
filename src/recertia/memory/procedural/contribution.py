@@ -18,15 +18,24 @@ def estimate_contribution(
     *,
     shadow: BinomialSample,
     suppression: BinomialSample,
-    has_required_non_judge: bool = True,
+    has_required_non_judge: bool,
 ) -> Contribution:
-    """Estimate one skill's effect from randomized shadow/suppression samples."""
+    """Estimate one skill's effect from randomized shadow/suppression samples.
 
-    if (
-        not has_required_non_judge
-        or shadow.trials == 0
-        or suppression.trials == 0
-    ):
+    ``has_required_non_judge`` is required: a judge-only sample pair is not a
+    contribution input (specs §24.2 / references.md §1.8). Callers must compute
+    the flag from the observation set, not inherit a default.
+    """
+
+    if not has_required_non_judge:
+        # Preserve the shadow counts for audit; drop the suppression arm so
+        # ``Contribution.estimate`` is the Blind Curator ``None``.
+        return Contribution(
+            applications=shadow.trials,
+            successes=shadow.successes,
+            last_evaluated_at=datetime.now(timezone.utc),
+        )
+    if shadow.trials == 0 or suppression.trials == 0:
         return Contribution(
             applications=shadow.trials,
             successes=shadow.successes,

@@ -176,6 +176,22 @@ def build_default_orchestrator(
             runs_root=runs_root / "review-runs",
         )
 
+    def _record_eval(state) -> None:
+        if state.terminal is None:
+            return
+        try:
+            from recertia.evals.store import EvalStore, ObservationError
+
+            eval_store = EvalStore(runs_root / "evals.db")
+            try:
+                eval_store.append_run(state)
+            except ObservationError:
+                return
+            finally:
+                eval_store.close()
+        except Exception:  # noqa: BLE001 — eval recording must not fail runs
+            return
+
     orch = GraphOrchestrator(
         runs_root,
         store=store,
@@ -192,6 +208,7 @@ def build_default_orchestrator(
         # Empty fingerprint: only mismatch when both sides declare a tool.
         env_fingerprint=env_fingerprint if env_fingerprint is not None else {},
         policy=policy,
+        on_finalize=_record_eval,
     )
     # Share the same WorkspaceManager the applicator uses for attempt isolation.
     orch.workspaces = workspaces

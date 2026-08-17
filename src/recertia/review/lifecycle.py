@@ -12,6 +12,7 @@ from recertia.memory.procedural.contribution import (
     estimate_retrieval_ablation,
     trust_score,
 )
+from recertia.memory.procedural.retirement import retirement_decision
 from recertia.memory.procedural.store import SkillStore
 from recertia.review.autonomy_config import DEFAULT_AUTONOMY, AutonomyConfig
 
@@ -51,6 +52,7 @@ def maybe_advance_shadow_to_candidate(
     contrib = estimate_contribution(
         shadow=shadow,
         suppression=suppression,
+        has_required_non_judge=shadow.trials > 0 and suppression.trials > 0,
     )
     # High trust + zero/None lift must NOT auto-promote.
     lift = contrib.estimate
@@ -175,16 +177,23 @@ def maybe_bench_on_contribution(
         task_class=task_class,
     )
     apps = shadow.trials
-    if apps < config.evidence_floor:
+    contrib = estimate_contribution(
+        shadow=shadow,
+        suppression=suppression,
+        has_required_non_judge=shadow.trials > 0 and suppression.trials > 0,
+    )
+    decision = retirement_decision(
+        applications=apps,
+        estimate=contrib.estimate,
+        evidence_floor=config.evidence_floor,
+        tau=config.retirement_threshold,
+    )
+    if decision.action == "below_floor":
         raise LifecycleError(
             f"below evidence floor ({apps} < {config.evidence_floor}); never bench"
         )
-    contrib = estimate_contribution(
-        shadow=shadow, suppression=suppression
-    )
-    est = contrib.estimate
-    if est is None or est > -config.retirement_threshold:
-        raise LifecycleError(f"contribution not negative enough: estimate={est}")
+    if not decision.should_retire:
+        raise LifecycleError(f"contribution not negative enough: estimate={contrib.estimate}")
     benched = status.model_copy(
         update={
             "lifecycle": "benched",
@@ -192,7 +201,7 @@ def maybe_bench_on_contribution(
             "retirement": Retirement(
                 benched_at=datetime.now(timezone.utc),
                 reason="negative_contribution",
-                evidence=f"estimate={est}",
+                evidence=decision.evidence or f"estimate={contrib.estimate}",
             ),
         }
     )
@@ -213,7 +222,7 @@ def maybe_bench_on_contribution(
             actor="m5-retirement",
             action="deprecate",
             target=f"{skill_id}@v{version}",
-            evidence={"estimate": est, "state": "benched"},
+            evidence={"estimate": contrib.estimate, "state": "benched"},
             at=datetime.now(timezone.utc),
         )
     # Parents of a benched child → needs_recert (M5 + M8).

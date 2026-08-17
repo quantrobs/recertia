@@ -30,6 +30,7 @@ from typing import Literal
 from contracts.skill import SkillVersion
 from contracts.stats import SkillStats
 from contracts.status import SkillStatus
+from recertia.memory.procedural.retirement import retirement_decision
 from recertia.review.autonomy_config import AutonomyConfig
 
 _NEG_INF = float("-inf")
@@ -207,18 +208,21 @@ def propose_retirements(
 
     proposals: list[RetirementProposal] = []
     for item in ranked:
-        if item.applications < config.evidence_floor:
-            continue
-        estimate = item.contribution_estimate
-        if estimate is None or estimate > -config.retirement_threshold:
+        decision = retirement_decision(
+            applications=item.applications,
+            estimate=item.contribution_estimate,
+            evidence_floor=config.evidence_floor,
+            tau=config.retirement_threshold,
+        )
+        if not decision.should_retire:
             continue
         proposals.append(
             RetirementProposal(
                 skill_id=item.skill_id,
                 version=item.version,
                 reason="negative_contribution",
-                evidence=f"estimate={estimate}",
-                contribution_estimate=estimate,
+                evidence=decision.evidence,
+                contribution_estimate=item.contribution_estimate,
                 applications=item.applications,
             )
         )

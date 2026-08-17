@@ -75,3 +75,55 @@ def test_nodes_must_not_import_replay_surface() -> None:
             if name == "recertia.replay" or name.startswith("recertia.replay.")
         }
         assert not violating, f"{source_path} imports replay surface {violating}"
+
+
+def test_nodes_and_graph_must_not_import_lifecycle() -> None:
+    """The walk cannot bench. Lifecycle writes stay on the improvement plane."""
+
+    forbidden = "recertia.review.lifecycle"
+    roots = (
+        REPO_ROOT / "src" / "recertia" / "nodes",
+        REPO_ROOT / "src" / "recertia" / "graph",
+    )
+    for root in roots:
+        for source_path in root.rglob("*.py"):
+            imported = _imported_module_names(source_path)
+            violating = {
+                name
+                for name in imported
+                if name == forbidden or name.startswith(forbidden + ".")
+            }
+            assert not violating, f"{source_path} imports lifecycle {violating}"
+
+
+def test_retrieve_plan_solve_must_not_write_memory() -> None:
+    """Read-only nodes cannot call ``.write(`` on episodic / facts."""
+
+    names = ("retrieve.py", "plan.py")
+    names += tuple(p.name for p in (REPO_ROOT / "src" / "recertia" / "nodes").glob("solve*.py"))
+    nodes_dir = REPO_ROOT / "src" / "recertia" / "nodes"
+    for name in names:
+        source_path = nodes_dir / name
+        if not source_path.exists():
+            continue
+        tree = ast.parse(source_path.read_text(), filename=str(source_path))
+        writes = []
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "write"
+            ):
+                writes.append(node.lineno)
+        assert writes == [], f"{source_path.name} calls .write( on lines {writes}"
+
+
+def test_retrieve_cannot_maintain_the_index() -> None:
+    source_path = REPO_ROOT / "src" / "recertia" / "nodes" / "retrieve.py"
+    tree = ast.parse(source_path.read_text(), filename=str(source_path))
+    forbidden = {"rebuild", "upsert"}
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in forbidden:
+            hits.append((node.attr, node.lineno))
+    assert hits == [], f"retrieve.py touches index maintenance {hits}"

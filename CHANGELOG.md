@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Extract Method on the walk: `solve` is a strategy switch into sibling modules,
+  `distill` is named honesty gates, `Retriever.search` is stage calls, `_execute`
+  is hop / route / snapshot / checkpoint.
+- Split `SearchCapability` from `IndexMaintenance`. The retrieve node cannot
+  rebuild or upsert. Debug `federated_query` refuses a stale index instead of
+  rebuilding it.
+- One `retirement_decision` predicate. `propose_retirements` and
+  `maybe_bench_on_contribution` are adapters. The Curator job now applies
+  proposals; `recompute_active_set` still does not bench.
+- `estimate_contribution(..., has_required_non_judge)` is required. Judge-only
+  samples produce `estimate is None`.
+
+### Added
+
+- `assemble_bundle` shared by retrieve and the debug query. Affordance flake
+  thresholds live on `RetrievalConfig`.
+- `GraphOrchestrator(on_finalize=...)` callback. Eval recording moved to the
+  composition root so `recertia.graph` no longer imports `EvalStore`.
+
 ## [0.1.0] - 2026-08-15
 
 First public preview. Engineering through M0–M9 is on `main`. Operator-mode GA

@@ -106,11 +106,17 @@ def jobs_run(
                 draft = enqueue_mined_candidate(store, proposal)
                 typer.echo(f"candidate {draft.skill_id}@v{draft.version}")
     elif name in {"curator", "curate"}:
-        result = runner.run(
-            "curator",
-            lambda: curator_active_set_and_dedup(store, trajectory_store=traj_store),
-            budget=budget,
-        )
+        eval_store = EvalStore(runs_root / "evals.db")
+        try:
+            result = runner.run(
+                "curator",
+                lambda: curator_active_set_and_dedup(
+                    store, trajectory_store=traj_store, eval_store=eval_store
+                ),
+                budget=budget,
+            )
+        finally:
+            eval_store.close()
     elif name == "practice":
         explicit = list(one_off) if one_off else None
         episodic = EpisodicStore(runs_root / "episodic")

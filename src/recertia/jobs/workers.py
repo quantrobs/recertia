@@ -42,14 +42,20 @@ def curator_active_set_and_dedup(
     *,
     trajectory_store: TrajectoryStore | None = None,
     replay_limit: int = 50,
+    eval_store: EvalStore | None = None,
+    config: AutonomyConfig | None = None,
+    ledger=None,
 ) -> list[Proposal]:
-    """Recompute the active set and attach retrieval-only ReplayPacks when trajectories exist."""
+    """Recompute the active set, propose retirements, attach retrieval-only ReplayPacks."""
 
     from recertia.memory.procedural.active_set import recompute_active_set
+    from recertia.memory.procedural.portfolio import propose_retirements, rank_skills
     from recertia.replay.pack import build_replay_pack
     from recertia.replay.sample import sample_trajectories_for_skill
+    from recertia.review.lifecycle import LifecycleError, maybe_bench_on_contribution
 
-    _updated, pressure = recompute_active_set(store)
+    cfg = config or DEFAULT_AUTONOMY
+    _updated, pressure = recompute_active_set(store, config=cfg, eval_store=eval_store)
     mean_pressure = (
         sum(pressure.values()) / len(pressure) if pressure else 0.0
     )
@@ -65,6 +71,43 @@ def curator_active_set_and_dedup(
             },
         )
     ]
+
+    # Cap pass must not bench. Retirement is a separate evidence-of-harm decision.
+    if eval_store is not None:
+        by_class: dict[str, list] = {}
+        for version, status, stats in store.iter_loaded():
+            if status.lifecycle == "approved":
+                by_class.setdefault(version.task_class, []).append((version, status, stats))
+        for _task_class, rows in by_class.items():
+            for proposal in propose_retirements(rank_skills(rows, cfg), cfg):
+                try:
+                    maybe_bench_on_contribution(
+                        store,
+                        proposal.skill_id,
+                        proposal.version,
+                        eval_store=eval_store,
+                        config=cfg,
+                        ledger=ledger,
+                    )
+                    proposals.append(
+                        Proposal(
+                            kind="curate",
+                            skill_id=proposal.skill_id,
+                            version=proposal.version,
+                            rationale=(
+                                f"benched {proposal.skill_id}@v{proposal.version}: "
+                                f"{proposal.evidence}"
+                            ),
+                            payload={
+                                "retirement": True,
+                                "evidence": proposal.evidence,
+                                "estimate": proposal.contribution_estimate,
+                            },
+                        )
+                    )
+                except LifecycleError:
+                    continue
+
     if trajectory_store is None:
         return proposals
 
