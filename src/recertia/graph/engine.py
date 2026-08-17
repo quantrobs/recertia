@@ -9,6 +9,7 @@ class only validates that a node's chosen route is legal and walks the resulting
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,7 +23,7 @@ from recertia.graph.ops import OperationLedger
 from recertia.graph.store import CheckpointStore
 from recertia.ledger import HashChainLedger
 from recertia.memory.procedural.capability import CandidateSkillStoreAdapter
-from recertia.nodes import NODE_FUNCS, NodeContext
+from recertia.nodes import NODE_FUNCS, NodeContext, NodeOutcome
 from recertia.trajectory.emitter import TrajectoryEmitter
 from recertia.trajectory.store import TrajectoryStore
 from recertia.workspace import WorkspaceManager
@@ -68,6 +69,7 @@ class GraphOrchestrator:
         reviewer: "ReviewService | None" = None,
         one_off_log: Path | None = None,
         policy: "Policy | None" = None,
+        on_finalize: Callable[["RunState"], None] | None = None,
     ) -> None:
         self.runs_root = Path(runs_root)
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -89,6 +91,7 @@ class GraphOrchestrator:
         self.reviewer = reviewer
         self.one_off_log = one_off_log
         self.policy = policy
+        self.on_finalize = on_finalize
         self.trajectories = TrajectoryStore(self.runs_root / "trajectories")
         self._trajectory_emitter = TrajectoryEmitter()
 
@@ -131,22 +134,85 @@ class GraphOrchestrator:
             return
 
     def _record_eval_observation(self, state: RunState) -> None:
-        """Best-effort eval append for the field off-ramp; never fails the run."""
+        """Best-effort finalize hook; never fails the run."""
 
-        if state.terminal is None:
+        if self.on_finalize is None or state.terminal is None:
             return
         try:
-            from recertia.evals.store import EvalStore, ObservationError
-
-            store = EvalStore(self.runs_root / "evals.db")
-            try:
-                store.append_run(state)
-            except ObservationError:
-                return
-            finally:
-                store.close()
+            self.on_finalize(state)
         except Exception:  # noqa: BLE001 — eval recording must not fail runs
             return
+
+    def _build_node_context(
+        self,
+        *,
+        state: RunState,
+        node_name: str,
+        workdir: Path,
+        script: list[str] | None,
+        attempt_no: int,
+    ) -> NodeContext:
+        return NodeContext(
+            run_id=state.run_id,
+            attempt_no=attempt_no,
+            node=node_name,
+            workdir=workdir,
+            workspaces=self.workspaces,
+            ledger=self.ledger,
+            ops=self.ops,
+            script=script,
+            retriever=self.retriever,
+            index=self.retriever,
+            store=(
+                CandidateSkillStoreAdapter(self.store) if self.store is not None else None
+            ),
+            env_fingerprint=self.env_fingerprint,
+            tools=self.tools,
+            model=self.model,
+            verifier_model=self.verifier_model,
+            transcripts=self.transcripts,
+            applicator=self.applicator,
+            episodic=self.episodic,
+            affordances=self.affordances,
+            facts=self.facts,
+            reviewer=self.reviewer,
+            one_off_log=self.one_off_log,
+            deterministic_guide=bool(
+                self.policy is not None and self.policy.improvement.deterministic_guide
+            ),
+        )
+
+    def _choose_route(self, node_name: str, outcome: NodeOutcome):
+        legal = legal_routes(node_name, outcome.state)
+        if outcome.route is not None:
+            chosen = next((r for r in legal if r.predicate_name == outcome.route), None)
+            if chosen is None:
+                raise RoutingError(
+                    f"node {node_name!r} chose illegal route {outcome.route!r}; "
+                    f"legal routes for this state: {[r.predicate_name for r in legal]}"
+                )
+            return chosen
+        if len(legal) != 1:
+            raise RoutingError(
+                f"node {node_name!r} produced an ambiguous state with no explicit route: "
+                f"{[r.predicate_name for r in legal]}; the node must choose"
+            )
+        return legal[0]
+
+    def _ensure_pre_solve_snapshot(
+        self, state: RunState, chosen, workdir: Path
+    ) -> RunState:
+        if chosen.target != "solve" or state.workspace_snapshots:
+            return state
+        ref = self.workspaces.snapshot(workdir, state.run_id, attempt_no=0)
+        return state.model_copy(
+            update={
+                "workspace_snapshots": [
+                    WorkspaceSnapshot(attempt_no=0, snapshot_ref=ref, restored=False)
+                ]
+            }
+        )
+
 
     def start(
         self,
@@ -228,33 +294,12 @@ class GraphOrchestrator:
                 return state
 
             attempt_no_for_ctx = state.attempt_no + 1 if node_name == "solve" else state.attempt_no
-            ctx = NodeContext(
-                run_id=state.run_id,
-                attempt_no=attempt_no_for_ctx,
-                node=node_name,
+            ctx = self._build_node_context(
+                state=state,
+                node_name=node_name,
                 workdir=workdir,
-                workspaces=self.workspaces,
-                ledger=self.ledger,
-                ops=self.ops,
                 script=script,
-                retriever=self.retriever,
-                store=(
-                    CandidateSkillStoreAdapter(self.store) if self.store is not None else None
-                ),
-                env_fingerprint=self.env_fingerprint,
-                tools=self.tools,
-                model=self.model,
-                verifier_model=self.verifier_model,
-                transcripts=self.transcripts,
-                applicator=self.applicator,
-                episodic=self.episodic,
-                affordances=self.affordances,
-                facts=self.facts,
-                reviewer=self.reviewer,
-                one_off_log=self.one_off_log,
-                deterministic_guide=bool(
-                    self.policy is not None and self.policy.improvement.deterministic_guide
-                ),
+                attempt_no=attempt_no_for_ctx,
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state
@@ -272,31 +317,8 @@ class GraphOrchestrator:
                 self._record_eval_observation(new_state)
                 return new_state
 
-            legal = legal_routes(node_name, new_state)
-            if outcome.route is not None:
-                chosen = next((r for r in legal if r.predicate_name == outcome.route), None)
-                if chosen is None:
-                    raise RoutingError(
-                        f"node {node_name!r} chose illegal route {outcome.route!r}; "
-                        f"legal routes for this state: {[r.predicate_name for r in legal]}"
-                    )
-            else:
-                if len(legal) != 1:
-                    raise RoutingError(
-                        f"node {node_name!r} produced an ambiguous state with no explicit route: "
-                        f"{[r.predicate_name for r in legal]}; the node must choose"
-                    )
-                chosen = legal[0]
-
-            if chosen.target == "solve" and not new_state.workspace_snapshots:
-                ref = self.workspaces.snapshot(workdir, state.run_id, attempt_no=0)
-                new_state = new_state.model_copy(
-                    update={
-                        "workspace_snapshots": [
-                            WorkspaceSnapshot(attempt_no=0, snapshot_ref=ref, restored=False)
-                        ]
-                    }
-                )
+            chosen = self._choose_route(node_name, outcome)
+            new_state = self._ensure_pre_solve_snapshot(new_state, chosen, workdir)
 
             route_entry = RouteEntry(
                 node=node_name,

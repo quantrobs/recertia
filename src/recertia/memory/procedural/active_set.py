@@ -171,7 +171,11 @@ def _pool_for_class(
                 (version.skill_id, version.version),
                 (empty_sample, empty_sample),
             )
-            contribution = estimate_contribution(shadow=shadow, suppression=suppression)
+            contribution = estimate_contribution(
+                shadow=shadow,
+                suppression=suppression,
+                has_required_non_judge=shadow.trials > 0 and suppression.trials > 0,
+            )
             updated_stats = stats.model_copy(update={"contribution": contribution})
             if updated_stats != stats:
                 store.write_stats(updated_stats)

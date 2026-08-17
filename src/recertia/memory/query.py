@@ -1,4 +1,7 @@
-"""Federated retrieve debug across procedural / semantic / episodic planes (RW-SUR)."""
+"""Federated retrieve debug across procedural / semantic / episodic planes (RW-SUR).
+
+Read-only: a stale index is refused, never rebuilt.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +12,14 @@ from recertia.memory.affordance import AffordanceStore
 from recertia.memory.episodic import EpisodicStore
 from recertia.memory.procedural.store import SkillStore
 from recertia.memory.semantic import FactStore
+from recertia.retrieval.bundle import assemble_bundle
+from recertia.retrieval.config import RetrievalConfig
 from recertia.retrieval.index import SkillIndex
 from recertia.retrieval.pipeline import Retriever
+
+
+class IndexStaleError(RuntimeError):
+    """Debug query refused because the on-disk index does not match the library."""
 
 
 def federated_query(
@@ -25,14 +34,22 @@ def federated_query(
     limit: int = 8,
     affordance_path: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Score + drop reasons across planes. Does not start a run."""
+    """Score + drop reasons across planes. Does not start a run. Does not mutate the index."""
 
     store = SkillStore(skills_root)
     index = SkillIndex(index_path)
     try:
         fingerprint = store.library_fingerprint()
         if not index.is_fresh(fingerprint):
-            index.rebuild(store.iter_loaded(), library_fingerprint=fingerprint)
+            return {
+                "query": query,
+                "error": "index_stale",
+                "snapshot_id": index.snapshot_id(),
+                "skills": {"returned": [], "dropped": [], "demoted": []},
+                "facts": [],
+                "cases": [],
+                "affordances": {"tools": [], "resources": []},
+            }
         retriever = Retriever(index)
         bundle, explanation = retriever.search(
             query,
@@ -42,12 +59,20 @@ def federated_query(
     finally:
         index.close()
 
-    facts = FactStore(facts_root).retrieve(query, limit=limit)
+    facts_store = FactStore(facts_root)
     episodic = EpisodicStore(episodic_root)
-    cases = episodic.list_index()[-limit:]
+    aff = AffordanceStore(affordance_path) if affordance_path is not None else None
+    assembled = assemble_bundle(
+        skills=list(bundle.skills),
+        query=query,
+        task_class=None,
+        episodic=episodic,
+        facts=facts_store,
+        affordances=aff,
+        config=retriever.config if "retriever" in locals() else RetrievalConfig(),
+    )
     affordances: dict[str, Any] = {"tools": [], "resources": []}
-    if affordance_path is not None:
-        aff = AffordanceStore(affordance_path)
+    if aff is not None:
         affordances = {
             "tools": [
                 {
@@ -68,7 +93,7 @@ def federated_query(
         "skills": {
             "returned": [
                 {"skill_id": c.skill_id, "version": c.version, "score": c.score}
-                for c in bundle.skills
+                for c in assembled.skills
             ],
             "dropped": [
                 {
@@ -89,7 +114,13 @@ def federated_query(
                 for sid, ver, score, reason in explanation.demoted
             ],
         },
-        "facts": [f.model_dump(mode="json") for f in facts],
-        "cases": cases,
+        "facts": [f.model_dump(mode="json") for f in facts_store.retrieve(query, limit=limit)],
+        "cases": episodic.list_index()[-limit:],
         "affordances": affordances,
+        "bundle_citations": {
+            "dead_ends": len(assembled.dead_ends),
+            "cases": len(assembled.cases),
+            "tool_cautions": len(assembled.tool_cautions),
+            "facts": len(assembled.facts),
+        },
     }

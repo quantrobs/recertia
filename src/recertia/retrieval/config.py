@@ -27,6 +27,12 @@ class RetrievalConfig:
     staleness_half_life_days: float = 90.0
     """Score halves every this many days since last successful application / certification."""
 
+    affordance_flake_rate: float = 0.3
+    """Retrieve cites a tool caution at or above this flake rate (was a magic 0.3)."""
+
+    affordance_min_invocations: int = 3
+    """Minimum tool invocations before a flake rate becomes a caution."""
+
     # Environment fingerprint: tools whose versions must match when present on both sides.
     # A mismatch is a hard drop (precondition filter), not a demotion.
     env_fingerprint_tools: tuple[str, ...] = field(default_factory=lambda: ("python", "uv", "mypy", "pytest"))

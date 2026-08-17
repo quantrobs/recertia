@@ -6,8 +6,10 @@ tool cautions (M2). Control arm still returns an empty suppressed bundle.
 
 from __future__ import annotations
 
-from contracts.run import MemoryBundle, MemoryElementRef, RunState, Task
+from contracts.run import MemoryBundle, RunState, Task
 from recertia.nodes.context import NodeContext, NodeOutcome
+from recertia.retrieval.bundle import assemble_bundle
+from recertia.retrieval.config import RetrievalConfig
 
 
 def retrieval_query(*, request: str | None, goal_context: str | None, goal_terms: str = "") -> str:
@@ -67,6 +69,7 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
     skills = []
     snapshot_id = None
     dropped = 0
+    config = RetrievalConfig()
     if ctx.retriever is not None:
         bundle, explanation = ctx.retriever.search(
             query,
@@ -77,56 +80,16 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
         skills = list(bundle.skills)
         snapshot_id = explanation.snapshot_id
         dropped = len(explanation.dropped)
+        config = getattr(ctx.retriever, "config", config)
 
-    dead_ends: list[MemoryElementRef] = []
-    cases: list[MemoryElementRef] = []
-    if ctx.episodic is not None:
-        for case in ctx.episodic.dead_ends_for(task_class=state.task.task_class, limit=3):
-            dead_ends.append(
-                MemoryElementRef(
-                    plane="episodic",
-                    ref=case.case_id,
-                    summary=(case.dead_end.why_failed if case.dead_end else case.outcome),
-                )
-            )
-        for case_id in ctx.episodic.solved_case_ids_for(
-            task_class=state.task.task_class, limit=3
-        ):
-            cases.append(
-                MemoryElementRef(plane="episodic", ref=case_id, summary="solved analogue")
-            )
-
-    tool_cautions: list[MemoryElementRef] = []
-    if ctx.affordances is not None:
-        for name, agg in ctx.affordances.tools.items():
-            if agg.flake_rate >= 0.3 and agg.invocations >= 3:
-                tool_cautions.append(
-                    MemoryElementRef(
-                        plane="affordance",
-                        ref=name,
-                        summary=f"flake_rate={agg.flake_rate:.2f}",
-                        trust=1.0 - agg.flake_rate,
-                    )
-                )
-
-    facts: list[MemoryElementRef] = []
-    if ctx.facts is not None:
-        for fact in ctx.facts.retrieve(query, limit=10):
-            facts.append(
-                MemoryElementRef(
-                    plane="semantic",
-                    ref=fact.fact_id,
-                    summary=fact.assertion[:200],
-                    trust=fact.confidence,
-                )
-            )
-
-    bundle = MemoryBundle(
+    bundle = assemble_bundle(
         skills=skills,
-        facts=facts,
-        cases=cases,
-        dead_ends=dead_ends,
-        tool_cautions=tool_cautions,
+        query=query,
+        task_class=state.task.task_class,
+        episodic=ctx.episodic,
+        facts=ctx.facts,
+        affordances=ctx.affordances,
+        config=config,
     )
     state_updates: dict = {"bundle": bundle}
     if snapshot_id is not None:
@@ -135,7 +98,7 @@ def retrieve(state: RunState, ctx: NodeContext) -> NodeOutcome:
         )
     new_state = state.model_copy(update=state_updates)
     note = (
-        f"snapshot={snapshot_id} skills={len(skills)} dead_ends={len(dead_ends)} "
-        f"cautions={len(tool_cautions)} dropped={dropped}"
+        f"snapshot={snapshot_id} skills={len(skills)} dead_ends={len(bundle.dead_ends)} "
+        f"cautions={len(bundle.tool_cautions)} dropped={dropped}"
     )
     return NodeOutcome(state=new_state, route="always", note=note)

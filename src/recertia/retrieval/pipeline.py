@@ -112,16 +112,43 @@ class Retriever:
         if suppress:
             return MemoryBundle(suppressed=True), explanation
 
-        # One query embedding shared by the vector scan and the rerank stage.
-        q_emb = embed_text(query)
-        lexical = self._index.lexical_top_k(query, cfg.lexical_top_k)
-        vector = self._index.vector_top_k(query, cfg.vector_top_k, q_emb=q_emb)
+        q_emb, lexical, vector = self._generate_candidates(query)
         explanation.lexical_hits = lexical
         explanation.vector_hits = vector
 
         merged = reciprocal_rank_fusion([lexical, vector], k=cfg.rrf_k)
         explanation.merged = merged
 
+        survivors = self._filter_merged(
+            merged, workdir, env_fingerprint, readable_scopes, explanation
+        )
+        reranked = self._rerank(survivors, query, q_emb)
+        floored = self._apply_score_floor(reranked, explanation)
+        final = self._apply_demotions(floored, explanation)
+        candidates = self._top_candidates(final, lexical, vector)
+
+        explanation.returned = candidates
+        return MemoryBundle(skills=candidates), explanation
+
+    def _generate_candidates(
+        self, query: str
+    ) -> tuple[list[float], list[tuple[str, int, float]], list[tuple[str, int, float]]]:
+        """One query embedding shared by the vector scan and the rerank stage."""
+
+        cfg = self.config
+        q_emb = embed_text(query)
+        lexical = self._index.lexical_top_k(query, cfg.lexical_top_k)
+        vector = self._index.vector_top_k(query, cfg.vector_top_k, q_emb=q_emb)
+        return q_emb, lexical, vector
+
+    def _filter_merged(
+        self,
+        merged: list[tuple[str, int, float]],
+        workdir: Path,
+        env_fingerprint: dict[str, str],
+        readable_scopes: set[str],
+        explanation: RetrievalExplanation,
+    ) -> list[tuple[str, int, float, dict]]:
         fetched = self._index.get_rows((sid, ver) for sid, ver, _ in merged)
         survivors: list[tuple[str, int, float, dict]] = []
         for sid, ver, rrf_score in merged:
@@ -133,12 +160,17 @@ class Retriever:
                 explanation.dropped.append(drop)
                 continue
             survivors.append((sid, ver, rrf_score, row))
+        return survivors
 
-        # Rerank top N against the query by cosine over the stored document embedding,
-        # blended with lexical overlap. Hashed bag-of-words embeddings are coarse; overlap
-        # carries most of the signal for short chore-style queries. The stored embedding is
-        # exactly embed_text(row["document"]) computed at index time, so rerank reuses it
-        # instead of re-embedding every candidate document.
+    def _rerank(
+        self,
+        survivors: list[tuple[str, int, float, dict]],
+        query: str,
+        q_emb: list[float],
+    ) -> list[tuple[str, int, float, dict]]:
+        """Rerank top N by cosine + lexical overlap. Thin tail keeps a capped RRF score."""
+
+        cfg = self.config
         reranked: list[tuple[str, int, float, dict]] = []
         for sid, ver, rrf, row in survivors[: cfg.rerank_top_n]:
             doc_emb = self._index.embedding_for(sid, ver)
@@ -153,7 +185,14 @@ class Retriever:
         for sid, ver, rrf, row in survivors[cfg.rerank_top_n :]:
             reranked.append((sid, ver, min(rrf * 20.0, cfg.min_score), row))
         reranked.sort(key=lambda t: t[2], reverse=True)
+        return reranked
 
+    def _apply_score_floor(
+        self,
+        reranked: list[tuple[str, int, float, dict]],
+        explanation: RetrievalExplanation,
+    ) -> list[tuple[str, int, float, dict]]:
+        cfg = self.config
         floored: list[tuple[str, int, float, dict]] = []
         for sid, ver, score, row in reranked:
             if score < cfg.min_score:
@@ -162,7 +201,13 @@ class Retriever:
                 )
                 continue
             floored.append((sid, ver, score, row))
+        return floored
 
+    def _apply_demotions(
+        self,
+        floored: list[tuple[str, int, float, dict]],
+        explanation: RetrievalExplanation,
+    ) -> list[tuple[str, int, float, dict]]:
         final: list[tuple[str, int, float, dict]] = []
         for sid, ver, score, row in floored:
             demoted_score, demote_reason = self._demote(score, row)
@@ -170,11 +215,18 @@ class Retriever:
                 explanation.demoted.append((sid, ver, demoted_score, demote_reason))
             final.append((sid, ver, demoted_score, row))
         final.sort(key=lambda t: t[2], reverse=True)
+        return final
 
+    def _top_candidates(
+        self,
+        final: list[tuple[str, int, float, dict]],
+        lexical: list[tuple[str, int, float]],
+        vector: list[tuple[str, int, float]],
+    ) -> list[SkillCandidateRef]:
         lexical_ranks = {(sid, ver): i for i, (sid, ver, _) in enumerate(lexical, start=1)}
         vector_ranks = {(sid, ver): i for i, (sid, ver, _) in enumerate(vector, start=1)}
         candidates: list[SkillCandidateRef] = []
-        for sid, ver, score, _row in final[: cfg.max_candidates]:
+        for sid, ver, score, _row in final[: self.config.max_candidates]:
             candidates.append(
                 SkillCandidateRef(
                     skill_id=sid,
@@ -184,9 +236,8 @@ class Retriever:
                     vector_rank=vector_ranks.get((sid, ver)),
                 )
             )
+        return candidates
 
-        explanation.returned = candidates
-        return MemoryBundle(skills=candidates), explanation
 
     def _filter_row(
         self,

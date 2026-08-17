@@ -34,12 +34,12 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
                 stored = ctx.facts.write(fact)
                 written_facts.append(stored.fact_id)
 
-        if ctx.retriever is not None:
+        if ctx.index is not None:
             # Index just the new candidate. write_candidate always persists exactly this
             # status/stats pair, and the refreshed fingerprint keeps startup rebuild-skip
             # accurate. Anything else that changed on disk (e.g. stats from applies) is
             # picked up by the next fingerprint-mismatch rebuild.
-            ctx.retriever.upsert(
+            ctx.index.upsert(
                 version,
                 SkillStatus(
                     skill_id=version.skill_id,

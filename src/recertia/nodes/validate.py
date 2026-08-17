@@ -9,6 +9,7 @@ from __future__ import annotations
 import functools
 import json
 import operator
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +144,21 @@ def score_certification_observations(state: RunState, ctx: NodeContext) -> list[
                 )
             )
     return observations
+
+
+def score_owned_criteria(
+    criteria: Sequence[CriterionLike], ctx: NodeContext
+) -> list[CriterionResult]:
+    """Score caller-owned criteria against ``ctx.workdir`` (no advisory downgrade).
+
+    Used by decomposition branches, which own a subset of the parent criteria and must
+    not import the private scoring helper.
+    """
+
+    return [
+        CriterionResult.model_validate(_score_criterion_dict(criterion, ctx))
+        for criterion in criteria
+    ]
 
 
 def _score_criterion_dict(criterion: CriterionLike, ctx: NodeContext) -> dict:

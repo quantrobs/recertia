@@ -55,8 +55,8 @@ class LedgerCapability(Protocol):
     ) -> LedgerEntry: ...
 
 
-class RetrieverCapability(Protocol):
-    """Search + index maintenance without exposing the backing ``SkillIndex``."""
+class SearchCapability(Protocol):
+    """Search + snapshot identity. Retrieve/evolve never see index writes."""
 
     def search(
         self,
@@ -67,6 +67,12 @@ class RetrieverCapability(Protocol):
         readable_scopes: set[str] | None = None,
         suppress: bool = False,
     ) -> tuple[MemoryBundle, RetrievalExplanation]: ...
+
+    def snapshot_id(self) -> str: ...
+
+
+class IndexMaintenance(Protocol):
+    """Index writes. Only the store node receives this."""
 
     def rebuild(
         self,
@@ -85,6 +91,32 @@ class RetrieverCapability(Protocol):
     ) -> str: ...
 
     def snapshot_id(self) -> str: ...
+
+
+class RetrieverCapability(SearchCapability, IndexMaintenance, Protocol):
+    """Full retriever. Prefer ``SearchCapability`` at call sites."""
+
+    def is_fresh(self, library_fingerprint: str) -> bool: ...
+
+
+class EpisodicRead(Protocol):
+    """Read-only episodic lookups used by retrieve / evolve / plan."""
+
+    def dead_ends_for(self, *, task_class: str | None = None, limit: int = 3) -> list[Any]: ...
+
+    def solved_case_ids_for(self, *, task_class: str | None = None, limit: int = 3) -> list[str]: ...
+
+    def list_index(self) -> list[dict[str, Any]]: ...
+
+    def count_for_task_class(self, task_class: str | None) -> int: ...
+
+    def approach_still_applies(self, dead_end: Any, *, current_approach: str) -> bool: ...
+
+
+class FactRead(Protocol):
+    """Read-only fact lookup used by retrieve."""
+
+    def retrieve(self, query: str, *, scope: str = "project", limit: int = 10) -> list[Any]: ...
 
 
 class SkillStoreCapability(Protocol):
@@ -122,7 +154,8 @@ class NodeContext:
     ledger: LedgerCapability
     ops: OperationRunner
     script: list[str] | None = None
-    retriever: RetrieverCapability | None = None
+    retriever: SearchCapability | None = None
+    index: IndexMaintenance | None = None
     store: SkillStoreCapability | None = None
     env_fingerprint: dict[str, str] = field(default_factory=dict)
     # Solver / memory services
