@@ -226,7 +226,11 @@ def maybe_bench_on_contribution(
             actor="m5-retirement",
             action="deprecate",
             target=f"{skill_id}@v{version}",
-            evidence={"estimate": contrib.estimate, "interval_high": contrib.interval_high, "state": "benched"},
+            evidence={
+                "estimate": contrib.estimate,
+                "interval_high": contrib.interval_high,
+                "state": "benched",
+            },
             at=datetime.now(timezone.utc),
         )
     # Parents of a benched child → needs_recert (M5 + M8).
