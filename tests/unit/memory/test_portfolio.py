@@ -314,13 +314,18 @@ def test_select_active_admits_nobody_for_a_non_positive_cap() -> None:
 # ---------------------------------------------------------------------------
 
 
+_UNSET: object = object()
+
+
 def _item(
     skill_id: str,
     *,
     estimate: float | None,
     applications: int,
     version: int = 1,
+    interval_high: float | None | object = _UNSET,
 ) -> PortfolioRankItem:
+    high: float | None = estimate if interval_high is _UNSET else interval_high  # type: ignore[assignment]
     return PortfolioRankItem(
         skill_id=skill_id,
         version=version,
@@ -329,32 +334,33 @@ def _item(
         applications=applications,
         last_used_at=None,
         score=estimate if estimate is not None else float("-inf"),
+        interval_high=high,
     )
 
 
-def test_retirement_is_inclusive_at_the_threshold_boundary() -> None:
+def test_retirement_requires_interval_strictly_below_minus_tau() -> None:
     floor = DEFAULT_AUTONOMY.evidence_floor
-    at_boundary = _item("bd-at", estimate=-DEFAULT_AUTONOMY.retirement_threshold, applications=floor)
-    just_inside = _item("bd-in", estimate=-0.2, applications=floor)
-    just_outside = _item("bd-out", estimate=-0.04, applications=floor)
-    proposals = propose_retirements(
-        [at_boundary, just_inside, just_outside], DEFAULT_AUTONOMY
-    )
-    assert [p.skill_id for p in proposals] == ["bd-at", "bd-in"]
+    tau = DEFAULT_AUTONOMY.retirement_threshold
+    at_bound = _item("bd-at", estimate=-tau, applications=floor, interval_high=-tau)
+    strictly_below = _item("bd-in", estimate=-0.2, applications=floor, interval_high=-0.2)
+    above = _item("bd-out", estimate=-0.04, applications=floor, interval_high=-0.04)
+    proposals = propose_retirements([at_bound, strictly_below, above], DEFAULT_AUTONOMY)
+    assert [p.skill_id for p in proposals] == ["bd-in"]
     assert all(p.reason == "negative_contribution" for p in proposals)
 
 
-def test_harsh_autonomy_retires_an_estimate_of_exactly_zero() -> None:
+def test_harsh_autonomy_retires_only_when_interval_is_entirely_negative() -> None:
     assert HARSH_AUTONOMY.retirement_threshold == 0.0
     floor = HARSH_AUTONOMY.evidence_floor
     proposals = propose_retirements(
         [
-            _item("harsh-zero", estimate=0.0, applications=floor),
-            _item("harsh-positive", estimate=0.01, applications=floor),
+            _item("harsh-zero", estimate=0.0, applications=floor, interval_high=0.0),
+            _item("harsh-neg", estimate=-0.2, applications=floor, interval_high=-0.01),
+            _item("harsh-positive", estimate=0.01, applications=floor, interval_high=0.01),
         ],
         HARSH_AUTONOMY,
     )
-    assert [p.skill_id for p in proposals] == ["harsh-zero"]
+    assert [p.skill_id for p in proposals] == ["harsh-neg"]
 
 
 def test_retirement_refuses_below_the_evidence_floor() -> None:
@@ -375,13 +381,18 @@ def test_retirement_refuses_a_null_estimate_however_many_applications() -> None:
 
 
 def test_retirement_proposal_carries_the_lifecycle_evidence_string() -> None:
-    item = _item("ev", estimate=-0.375, applications=DEFAULT_AUTONOMY.evidence_floor)
+    item = _item(
+        "ev",
+        estimate=-0.375,
+        applications=DEFAULT_AUTONOMY.evidence_floor,
+        interval_high=-0.375,
+    )
     assert propose_retirements([item], DEFAULT_AUTONOMY) == [
         RetirementProposal(
             skill_id="ev",
             version=1,
             reason="negative_contribution",
-            evidence="estimate=-0.375",
+            evidence="interval_high=-0.375",
             contribution_estimate=-0.375,
             applications=DEFAULT_AUTONOMY.evidence_floor,
         )
@@ -399,12 +410,11 @@ def test_retirement_matches_the_lifecycle_bench_guard_over_a_grid() -> None:
                 continue
             for estimate in estimates:
                 item = _item("grid", estimate=estimate, applications=applications)
-                # Transcribed from review/lifecycle.py: raise below the floor, then raise
-                # unless the estimate is present and negative enough.
                 benchable = not (
                     applications < config.evidence_floor
                     or estimate is None
-                    or estimate > -config.retirement_threshold
+                    or item.interval_high is None
+                    or item.interval_high >= -config.retirement_threshold
                 )
                 assert bool(propose_retirements([item], config)) is benchable
 

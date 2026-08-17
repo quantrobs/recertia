@@ -303,6 +303,12 @@ class GraphOrchestrator:
             )
             outcome = NODE_FUNCS[node_name](state, ctx)
             new_state = outcome.state
+            if new_state.spent.versions_written > new_state.budget.max_versions_written:
+                raise RoutingError(
+                    f"run {state.run_id!r} wrote {new_state.spent.versions_written} "
+                    f"versions; budget.max_versions_written="
+                    f"{new_state.budget.max_versions_written}"
+                )
 
             if node_name == "finalize":
                 self._emit_trajectory(

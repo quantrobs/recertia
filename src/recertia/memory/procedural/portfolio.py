@@ -44,6 +44,9 @@ class PortfolioRankItem:
 
     * ``contribution_estimate`` — ``SkillStats.contribution.estimate`` (``None`` under the
       Blind Curator nullity: no estimate without both randomized arms, specs §24.2).
+    * ``interval_high`` — ``SkillStats.contribution.interval_high``. The Newcombe–Wilson
+      optimistic bound; ``retirement_decision`` benches on this, not the point estimate
+      (ADR-0016).
     * ``predictive_trust`` — ``SkillStats.predictive_trust.score``.
     * ``applications`` — ``SkillStats.contribution.applications``, i.e. the shadow-arm
       trial count, **not** ``predictive_trust.applications``. This is the same quantity
@@ -62,6 +65,7 @@ class PortfolioRankItem:
     score: float
     # Extension point (unused in v1): future "liquid" | "glass" | "crystal" fidelity ladder.
     fidelity: str | None = None
+    interval_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -162,6 +166,7 @@ def rank_skills(
                 if stats.contribution.estimate is not None
                 else _NEG_INF
             ),
+            interval_high=stats.contribution.interval_high,
         )
         for version, _status, stats in candidates
     ]
@@ -195,12 +200,13 @@ def propose_retirements(
     A skill is proposed when, and only when::
 
         applications >= config.evidence_floor
-        and contribution_estimate is not None
-        and contribution_estimate <= -config.retirement_threshold
+        and interval_high is not None
+        and interval_high < -config.retirement_threshold
 
     These are exactly the conditions ``review.lifecycle.maybe_bench_on_contribution``
-    enforces, boundary included, so ``retirement_threshold=0.0`` (``HARSH_AUTONOMY``) makes
-    an estimate of exactly ``0.0`` retirable in both places.
+    enforces (ADR-0016). A point estimate at or below ``-τ`` without an interval does
+    not retire. ``retirement_threshold=0.0`` (``HARSH_AUTONOMY``) benches only when
+    the interval is entirely negative.
 
     Cap-pressure benching stays outside this function: it is a capacity decision, not an
     evidence-of-harm decision, and it remains on the existing policy path.
@@ -211,6 +217,7 @@ def propose_retirements(
         decision = retirement_decision(
             applications=item.applications,
             estimate=item.contribution_estimate,
+            interval_high=item.interval_high,
             evidence_floor=config.evidence_floor,
             tau=config.retirement_threshold,
         )

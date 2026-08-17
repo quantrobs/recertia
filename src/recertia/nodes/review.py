@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contracts.budget import BudgetReservation, budget_excess
 from contracts.run import RunState
 from contracts.skill import SkillVersion
 from recertia.nodes.context import NodeContext, NodeOutcome
@@ -25,5 +26,19 @@ def review(state: RunState, ctx: NodeContext) -> NodeOutcome:
 
     note = f"{decision.outcome}: {decision.note or ''}".strip()
     if decision.outcome == "approved":
+        if (
+            budget_excess(
+                state.budget,
+                state.spent,
+                state.reserved,
+                BudgetReservation(versions_written=1),
+            )
+            == "versions_written"
+        ):
+            return NodeOutcome(
+                state=state,
+                route="rejected",
+                note="version write budget exhausted",
+            )
         return NodeOutcome(state=state, route="approved", note=note)
     return NodeOutcome(state=state, route="rejected", note=note)

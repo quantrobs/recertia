@@ -71,3 +71,10 @@ already produces one. The two mechanisms compose rather than competing for the s
   is visible rather than silently discarding value.
 - Adopting the cap without the evidence floor would reproduce the harsh-retirement failure, so
   the two defaults must be changed together and are validated jointly in the eval harness.
+
+## Amendment — interval-bounded retirement (2026-08-17)
+
+Decision 2's point-estimate test (`ĉ(s) ≤ −τ`) is superseded by
+[ADR-0016](0016-interval-bounded-retirement.md): bench only when `interval_high < −τ`.
+The evidence floor, reversible benching, and finite cap are unchanged.
+

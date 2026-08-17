@@ -83,7 +83,7 @@ The library is capped, and skills are retired on measured contribution. See
 | **Retrieval ablation** | Class-level effect of retrieval available vs suppressed (randomized at the retrieval boundary) | — |
 | **Contribution** | `ĉ(s) =` shadow success rate minus this skill's suppressed success rate; success from required non-`judge` criteria only | — |
 | **Evidence floor** | No retirement decision before this many shadow applications | 30 |
-| **Retirement threshold** | Bench when `ĉ(s) ≤ −τ` and the evidence floor is met | `τ = 0.10` |
+| **Retirement threshold** | Bench when `interval_high < −τ` and the evidence floor is met ([ADR-0016](../adr/0016-interval-bounded-retirement.md)) | `τ = 0.10` |
 | **Shadow / exploration slots** | Bounded offline slots for `benched` and inactive `approved` versions; never expand the active set | 3 / class |
 | **Low evidence** | Score-demote in ranking; never drop | — |
 
@@ -96,8 +96,10 @@ rule, that bound does not exist at all — which is the configuration the earlie
 **Retirement that measures the right thing.** Contribution is this skill's lift under
 randomized shadow versus suppression, not a raw success ratio and not a class-level control
 baseline subtracted from a selected skill. Class-level retrieval help is a separate
-`RetrievalAblationEffect`. And contribution is scored from required non-`judge` criteria only: a
-false-pass-biased model judge does not add noise to retirement, it *switches retirement off*
+`RetrievalAblationEffect`. Retirement reads the Newcombe–Wilson optimistic bound
+(`interval_high < −τ`), not the point estimate ([ADR-0016](../adr/0016-interval-bounded-retirement.md)).
+And contribution is scored from required non-`judge` criteria only: a false-pass-biased
+model judge does not add noise to retirement, it *switches retirement off*
 ([`references.md`](../references.md) §1.8), so a skill whose only required criteria are
 model-scored has `contribution = null` rather than a flattering estimate.
 

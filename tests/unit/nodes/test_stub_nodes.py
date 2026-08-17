@@ -116,6 +116,7 @@ def test_store_writes_skill_and_ledger(base_state: RunState, ctx: NodeContext, t
     state = base_state.model_copy(update={"draft": version.model_dump(mode="json")})
     outcome = store(state, ctx)
     assert outcome.route == "always"
+    assert outcome.state.spent.versions_written == 1
     assert ctx.store.get_status("unit-demo-skill", 1).lifecycle == "candidate"
     entries = ctx.ledger.entries()
     assert entries[-1].action == "write"

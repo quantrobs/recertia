@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contracts.budget import BudgetReservation, budget_excess
 from contracts.fact import Fact
 from contracts.run import RunState
 from contracts.skill import SkillVersion
@@ -9,12 +10,23 @@ from contracts.stats import SkillStats
 from contracts.status import SkillStatus
 from recertia.memory.procedural.hygiene import require_clean
 from recertia.nodes._util import now
+from recertia.nodes.attempt import charge_version_write
 from recertia.nodes.context import NodeContext, NodeOutcome
 
 
 def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
     if not state.draft:
         raise ValueError("store called without a draft")
+    if (
+        budget_excess(
+            state.budget,
+            state.spent,
+            state.reserved,
+            BudgetReservation(versions_written=1),
+        )
+        == "versions_written"
+    ):
+        raise ValueError("store called with versions_written budget exhausted")
 
     def _write() -> dict:
         version = SkillVersion.model_validate(state.draft)
@@ -72,18 +84,20 @@ def store(state: RunState, ctx: NodeContext) -> NodeOutcome:
         }
 
     summary = ctx.op_once(0, _write)
-    new_state = state.model_copy(
-        update={
-            "written_versions": [
-                *state.written_versions,
-                {
-                    "skill_id": summary["skill_id"],
-                    "version": summary["version"],
-                    "ledger_entry_seq": summary["ledger_entry_seq"],
-                    "facts": summary["facts"],
-                },
-            ]
-        }
+    new_state = charge_version_write(
+        state.model_copy(
+            update={
+                "written_versions": [
+                    *state.written_versions,
+                    {
+                        "skill_id": summary["skill_id"],
+                        "version": summary["version"],
+                        "ledger_entry_seq": summary["ledger_entry_seq"],
+                        "facts": summary["facts"],
+                    },
+                ]
+            }
+        )
     )
     return NodeOutcome(
         state=new_state,
