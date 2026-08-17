@@ -5838,8 +5838,8 @@ so the walk could land without changing measurement semantics. This ADR is that 
 
 ## Non-goals
 
-- Deleting `_recompute_active_set_legacy` (RW-PC; still waits on the Phase-2
-  measurement report).
+- Deleting the dual active-set path. That was RW-PC, shipped after the
+  [Phase-2 measurement report](architecture/portfolio-measurement.md).
 - Interval-based *promotion*. Shadow → candidate still uses the point lift bar.
 - Changing `evidence_floor` or `retirement_threshold` defaults.
 
