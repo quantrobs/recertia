@@ -33,6 +33,7 @@ the chapter text itself is inlined here so this file is readable offline.
 - [Recertia Architecture: 5. Task plane](#ch-architecture-task-plane) — `architecture/task-plane.md`
 - [Recertia Architecture: 6. Skill algebra: composition and hierarchy](#ch-architecture-skill-composition) — `architecture/skill-composition.md`
 - [Recertia Architecture: 7. Promotion, trust, and library capacity](#ch-architecture-library-lifecycle) — `architecture/library-lifecycle.md`
+- [Phase-2 portfolio measurement report](#ch-architecture-portfolio-measurement) — `architecture/portfolio-measurement.md`
 - [Recertia Architecture: 8. Improvement plane](#ch-architecture-improvement-plane) — `architecture/improvement-plane.md`
 - [Recertia Architecture: 9. Storage choices](#ch-architecture-operations) — `architecture/operations.md`
 - [Container sandbox setup](#ch-architecture-container-sandbox) — `architecture/container-sandbox.md`
@@ -680,6 +681,90 @@ retrieval set, bounded shadow/exploration slots exist so it can still gather res
 evidence offline. Because a cap means good skills can be benched by competition rather than by
 poor performance, `active_cap_pressure` is tracked so a chronically saturated cap is visible
 instead of silently discarding value.
+
+<a id="ch-architecture-portfolio-measurement"></a>
+
+> Source: [`architecture/portfolio-measurement.md`](architecture/portfolio-measurement.md)
+
+# Phase-2 portfolio measurement report
+
+- **Status:** accepted
+- **Date:** 2026-08-17
+- **Closes:** RW-PC
+- **Evidence:** `tests/unit/memory/test_portfolio_equivalence.py` (pre-expiry
+  differential suite) and `tests/unit/memory/test_portfolio.py`
+
+## Question
+
+May the pure controller in `recertia.memory.procedural.portfolio` become the only
+path through `recompute_active_set`?
+
+ADR-0005 puts "which skills are retrievable" at T3. A dual implementation behind
+`RECERTIA_PORTFOLIO_CONTROLLER` is therefore scaffolding, not operator config. It
+survives only as long as it is proving something. This report is that proof.
+
+## What was compared
+
+Two implementations of the same contract, on the same fixture library, with and
+without an eval store:
+
+| Path | Ranking | Cap cut |
+| --- | --- | --- |
+| Legacy (`_recompute_active_set_legacy`) | `(estimate, trust)` then directory walk | slice |
+| Controller (`rank_skills` + `select_active`) | estimate, trust, recency, applications, `(skill_id, version)` | first `cap` |
+
+Shared orchestrator (`_pool_for_class`, `_apply_active_bits`):
+
+- Refresh contribution from non-judge shadow/suppression when an eval store is
+  present.
+- Narrow the ranking pool to live-mix-eligible rows with a non-`None` estimate
+  when that evidence exists; otherwise fall back to approved live-mix-eligible.
+- Write active bits. Never bench. Cap pressure is
+  `max(0, approved − cap) / cap`.
+
+The fixture is not vacuous: the cap binds in `repo-chore`, bits flip, stats and
+class-level ablation writes fire on the eval-store branch, and a second task
+class with no randomized evidence exercises the fallback.
+
+## Result
+
+On every cap in `{0, 1, 2, 3, 4, 5, 50}` without an eval store, and on
+`{0, 1, 3, 4, 50}` with one:
+
+- returned statuses match
+- pressure dicts match
+- on-disk active bits match
+- `write_status` / `write_stats` / `write_retrieval_ablation` sequences match
+
+except the two ranking differences named below. Those are not regressions.
+They are the spec.
+
+## Intended differences (spec §24.1)
+
+1. **Recency breaks a full estimate+trust tie.** Legacy inherited
+   `list_versions` order (ascending `skill_id`). The controller consults
+   `predictive_trust.last_used_at` next. A stale `aa-*` no longer beats a
+   fresh `zz-*` for the last slot.
+2. **Version is numeric.** Legacy inherited the directory walk's string order
+   (`v10` before `v2`). The controller compares `version` as an integer, so
+   `v2` precedes `v10`.
+
+Neither difference changes who is *eligible*, who is *benched*, or how
+pressure is computed. `recompute_active_set` still does not call
+`propose_retirements`. Retirement stays on the Curator (Track B).
+
+## Production default
+
+The flag defaulted off, so production ran the legacy ranker. Folding the
+controller in changes only those two tiebreaks. Both match
+[library-authoring-and-concurrency.md](specifications/library-authoring-and-concurrency.md)
+§24.1. No other observable on the fixture moves.
+
+## Decision
+
+Delete `_recompute_active_set_legacy` and `RECERTIA_PORTFOLIO_CONTROLLER`.
+`recompute_active_set` is the controller path. The dual implementation is no
+longer evidence; it is a T3-adjacent knob.
 
 <a id="ch-architecture-improvement-plane"></a>
 
@@ -1618,7 +1703,7 @@ time.
 | **RW-A** | research | Resolve `a1`, `a2`; instrument `a4` on live verifier versions | harness ready |
 | **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
 | **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | gated (JobRunner no-op without predicates) |
-| **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | Phase-2 expiry |
+| **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | shipped |
 | **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0–OR3 shipped |
 | **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | shipped (C5 UI still gated) |
 | **RW-GP3** | deferred | Goal-pack auto-advance, DAG, `copy_forward` | explicit non-goal |
@@ -1639,7 +1724,7 @@ RW-GA  Operator-GA closeout (ops on shipped code)                 Phase 1 remain
 RW-M2  Probe cadence + MetricReport completeness                  Phase 2 remaining
 RW-A   Assumption status changes from traffic                     research, never a merge gate
 RW-LY  library_yield + retrieval_decay                            Phase 3 remaining CI
-RW-PC  Portfolio controller is the only path                      end of Phase 2
+RW-PC  Portfolio controller is the only path                      shipped
 RW-OR  OR1 docs/cost gate, OR2 robustness, OR3 presets            parallel with RW-GA
 RW-SUR Error envelope + remaining HTTP/CLI                        parallel; not a GA gate
 RW-HEX HEX / compress enablement                                  after a1 interval exists
@@ -1754,21 +1839,15 @@ report can show yield/decay or an honest hole; no silent zeros.
 
 ### RW-PC — Portfolio dual-path expiry
 
-`recompute_active_set` still has a legacy implementation behind
-`RECERTIA_PORTFOLIO_CONTROLLER`. That flag is T3-adjacent scaffolding, not operator
-config ([`active_set.py`](../src/recertia/memory/procedural/active_set.py)).
+**Shipped.** The Phase-2 measurement report is
+[`portfolio-measurement.md`](architecture/portfolio-measurement.md).
+`_recompute_active_set_legacy` and `RECERTIA_PORTFOLIO_CONTROLLER` are deleted.
+`recompute_active_set` ranks through `rank_skills` / `select_active` only.
+`tests/unit/memory/test_portfolio_equivalence.py` expiry guard is green because
+both are gone.
 
-Interval-bounded retirement ([ADR-0016](adr/0016-interval-bounded-retirement.md))
-and the version-write budget ([ADR-0017](adr/0017-version-write-budget.md)) shipped
-without deleting the dual path.
-
-**Done when:** `docs/architecture/portfolio-measurement.md` exists (Phase-2
-measurement report); `_recompute_active_set_legacy` and the env flag are deleted;
-`tests/unit/memory/test_portfolio_equivalence.py` expiry guard is green because both
-are gone.
-
-Do **not** delete the dual path before the measurement report: the equivalence tests
-are the proof the pure controller may become the only path.
+The two ranking differences versus the deleted legacy path (recency tiebreak,
+integer version) match specs §24.1. Cap membership still does not bench.
 
 ### RW-HEX — Enablement (blocked)
 

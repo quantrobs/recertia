@@ -34,7 +34,7 @@ time.
 | **RW-A** | research | Resolve `a1`, `a2`; instrument `a4` on live verifier versions | harness ready |
 | **RW-LY** | engineering | `library_yield` and `retrieval_decay` on `MetricReport` | shipped (honest `unavailable` when sparse) |
 | **RW-HEX** | gated engineering | Enable `practice_hex_search` / `curator_compress` | gated (JobRunner no-op without predicates) |
-| **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | Phase-2 expiry |
+| **RW-PC** | engineering | Delete dual active-set path after Phase-2 measurement report | shipped |
 | **RW-OR** | engineering | OpenRouter OR1–OR3 polish | OR0–OR3 shipped |
 | **RW-SUR** | engineering | Remaining CLI/HTTP + unified error envelope | shipped (C5 UI still gated) |
 | **RW-GP3** | deferred | Goal-pack auto-advance, DAG, `copy_forward` | explicit non-goal |
@@ -55,7 +55,7 @@ RW-GA  Operator-GA closeout (ops on shipped code)                 Phase 1 remain
 RW-M2  Probe cadence + MetricReport completeness                  Phase 2 remaining
 RW-A   Assumption status changes from traffic                     research, never a merge gate
 RW-LY  library_yield + retrieval_decay                            Phase 3 remaining CI
-RW-PC  Portfolio controller is the only path                      end of Phase 2
+RW-PC  Portfolio controller is the only path                      shipped
 RW-OR  OR1 docs/cost gate, OR2 robustness, OR3 presets            parallel with RW-GA
 RW-SUR Error envelope + remaining HTTP/CLI                        parallel; not a GA gate
 RW-HEX HEX / compress enablement                                  after a1 interval exists
@@ -170,21 +170,15 @@ report can show yield/decay or an honest hole; no silent zeros.
 
 ### RW-PC — Portfolio dual-path expiry
 
-`recompute_active_set` still has a legacy implementation behind
-`RECERTIA_PORTFOLIO_CONTROLLER`. That flag is T3-adjacent scaffolding, not operator
-config ([`active_set.py`](../../src/recertia/memory/procedural/active_set.py)).
+**Shipped.** The Phase-2 measurement report is
+[`portfolio-measurement.md`](portfolio-measurement.md).
+`_recompute_active_set_legacy` and `RECERTIA_PORTFOLIO_CONTROLLER` are deleted.
+`recompute_active_set` ranks through `rank_skills` / `select_active` only.
+`tests/unit/memory/test_portfolio_equivalence.py` expiry guard is green because
+both are gone.
 
-Interval-bounded retirement ([ADR-0016](../adr/0016-interval-bounded-retirement.md))
-and the version-write budget ([ADR-0017](../adr/0017-version-write-budget.md)) shipped
-without deleting the dual path.
-
-**Done when:** `docs/architecture/portfolio-measurement.md` exists (Phase-2
-measurement report); `_recompute_active_set_legacy` and the env flag are deleted;
-`tests/unit/memory/test_portfolio_equivalence.py` expiry guard is green because both
-are gone.
-
-Do **not** delete the dual path before the measurement report: the equivalence tests
-are the proof the pure controller may become the only path.
+The two ranking differences versus the deleted legacy path (recency tiebreak,
+integer version) match specs §24.1. Cap membership still does not bench.
 
 ### RW-HEX — Enablement (blocked)
 
