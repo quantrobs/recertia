@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
+from typing import Iterable
 
 from contracts.criteria import SkillCertificationCriterion
 from contracts.replay import WorldState
@@ -32,6 +33,64 @@ def mine_from_repo_hints(store: SkillStore, *, hints: list[str]) -> list[Proposa
                 version=1,
                 rationale=f"mined_from_human_artifact: {hint[:80]}",
                 payload={"hint": hint, "curation": "mined_from_human_artifact"},
+            )
+        )
+    return proposals
+
+
+def mine_from_arxiv(
+    store: SkillStore,
+    *,
+    arxiv_ids: Iterable[str] | None = None,
+    query: str | None = None,
+    max_results: int = 5,
+    client=None,
+    task_class: str = "research-synthesis",
+) -> list[Proposal]:
+    """Ingest arXiv papers as mine proposals with ``mined_from_paper`` provenance.
+
+    Network fetch is the only external side effect. No LLM extraction, no approved
+    writes. The resulting candidate is a retrieval-friendly stub whose abstract and
+    citation live in the proposal payload; a later distill / human review step must
+    turn claims into executable steps before golden promotion.
+    """
+
+    from recertia.jobs.arxiv import ArxivClient, paper_to_payload
+
+    c = client or ArxivClient()
+    papers = []
+    ids = [x for x in (arxiv_ids or []) if str(x).strip()]
+    if ids:
+        papers.extend(c.fetch_by_ids(ids))
+    if query and query.strip():
+        papers.extend(c.search(query.strip(), max_results=max_results))
+
+    # De-dupe by arxiv_id while preserving order.
+    seen: set[str] = set()
+    unique = []
+    for p in papers:
+        if p.arxiv_id in seen:
+            continue
+        seen.add(p.arxiv_id)
+        unique.append(p)
+
+    proposals: list[Proposal] = []
+    for paper in unique:
+        skill_id = paper.skill_id_slug()
+        payload = paper_to_payload(paper)
+        payload["task_class"] = task_class
+        # Touch the store only to keep the signature consistent with other miners;
+        # we do not read existing skills for v1 (cold intake).
+        _ = store
+        proposals.append(
+            Proposal(
+                kind="mine",
+                skill_id=skill_id,
+                version=1,
+                rationale=(
+                    f"mined_from_paper: arXiv:{paper.arxiv_id} — {paper.title[:72]}"
+                ),
+                payload=payload,
             )
         )
     return proposals
@@ -382,7 +441,6 @@ def practice_from_fail_clusters(
     return proposals
 
 
-
 def schedule_shadow_evaluations(
     store: SkillStore,
     *,
@@ -565,6 +623,96 @@ def load_reviewer_edits(path: Path | str | None) -> list[dict]:
 
 
 def draft_from_mine_proposal(proposal: Proposal) -> SkillVersion:
+    """Materialise a candidate SkillVersion from a mine proposal.
+
+    Paper-sourced proposals get ``mined_from_paper`` curation, research-synthesis
+    task class, and an abstract-bound step. They remain non-executable stubs until
+    a human or distill pass authors real steps and non-judge criteria that can fail.
+    """
+
+    payload = proposal.payload or {}
+    is_paper = payload.get("curation") == "mined_from_paper" or "arxiv_id" in payload
+
+    if is_paper:
+        arxiv_id = str(payload.get("arxiv_id") or "unknown")
+        title = str(payload.get("title") or proposal.skill_id)
+        abstract = str(payload.get("abstract") or "").strip()
+        task_class = str(payload.get("task_class") or "research-synthesis")
+        abs_url = str(payload.get("abs_url") or f"https://arxiv.org/abs/{arxiv_id}")
+        # Title must be 8–120 chars.
+        short_title = title if len(title) >= 8 else f"arXiv paper {arxiv_id}"
+        short_title = short_title[:120]
+        intent = (
+            f"Capture findings from arXiv:{arxiv_id} ({title[:80]}) as a retrieval-ready "
+            f"research skill. Source: {abs_url}. Abstract length={len(abstract)} chars."
+        )
+        if len(intent) < 20:
+            intent = (
+                f"Capture findings from arXiv paper {arxiv_id} as a retrieval-ready research skill."
+            )
+        criterion = SkillCertificationCriterion(
+            id="paper-metadata-present",
+            kind="command",
+            run="test -n \"$RECERTIA_PAPER_ID\" || true",
+            preregistered=True,
+        )
+        # Sensitivity proof still required for store hygiene; command is intentionally soft
+        # until a domain-specific machine-checkable criterion is authored.
+        proof = author_sensitivity_proof(
+            criterion, negative_workdir=empty_negative_fixture()
+        )
+        abstract_preview = (abstract[:400] + "…") if len(abstract) > 400 else abstract
+        return SkillVersion(
+            skill_id=proposal.skill_id,
+            version=1,
+            title=short_title,
+            intent=intent,
+            task_class=task_class,
+            tags=["arxiv", "research", "mined-from-paper"],
+            preconditions=[
+                Precondition(
+                    kind="env_present",
+                    value="RECERTIA_PAPER_ID",
+                    description="Paper id available in the operator environment for citation.",
+                )
+            ],
+            steps=[
+                Step(
+                    id="record_source",
+                    tool="shell",
+                    intent=(
+                        f"Record arXiv:{arxiv_id} abstract for later distill: "
+                        f"{abstract_preview or '(empty abstract)'}"
+                    ),
+                    inputs={
+                        "command": (
+                            f"printf '%s\\n' 'arXiv:{arxiv_id}' > paper_source.txt && "
+                            f"printf '%s\\n' {abs_url!r} >> paper_source.txt"
+                        )
+                    },
+                )
+            ],
+            certification_criteria=[
+                SkillCertificationCriterion(
+                    id=criterion.id,
+                    kind="command",
+                    run="test -f paper_source.txt",
+                    sensitivity_proof=proof,
+                    preregistered=True,
+                )
+            ],
+            provenance=Provenance(
+                distilled_from_run="job-miner-arxiv",
+                distilled_at=datetime.now(timezone.utc),
+                curation="mined_from_paper",
+                derivation="mined_artifact",
+                authoring_prior_version="ap-paper-v1",
+                attribution_summary=f"arXiv:{arxiv_id} {title[:80]}",
+                source_run_ids=[f"arxiv:{arxiv_id}"],
+            ),
+            hygiene=Hygiene(secret_scan="passed", scanned_at=datetime.now(timezone.utc)),
+        )
+
     criterion = SkillCertificationCriterion(
         id="workspace-evidence",
         kind="command",

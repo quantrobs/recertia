@@ -31,6 +31,19 @@ def jobs_run(
     hint: Optional[list[str]] = typer.Option(
         None, "--hint", help="Mine job: human-artifact hint (repeatable)."
     ),
+    arxiv_id: Optional[list[str]] = typer.Option(
+        None,
+        "--arxiv-id",
+        help="Mine job: arXiv id (e.g. 2605.22148). Repeatable. Fetches via export.arxiv.org.",
+    ),
+    arxiv_query: Optional[str] = typer.Option(
+        None,
+        "--arxiv-query",
+        help="Mine job: arXiv search_query (e.g. 'ti:\"self-evolving agents\"').",
+    ),
+    arxiv_max: int = typer.Option(
+        5, "--arxiv-max", help="Mine job: max_results for --arxiv-query (1–50)."
+    ),
     one_off: Optional[list[str]] = typer.Option(
         None, "--one-off", help="Practice job: one-off cluster reason (repeatable)."
     ),
@@ -65,6 +78,7 @@ def jobs_run(
         enqueue_mined_candidate,
         load_one_off_reasons,
         load_reviewer_edits,
+        mine_from_arxiv,
         mine_from_repo_hints,
         practice_from_fail_clusters,
         practice_from_one_offs,
@@ -99,8 +113,23 @@ def jobs_run(
     traj_store = TrajectoryStore(runs_root / "trajectories")
 
     if name in {"mine", "miner"}:
-        hints = list(hint or ["README.md chore hints"])
-        result = runner.run("mine", lambda: mine_from_repo_hints(store, hints=hints), budget=budget)
+        use_arxiv = bool(arxiv_id) or bool(arxiv_query and arxiv_query.strip())
+        if use_arxiv:
+
+            def _mine_arxiv() -> list:
+                return mine_from_arxiv(
+                    store,
+                    arxiv_ids=list(arxiv_id or []),
+                    query=arxiv_query,
+                    max_results=arxiv_max,
+                )
+
+            result = runner.run("mine", _mine_arxiv, budget=budget)
+        else:
+            hints = list(hint or ["README.md chore hints"])
+            result = runner.run(
+                "mine", lambda: mine_from_repo_hints(store, hints=hints), budget=budget
+            )
         if submit and not dry_run:
             for proposal in result.proposals:
                 draft = enqueue_mined_candidate(store, proposal)

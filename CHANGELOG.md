@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **arXiv paper ingestion (Miner)** — `src/recertia/jobs/arxiv.py` Atom client;
+  `mine_from_arxiv` proposals with `curation=mined_from_paper`; CLI `--arxiv-id` /
+  `--arxiv-query` / `--arxiv-max` on `recertia jobs run mine`; optional `--submit`
+  for candidate drafts only. Docs: `docs/architecture/arxiv-ingest.md`.
+  Tests: `tests/unit/jobs/test_arxiv_ingest.py`.
+- **Curation enum** — `mined_from_paper` added to `contracts/common.py`.
+- `recertia soak record` / `recertia soak status` — empty-eval-DB weeks are
+  recorded and not counted. Does not declare GA (RW-GA harness).
+- Phase-2 portfolio measurement report
+  (`docs/architecture/portfolio-measurement.md`).
+- ADR-0016 (interval-bounded retirement) and ADR-0017 (version-write budget).
+- `charge_version_write` — sole writer of `spent.versions_written`.
+- `assemble_bundle` shared by retrieve and the debug query. Affordance flake
+  thresholds live on `RetrievalConfig`.
+- `GraphOrchestrator(on_finalize=...)` callback. Eval recording moved to the
+  composition root so `recertia.graph` no longer imports `EvalStore`.
+
 ### Changed
 
 - ADR-0016 non-goals: RW-PC shipped (dual active-set path is gone).
@@ -28,18 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `estimate_contribution(..., has_required_non_judge)` is required. Judge-only
   samples produce `estimate is None`.
 
-### Added
+### Notes
 
-- `recertia soak record` / `recertia soak status` — empty-eval-DB weeks are
-  recorded and not counted. Does not declare GA (RW-GA harness).
-- Phase-2 portfolio measurement report
-  (`docs/architecture/portfolio-measurement.md`).
-- ADR-0016 (interval-bounded retirement) and ADR-0017 (version-write budget).
-- `charge_version_write` — sole writer of `spent.versions_written`.
-- `assemble_bundle` shared by retrieve and the debug query. Affordance flake
-  thresholds live on `RetrievalConfig`.
-- `GraphOrchestrator(on_finalize=...)` callback. Eval recording moved to the
-  composition root so `recertia.graph` no longer imports `EvalStore`.
+- Paper candidates are retrieval stubs. Promotion still requires the golden gate;
+  this path does not claim lift.
 
 ## [0.1.0] - 2026-08-15
 

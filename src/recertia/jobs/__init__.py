@@ -28,6 +28,9 @@ JOB_NAME_TO_PRIORITY: dict[str, JobPriority] = {
     "practice_hex": "practice_hex",
     "hex": "practice_hex",
     "compress": "compress",
+    # mine is offline bootstrap; share curator_retire budget class (low volume).
+    "mine": "curator_retire",
+    "miner": "curator_retire",
 }
 
 
