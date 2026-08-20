@@ -6,7 +6,12 @@ from typing import Literal
 
 Plane = Literal["procedural", "semantic", "episodic", "affordance", "policy"]
 
-Curation = Literal["human_authored", "mined_from_human_artifact", "self_distilled"]
+Curation = Literal[
+    "human_authored",
+    "mined_from_human_artifact",
+    "mined_from_paper",
+    "self_distilled",
+]
 
 Derivation = Literal["success_transcript", "failure_cluster", "mined_artifact", "hand_authored"]
 
