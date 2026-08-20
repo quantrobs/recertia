@@ -10,6 +10,7 @@
 - [Library lifecycle](architecture/library-lifecycle.md)
 - [Portfolio measurement (Phase-2 / RW-PC)](architecture/portfolio-measurement.md)
 - [Improvement plane](architecture/improvement-plane.md)
+- [arXiv paper ingestion (Miner)](architecture/arxiv-ingest.md)
 - [Operations: storage, budgets, and attempt isolation](architecture/operations.md)
 - [Container sandbox: Docker/Podman setup and hardening](architecture/container-sandbox.md)
 - [Single-user go-live: models, tools, jobs, retention](architecture/go-live.md)
