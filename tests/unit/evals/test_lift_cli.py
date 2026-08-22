@@ -57,3 +57,24 @@ def test_lift_cli_establishes_on_hundred_trials(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "independent_runs=100" in result.output
     assert "status=established positive" in result.output
+    assert "gap=" not in result.output
+
+
+def test_lift_cli_pairs_variance_on_snapshot_id(tmp_path: Path) -> None:
+    db = tmp_path / "evals.db"
+    store = EvalStore(db)
+    store._append_observation(_obs("t1", arm="treatment", success=True, snapshot_id="s1"))
+    store._append_observation(_obs("t2", arm="treatment", success=True, snapshot_id="s2"))
+    store._append_observation(_obs("t3", arm="treatment", success=False, snapshot_id="s3"))
+    store._append_observation(_obs("c1", arm="control", success=False, snapshot_id="s2"))
+    store._append_observation(_obs("c2", arm="control", success=False, snapshot_id="s3"))
+    store._append_observation(_obs("c3", arm="control", success=False, snapshot_id="s4"))
+    t_rates, c_rates, paired, kind = store.variance_inputs(task_class="repo-chore")
+    store.close()
+    assert kind == "snapshot"
+    assert len(t_rates) == 3
+    assert len(c_rates) == 3
+    assert len(paired) == 2
+    result = runner.invoke(app, ["lift", "--task-class", "repo-chore", "--eval-db", str(db)])
+    assert result.exit_code == 0, result.output
+    assert "lift_variance n=2" in result.output

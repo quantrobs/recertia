@@ -1,7 +1,7 @@
 # High-Confidence Items Implementation Plan
 
 **Date:** 2026-08-22  
-**Status:** Implemented  
+**Status:** Implemented; review follow-up in [`2026-08-high-confidence-review-fixes.md`](2026-08-high-confidence-review-fixes.md)  
 **Sources:**  
 - Ye, Q. et al. (2026). *On the Fragility of Self-Improving Agents: Variance, Task Order, and Underspecification*. arXiv:2608.18066.  
 - Zhao, W. et al. (2026). *Large Language Model Agents Are Not Always Faithful Self-Evolvers*. arXiv:2601.22436.  

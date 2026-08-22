@@ -1481,8 +1481,10 @@ best rate, worst rate, and the absolute best–worst gap. Independent runs are
 **observation/trial counts**, not snapshot counts, so a 100-trial window can still
 establish lift. Below the policy floor (`min_independent_runs`, default 5) the status is
 `low_run_count` even if the interval excludes zero. `recertia lift` prints the variance
-fields and refuses established language below the floor. Per-run Bernoulli vectors live
-in `EvalStore` so the numbers recompute from storage.
+fields and refuses established language below the floor. Best/worst **gap** is printed
+only for ≥2 snapshots paired on `snapshot_id`; a single snapshot's Bernoulli 0/1 vector
+does not report a multi-run gap. Per-run Bernoulli vectors live in `EvalStore` so the
+numbers recompute from storage.
 
 ### 11.6 Faithfulness interventions (eval-only)
 
@@ -1491,28 +1493,32 @@ Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`
 production retrieve path). `Retriever` accepts an optional `bundle_hook` constructor
 argument; bootstrap, the retrieve node, and `recertia skills search` omit it. An
 eval-only `IntervenedSkillStore` overlay replaces the skill body at `get_version`.
-The harness records first-attempt success against the unmodified baseline and
-decision-level trajectory divergence (event-kind Jaccard and Levenshtein, from
-the trajectory store when `--runs-root` is passed). The faithfulness score is the
-fraction of interventions that move success or the trajectory. Observation rows
-are tagged `strategy=faithfulness:<name>` and treated as eval fixtures so they
-cannot enter lift. `recertia.evals.interventions` and
-`recertia.evals.faithfulness` are T3 and import-forbidden from `nodes/` and `jobs/`.
-The production flag `faithfulness_interventions_enabled` is false.
-
+`recertia faithfulness run --trials N` writes tagged observations through that overlay;
+`--trials 0` scores stored rows only. Arms with zero intervened trials are `scored=False`
+and the report `score` is `None` (missing data is not 0.0 or 1.0). Trajectory divergence
+is pairwise by `fixture_id` (median Jaccard and normalized edit distance); concatenated
+bags are not used. Observation rows are tagged `strategy=faithfulness:<name>` and treated
+as eval fixtures so they cannot enter lift or contribution samples.
+`recertia.evals.interventions` and `recertia.evals.faithfulness` are T3 and
+import-forbidden from `nodes/` and `jobs/`. The production flag
+`faithfulness_interventions_enabled` is false and is not a runtime switch — constructor
+injection is the only gate.
 
 ### 11.7 Applicability and specificity before promotion
 
-Distillation injects the current environment model (tools from the registry) and the
-locked `TaskCriterion[]` summary. Before `candidate` / `approved`, an applicability gate
-rejects skills that name unavailable tools, whose success claims cannot be evaluated by
-locked criteria, or that are structural near-duplicates of retired / quarantined /
-benched / low-contribution skills. Rejections are `applicability_reject` ledger entries
-and do not grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
-draft/candidate/shadow and a warning on already-approved seeds, so the seed library stays
-green while new drafts must carry concrete `failure_modes` and explicit preconditions.
-The curator job re-lints the active set (`skip_if_hash_matches=False`) and emits
-specificity-review proposals for human review; it does not auto-demote seeds.
+Distillation injects the current environment model (tools from `ctx.tools` when present)
+and the locked `TaskCriterion[]` summary. Before `candidate` / `approved`, an
+applicability gate rejects skills that name unavailable tools, whose success claims do
+not **exactly** match a required locked criterion (`kind` + `run`/`expr`/`metric`), or
+that are structural-hash near-duplicates of retired / quarantined / benched /
+low-contribution skills. Hashed-embedding cosine near-duplicates are recorded as
+`advisory:` contagion reasons and do not block promotion. When locked criteria are
+omitted (promote / shadow-advance), the skill must still carry at least one non-judge
+certification criterion. Rejections are `applicability_reject` ledger entries and do not
+grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
+draft/candidate/shadow and a warning on already-approved seeds. The curator job re-lints
+the active set and emits specificity-review proposals; it does not `lint_reject`
+approved seeds and does not auto-demote.
 
 <a id="ch-architecture-risk-and-governance"></a>
 
@@ -1751,6 +1757,7 @@ time.
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
 | **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | single-operator §5 deltas accepted-with-owner; tenant signature open |
 | **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
+| **RW-HCI** | engineering | Ye/Zhao high-confidence review fixes (honest faithfulness scorer, paired lift gap, exact applicability, writer) | P0+P1 landed; `a9` under evaluation |
 
 Deliberately out of scope for this year (unchanged from
 [measurement-and-scope.md](architecture/measurement-and-scope.md) §18): fine-tuning, learned retrieval
@@ -6080,6 +6087,30 @@ system weaken the controls that measure or constrain it.
   boundary of this kind, so there is no external validation to lean on either way
   (`references.md` §8 original note); we are ahead of reported practice here, which cuts both
   ways.
+
+## a9. Condensed-memory interventions change Recertia behaviour when the skill is used
+
+**Claim:** for a skill the solver actually applies, one of the four condensed-memory
+interventions (`empty`, `corrupt`, `irrelevant`, `filler`) produces a statistically
+detectable drop in first-attempt success or a decision-level trajectory divergence;
+the same intervention on a skill that is never applied produces near-zero divergence
+(Zhao et al. 2026; [`docs/plans/2026-08-high-confidence-review-fixes.md`](plans/2026-08-high-confidence-review-fixes.md)).
+
+- **Depends on:** the P1 faithfulness writer in that plan (`run_intervened_trials` plus
+  `IntervenedSkillStore` / `Retriever.bundle_hook` on eval fixtures only).
+- **Engineering gate (not this claim):** the scorer does not treat missing intervention
+  trials as detectable change; tagged `faithfulness:*` rows cannot enter lift; production
+  retrieve never receives the hook. Verified by unit tests, not by a live-model result.
+- **Research outcome (this claim):** whether Recertia's solver actually uses condensed
+  skill bodies on `repo-chore` (then `research-synthesis`) traffic, or whether it ignores
+  them the way Zhao et al. observed.
+- **Status:** `under evaluation` — the P1 writer tags eval fixtures under
+  `IntervenedSkillStore` / `bundle_hook`; live-model movement on `repo-chore` traffic
+  has not produced a stable interval.
+- **Why it might be false anyway:** Zhao's finding may generalise: the solver may lean
+  on the raw trajectory / request more than the retrieved skill text, in which case
+  interventions of used skills will also show near-zero divergence. That is a useful
+  negative result, not a harness bug.
 
 ---
 

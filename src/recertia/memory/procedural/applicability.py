@@ -24,13 +24,20 @@ _CONTAGION_COSINE = 0.97
 
 
 def environment_model_from_registry(registry: object | None = None) -> EnvironmentModel:
-    """Tools the current execution backend actually exposes."""
+    """Tools the current execution backend actually exposes.
 
+    Prefer the run's ``ToolRuntime`` (or any object with ``names()``) when the caller
+    has one; otherwise fall back to ``default_registry()``.
+    """
+
+    backend = os.environ.get("RECERTIA_EXECUTION_BACKEND", "container")
+    if registry is not None and hasattr(registry, "names"):
+        names = list(registry.names())
+        return EnvironmentModel(tools=names, backend=backend)
     from recertia.solver.registry import default_registry
 
-    reg = registry or default_registry()
+    reg = default_registry()
     names = list(reg.names()) if hasattr(reg, "names") else []
-    backend = os.environ.get("RECERTIA_EXECUTION_BACKEND", "container")
     return EnvironmentModel(tools=names, backend=backend)
 
 
@@ -137,42 +144,48 @@ def _criterion_ok(
     locked: list[TaskCriterion] | None,
     reasons: list[ApplicabilityReason],
 ) -> bool:
-    if not locked:
-        return True
-    required = [c for c in locked if c.is_required]
+    if locked is None:
+        if any(cert.kind != "judge" for cert in version.certification_criteria):
+            return True
+        reasons.append(
+            ApplicabilityReason(
+                check="criterion",
+                message="skill has no non-judge certification criterion to evaluate success",
+            )
+        )
+        return False
+    required = [c for c in locked if c.is_required and c.kind != "judge"]
     if not required:
         return True
-    locked_kinds = {c.kind for c in required}
-    evaluable = False
     for cert in version.certification_criteria:
         if cert.kind == "judge":
             continue
-        if cert.kind in locked_kinds:
-            evaluable = True
-            break
         for lc in required:
-            if cert.run and lc.run and (cert.run in lc.run or lc.run in cert.run):
-                evaluable = True
-                break
-            if cert.expr and lc.expr and (cert.expr in lc.expr or lc.expr in cert.expr):
-                evaluable = True
-                break
-            if cert.metric and lc.metric and cert.metric == lc.metric:
-                evaluable = True
-                break
-        if evaluable:
-            break
-    if evaluable:
-        return True
+            if _exact_criterion_match(cert, lc):
+                return True
     reasons.append(
         ApplicabilityReason(
             check="criterion",
             message=(
                 "skill success claims cannot be evaluated by the locked task criteria "
-                f"(locked kinds={sorted(locked_kinds)})"
+                f"(locked kinds={sorted({c.kind for c in required})})"
             ),
         )
     )
+    return False
+
+
+def _exact_criterion_match(cert: object, locked: TaskCriterion) -> bool:
+    """True when kind and the identifying field match exactly (no substring)."""
+
+    if getattr(cert, "kind", None) != locked.kind:
+        return False
+    if locked.run is not None and getattr(cert, "run", None) == locked.run:
+        return True
+    if locked.expr is not None and getattr(cert, "expr", None) == locked.expr:
+        return True
+    if locked.metric is not None and getattr(cert, "metric", None) == locked.metric:
+        return True
     return False
 
 
@@ -189,31 +202,38 @@ def _contagion_ok(
 ) -> bool:
     if store is None:
         return True
+    ok = True
     for other, status, stats in store.iter_loaded():
         if other.skill_id == version.skill_id and other.version == version.version:
             continue
         if status.lifecycle not in _CONTAGION_LIFECYCLES and not _is_low_contribution(stats):
             continue
-        if not _near_duplicate(version, other, digest):
-            continue
-        reasons.append(
-            ApplicabilityReason(
-                check="contagion",
-                message=(
-                    f"near-duplicate of {other.skill_id}@v{other.version} "
-                    f"(lifecycle={status.lifecycle}, structural_hash={digest[:12]})"
-                ),
+        if structural_hash(other) == digest:
+            reasons.append(
+                ApplicabilityReason(
+                    check="contagion",
+                    message=(
+                        f"near-duplicate of {other.skill_id}@v{other.version} "
+                        f"(lifecycle={status.lifecycle}, structural_hash={digest[:12]})"
+                    ),
+                )
             )
-        )
-        return False
-    return True
+            ok = False
+            continue
+        if _advisory_embedding_near(version, other):
+            reasons.append(
+                ApplicabilityReason(
+                    check="contagion",
+                    message=(
+                        f"advisory: embedding cosine near-duplicate of "
+                        f"{other.skill_id}@v{other.version} (does not block promotion)"
+                    ),
+                )
+            )
+    return ok
 
 
-def _near_duplicate(version: SkillVersion, other: SkillVersion, digest: str) -> bool:
-    """True when structural hashes match, or hashed embeddings are near-identical."""
-
-    if structural_hash(other) == digest:
-        return True
+def _advisory_embedding_near(version: SkillVersion, other: SkillVersion) -> bool:
     if version.task_class != other.task_class:
         return False
     if [step.tool for step in version.steps] != [step.tool for step in other.steps]:

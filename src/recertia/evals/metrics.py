@@ -21,21 +21,30 @@ def first_attempt_success_sample(rows: Sequence[dict[str, Any]]) -> BinomialSamp
     return BinomialSample(successes=successes, trials=trials)
 
 
-def _arm_rate_series(rows: Sequence[dict[str, Any]]) -> list[float]:
-    """Per-snapshot rates when ≥2 snapshots exist, else the Bernoulli 0/1 vector."""
-
+def _arm_snapshot_rates(rows: Sequence[dict[str, Any]]) -> dict[str, float]:
     snaps: dict[str, list[int]] = {}
-    bernoulli: list[float] = []
     for row in rows:
         success = 1 if row.get("first_attempt_success") else 0
-        bernoulli.append(float(success))
         snap = str(row.get("snapshot_id") or "")
         pair = snaps.setdefault(snap, [0, 0])
         pair[0] += success
         pair[1] += 1
+    return {sid: succ / trials for sid, (succ, trials) in snaps.items() if trials}
+
+
+def _arm_rate_series(
+    rows: Sequence[dict[str, Any]],
+) -> tuple[list[float], list[float]]:
+    """Per-snapshot rates when ≥2 snapshots exist, else the Bernoulli 0/1 vector.
+
+    Second list is unused; kept so callers that only need rates stay simple.
+    """
+
+    snaps = _arm_snapshot_rates(rows)
+    bernoulli = [1.0 if r.get("first_attempt_success") else 0.0 for r in rows]
     if len(snaps) >= 2:
-        return [succ / trials for succ, trials in snaps.values() if trials]
-    return bernoulli
+        return [snaps[sid] for sid in sorted(snaps)], bernoulli
+    return bernoulli, bernoulli
 
 
 def build_metric_report(
@@ -110,8 +119,16 @@ def build_metric_report(
     if not abstentions:
         unavailable["abstention_precision"] = "no abstentions in window"
 
-    t_rates = _arm_rate_series(treatment)
-    c_rates = _arm_rate_series(control)
+    t_map = _arm_snapshot_rates(treatment)
+    c_map = _arm_snapshot_rates(control)
+    if len(t_map) >= 2 or len(c_map) >= 2:
+        t_rates = [t_map[sid] for sid in sorted(t_map)]
+        c_rates = [c_map[sid] for sid in sorted(c_map)]
+        paired = [t_map[sid] - c_map[sid] for sid in sorted(set(t_map) & set(c_map))]
+    else:
+        t_rates, _ = _arm_rate_series(treatment)
+        c_rates, _ = _arm_rate_series(control)
+        paired = []
     lift = causal_lift(
         first_attempt_success_sample(treatment),
         first_attempt_success_sample(control),
@@ -121,6 +138,7 @@ def build_metric_report(
         min_independent_runs=min_independent_runs,
         treatment_rates=t_rates or None,
         control_rates=c_rates or None,
+        paired_lifts=paired,
     )
 
     merge_gap = None

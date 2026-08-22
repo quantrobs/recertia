@@ -102,6 +102,55 @@ def test_criterion_mismatch_is_rejected() -> None:
     assert report.criterion_ok is False
 
 
+def test_criterion_substring_or_kind_match_is_rejected() -> None:
+    locked = [
+        TaskCriterion(
+            id="gate",
+            kind="command",
+            run="test -f pyproject.toml",
+            source="caller",
+            weight=1.0,
+        )
+    ]
+    report = check_applicability(_skill(run="true"), locked_criteria=locked)
+    assert report.ok is False
+    assert report.criterion_ok is False
+
+
+def test_criterion_exact_run_match_passes() -> None:
+    locked = [
+        TaskCriterion(
+            id="gate",
+            kind="command",
+            run="true",
+            source="caller",
+            weight=1.0,
+        )
+    ]
+    report = check_applicability(_skill(run="true"), locked_criteria=locked)
+    assert report.ok
+    assert report.criterion_ok
+
+
+def test_promote_path_without_locked_criteria_requires_non_judge_cert() -> None:
+    version = _skill().model_copy(update={"certification_criteria": []})
+    report = check_applicability(version)
+    assert report.ok is False
+    assert report.criterion_ok is False
+
+
+def test_environment_model_uses_provided_registry() -> None:
+    from recertia.memory.procedural.applicability import environment_model_from_registry
+
+    class _Runtime:
+        def names(self) -> list[str]:
+            return ["edit_file"]
+
+    env = environment_model_from_registry(_Runtime())
+    assert env.tools == ["edit_file"]
+    report = check_applicability(_skill(tool="shell"), environment=env)
+    assert report.environment_ok is False
+
 def test_contagion_near_duplicate_is_rejected(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
     rejected = _skill(skill_id="already-rejected")
@@ -165,6 +214,6 @@ def test_contagion_embedding_near_duplicate_is_rejected(tmp_path: Path) -> None:
 
     assert structural_hash(rejected) != structural_hash(near)
     report = check_applicability(near, store=store)
-    assert report.ok is False
-    assert report.contagion_ok is False
-
+    assert report.ok is True
+    assert report.contagion_ok is True
+    assert any("advisory:" in r.message for r in report.reasons if r.check == "contagion")

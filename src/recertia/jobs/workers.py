@@ -104,6 +104,7 @@ def curator_active_set_and_dedup(
     eval_store: EvalStore | None = None,
     config: AutonomyConfig | None = None,
     ledger=None,
+    existing_proposals: list[Proposal] | None = None,
 ) -> list[Proposal]:
     """Recompute the active set, propose retirements, attach retrieval-only ReplayPacks."""
 
@@ -170,6 +171,13 @@ def curator_active_set_and_dedup(
     flagged = 0
     from recertia.memory.procedural.lint import lint_report
 
+    already = {
+        (p.skill_id, p.version, tuple(sorted(set(p.payload.get("codes") or ()))))
+        for p in (existing_proposals or [])
+        if p.payload.get("specificity")
+    }
+    seen_specificity: set[tuple[str, int, tuple[str, ...]]] = set(already)
+
     for version, status, stats in store.iter_loaded():
         if flagged >= 8:
             break
@@ -181,6 +189,11 @@ def curator_active_set_and_dedup(
         hits = [finding for finding in report.findings if finding.code in {"SPEC", "VAGUE"}]
         if not hits:
             continue
+        codes = tuple(sorted({finding.code for finding in hits}))
+        key = (version.skill_id, version.version, codes)
+        if key in seen_specificity:
+            continue
+        seen_specificity.add(key)
         proposals.append(
             Proposal(
                 kind="curate",
@@ -192,19 +205,12 @@ def curator_active_set_and_dedup(
                 ),
                 payload={
                     "specificity": True,
-                    "codes": [finding.code for finding in hits],
+                    "codes": list(codes),
                     "messages": [finding.message for finding in hits],
+                    "finding_hash": "-".join(codes),
                 },
             )
         )
-        if ledger is not None and hasattr(ledger, "append"):
-            ledger.append(
-                actor="curator-specificity",
-                action="lint_reject",
-                target=f"{version.skill_id}@v{version.version}",
-                evidence={"codes": [finding.code for finding in hits], "review": True},
-                at=datetime.now(timezone.utc),
-            )
         flagged += 1
 
     if trajectory_store is None:

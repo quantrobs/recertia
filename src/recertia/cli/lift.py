@@ -33,7 +33,7 @@ def lift_cmd(
         counts = store.arm_counts(task_class=task_class, snapshot_id=snapshot_id)
         treatment = counts.get("treatment", BinomialSample(successes=0, trials=0))
         control = counts.get("control", BinomialSample(successes=0, trials=0))
-        t_rates, c_rates = store.arm_rate_series(
+        t_rates, c_rates, paired, series_kind = store.variance_inputs(
             task_class=task_class, snapshot_id=snapshot_id
         )
         result = causal_lift(
@@ -44,6 +44,7 @@ def lift_cmd(
             min_independent_runs=policy.min_independent_runs,
             treatment_rates=t_rates or None,
             control_rates=c_rates or None,
+            paired_lifts=paired,
         )
     finally:
         store.close()
@@ -65,9 +66,9 @@ def lift_cmd(
                 f"level={result.interval.level} method={result.interval.method}"
             )
         typer.echo(f"status={result.render_status()}")
-    _echo_variance("treatment", result.treatment_variance)
-    _echo_variance("control", result.control_variance)
-    _echo_variance("lift", result.lift_variance)
+    _echo_variance("treatment", result.treatment_variance, series_kind)
+    _echo_variance("control", result.control_variance, series_kind)
+    _echo_variance("lift", result.lift_variance, series_kind)
     if result.status == "not_established":
         typer.echo("claim=not established (interval includes zero)")
     elif result.status == "low_run_count":
@@ -89,10 +90,18 @@ def lift_cmd(
         )
 
 
-def _echo_variance(label: str, variance: object) -> None:
+def _echo_variance(label: str, variance: object, series_kind: str) -> None:
     from contracts.eval import RunVariance
 
     if not isinstance(variance, RunVariance) or variance.n_runs < 2:
+        return
+    if series_kind != "snapshot":
+        if variance.std_dev is None:
+            return
+        typer.echo(
+            f"{label}_variance n={variance.n_runs} std_dev={variance.std_dev:.4f} "
+            f"(observation-level; gap omitted)"
+        )
         return
     typer.echo(
         f"{label}_variance n={variance.n_runs} std_dev={variance.std_dev:.4f} "

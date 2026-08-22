@@ -245,6 +245,11 @@
           "default": true,
           "title": "Skill Used",
           "type": "boolean"
+        },
+        "scored": {
+          "default": true,
+          "title": "Scored",
+          "type": "boolean"
         }
       },
       "required": [
@@ -344,6 +349,12 @@
           "minimum": 0,
           "title": "Event Count Intervened",
           "type": "integer"
+        },
+        "normalized_edit": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Normalized Edit",
+          "type": "number"
         }
       },
       "required": [
@@ -357,7 +368,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Fraction of interventions that moved success or the trajectory (faithfulness score).",
+  "description": "Fraction of *scored* interventions that moved success or the trajectory.\n\n``score`` is None when no arm had intervened trials \u2014 missing data is not 0.0 or 1.0.",
   "properties": {
     "skill_id": {
       "title": "Skill Id",
@@ -384,10 +395,24 @@
       "title": "Snapshot Id"
     },
     "score": {
-      "maximum": 1.0,
-      "minimum": 0.0,
-      "title": "Score",
-      "type": "number"
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score"
+    },
+    "scored_arms": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Scored Arms",
+      "type": "integer"
     },
     "arms": {
       "items": {
@@ -416,7 +441,6 @@
     "skill_id",
     "version",
     "task_class",
-    "score",
     "baseline_successes",
     "baseline_trials",
     "at"

@@ -89,6 +89,21 @@ def discover_golden(golden_root: Path, skill_id: str, task_class: str = "repo-ch
     return path if has_task or has_goal else None
 
 
+def list_goldens_for_task_class(golden_root: Path, task_class: str = "repo-chore") -> list[Path]:
+    """Golden fixture directories for a task class, sorted by name."""
+
+    root = golden_root / task_class
+    if not root.is_dir():
+        return []
+    found: list[Path] = []
+    for child in sorted(root.iterdir()):
+        if not child.is_dir():
+            continue
+        if (child / "goal.json").exists() or (child / "task.json").exists():
+            found.append(child)
+    return found
+
+
 def discover_version_golden(
     golden_root: Path, skill_id: str, version: int, task_class: str = "repo-chore"
 ) -> Path | None:

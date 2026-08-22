@@ -122,6 +122,7 @@ def causal_lift(
     min_independent_runs: int = 5,
     treatment_rates: Sequence[float] | None = None,
     control_rates: Sequence[float] | None = None,
+    paired_lifts: Sequence[float] | None = None,
 ) -> CausalLiftResult:
     """Compute treatment − control first-attempt success with status language (specs §19).
 
@@ -129,6 +130,10 @@ def causal_lift(
     snapshot count, so a 100-trial window still establishes lift. Below
     ``min_independent_runs`` an otherwise-established interval is reported as
     ``low_run_count``.
+
+    ``paired_lifts`` is the per-snapshot (treatment − control) series aligned on
+    snapshot id. When omitted, list-zip of ``treatment_rates`` / ``control_rates`` is
+    kept for callers that already pass aligned series.
     """
 
     independent_runs = min(treatment.trials, control.trials)
@@ -137,7 +142,10 @@ def causal_lift(
     t_var = run_variance(t_rates) if t_rates else None
     c_var = run_variance(c_rates) if c_rates else None
     lift_var = None
-    if treatment_rates is not None and control_rates is not None:
+    if paired_lifts is not None:
+        if paired_lifts:
+            lift_var = run_variance([float(v) for v in paired_lifts])
+    elif treatment_rates is not None and control_rates is not None:
         paired = min(len(treatment_rates), len(control_rates))
         if paired:
             lifts = [float(treatment_rates[i]) - float(control_rates[i]) for i in range(paired)]

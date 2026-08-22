@@ -16,22 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   language below the floor (Ye et al. 2026).
 - **Faithfulness interventions** — eval-only `empty` / `corrupt` / `irrelevant` /
   `filler` transformers (`recertia.evals.interventions`) and
-  `recertia faithfulness`. Trajectory Jaccard + edit-distance; tagged
-  `faithfulness:*` observations cannot enter lift. T3, import-forbidden from
-  nodes/jobs (Zhao et al. 2026). Optional `Retriever.bundle_hook` (constructor
-  only; production omits it) plus `IntervenedSkillStore` overlay. CLI
-  `--runs-root` reads trajectory event kinds.
+  `recertia faithfulness`. Trajectory Jaccard + normalized edit-distance, pairwise
+  by fixture; zero-trial arms are unscored (`score` is None). `--trials N` writes
+  tagged `faithfulness:*` observations through `IntervenedSkillStore` +
+  `Retriever.bundle_hook`. Those rows cannot enter lift or contribution samples.
+  T3, import-forbidden from nodes/jobs (Zhao et al. 2026). Production omits the hook.
 
-- **Applicability gate** — environment (registry tools), locked-criterion alignment,
-  and contagion hash against retired/quarantined/benched/low-contribution skills.
+- **Applicability gate** — environment (run `ToolRuntime` when present), exact
+  locked-criterion match, contagion structural hash (embedding cosine is advisory).
   Distiller injects the environment model and criterion summary. Ledger action
-  `applicability_reject`. Distill routes a failing draft to `one_off` rather than
-  the review queue. Contagion uses structural hash plus hashed-embedding cosine.
+  `applicability_reject`. Distill routes a failing draft to `one_off`. Promote
+  requires a non-judge certification criterion.
 
 - **Specificity lint** — `SPEC` / `VAGUE` on drafts; `require_failure_modes` on the
   authoring prior (`ap-2026.08.1`). Warnings only for already-approved seeds.
   Missing preconditions are a SPEC finding. Curator emits specificity-review
-  proposals against the active set.
+  proposals against the active set and does not `lint_reject` approved seeds.
 
 - Ledger actions `lift_report`, `faithfulness_report`, `applicability_reject`.
 - **arXiv paper ingestion (Miner)** — `src/recertia/jobs/arxiv.py` Atom client;

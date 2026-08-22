@@ -40,3 +40,14 @@ def test_bootstrap_style_construction_does_not_pass_a_hook(tmp_path: Path) -> No
     retriever = Retriever(index)
     assert retriever.bundle_hook is None
     index.close()
+
+
+def test_bootstrap_source_does_not_pass_bundle_hook() -> None:
+    root = Path(__file__).resolve().parents[3]
+    for rel in (
+        "src/recertia/bootstrap.py",
+        "src/recertia/cli/skills.py",
+        "src/recertia/memory/query.py",
+    ):
+        text = (root / rel).read_text(encoding="utf-8")
+        assert "bundle_hook" not in text, rel

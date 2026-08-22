@@ -144,9 +144,15 @@ def test_curator_does_not_bench_below_floor(tmp_path: Path) -> None:
 def test_curator_flags_low_specificity_active_skills(tmp_path: Path) -> None:
     store = SkillStore(tmp_path / "skills")
     seed_approved_for_tests(store, _skill("vague-seed"), active=True)
-    proposals = curator_active_set_and_dedup(store)
+    from recertia.ledger import HashChainLedger
+
+    ledger = HashChainLedger(tmp_path / "ledger.jsonl")
+    proposals = curator_active_set_and_dedup(store, ledger=ledger)
     flagged = [p for p in proposals if p.payload.get("specificity")]
     assert flagged
     assert flagged[0].skill_id == "vague-seed"
     assert "SPEC" in flagged[0].payload["codes"]
-
+    assert not any(entry.action == "lint_reject" for entry in ledger.entries())
+    second = curator_active_set_and_dedup(store, ledger=ledger, existing_proposals=proposals)
+    assert not [p for p in second if p.payload.get("specificity")]
+    assert not any(entry.action == "lint_reject" for entry in ledger.entries())

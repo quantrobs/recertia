@@ -23,6 +23,7 @@ class TrajectoryDivergence(BaseModel):
     edit_distance: int = Field(ge=0)
     event_count_baseline: int = Field(ge=0)
     event_count_intervened: int = Field(ge=0)
+    normalized_edit: float = Field(default=0.0, ge=0.0)
 
 
 class FaithfulnessArmResult(BaseModel):
@@ -37,10 +38,14 @@ class FaithfulnessArmResult(BaseModel):
     divergence: TrajectoryDivergence
     detectable_change: bool
     skill_used: bool = True
+    scored: bool = True
 
 
 class FaithfulnessReport(BaseModel):
-    """Fraction of interventions that moved success or the trajectory (faithfulness score)."""
+    """Fraction of *scored* interventions that moved success or the trajectory.
+
+    ``score`` is None when no arm had intervened trials — missing data is not 0.0 or 1.0.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -48,7 +53,8 @@ class FaithfulnessReport(BaseModel):
     version: int
     task_class: str
     snapshot_id: str | None = None
-    score: float = Field(ge=0.0, le=1.0)
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
+    scored_arms: int = Field(default=0, ge=0)
     arms: list[FaithfulnessArmResult] = Field(default_factory=list)
     baseline_successes: int = Field(ge=0)
     baseline_trials: int = Field(ge=0)

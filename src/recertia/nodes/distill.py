@@ -163,7 +163,7 @@ def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
         refuse_if_inapplicable,
     )
 
-    environment = environment_model_from_registry()
+    environment = environment_model_from_registry(ctx.tools)
     draft, facts, verdict = distill_success(
         state,
         workdir=ctx.workdir,

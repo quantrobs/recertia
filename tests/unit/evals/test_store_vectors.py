@@ -74,6 +74,59 @@ def test_success_vectors_and_snapshot_rates(tmp_path: Path) -> None:
     store.close()
 
 
+def test_misaligned_snapshots_pair_on_intersection(tmp_path: Path) -> None:
+    store = EvalStore(tmp_path / "evals.db")
+    store._append_observation(_obs("t1", arm="treatment", snapshot_id="s1", success=True))
+    store._append_observation(_obs("t2", arm="treatment", snapshot_id="s2", success=True))
+    store._append_observation(_obs("t3", arm="treatment", snapshot_id="s3", success=False))
+    store._append_observation(_obs("c1", arm="control", snapshot_id="s2", success=False))
+    store._append_observation(_obs("c2", arm="control", snapshot_id="s3", success=False))
+    store._append_observation(_obs("c3", arm="control", snapshot_id="s4", success=True))
+    _t, _c, paired, kind = store.variance_inputs(task_class="repo-chore")
+    assert kind == "snapshot"
+    assert paired == [1.0, 0.0]
+    store.close()
+
+
+def test_contribution_samples_ignore_faithfulness_rows(tmp_path: Path) -> None:
+    from contracts.criteria import CriterionResult, TaskCriterion
+    from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
+
+    store = EvalStore(tmp_path / "evals.db")
+    now = datetime.now(timezone.utc)
+    criterion = TaskCriterion(id="ok", kind="command", run="true", source="caller")
+
+    def make_state(run_id: str, *, arm: str) -> RunState:
+        return RunState(
+            run_id=run_id,
+            task=Task(
+                task_id=run_id,
+                request="sample",
+                task_class="repo-chore",
+                submitted_at=now,
+            ),
+            manifest=RunManifest(index_snapshot_id="snap", criteria_hash="locked"),
+            arm=arm,  # type: ignore[arg-type]
+            criteria=[criterion],
+            criteria_locked_at=now,
+            chosen=SkillCandidateRef(skill_id="s", version=1, score=1.0),
+            attempt_no=1,
+            results=[CriterionResult(criterion_id="ok", kind="command", passed=True)],
+            terminal="solved",
+        )
+
+    store.append_run(make_state("shadow-ok", arm="shadow"))
+    store.append_run(
+        make_state("shadow-faith", arm="shadow"),
+        strategy_override="faithfulness:empty",
+    )
+    shadow, suppression = store.contribution_samples(
+        skill_id="s", version=1, task_class="repo-chore"
+    )
+    assert shadow.trials == 1
+    assert suppression.trials == 0
+    store.close()
+
 def test_record_observation_still_refuses_caller_authored(tmp_path: Path) -> None:
     store = EvalStore(tmp_path / "evals.db")
     try:

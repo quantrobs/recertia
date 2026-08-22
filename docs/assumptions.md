@@ -111,6 +111,30 @@ system weaken the controls that measure or constrain it.
   (`references.md` §8 original note); we are ahead of reported practice here, which cuts both
   ways.
 
+## a9. Condensed-memory interventions change Recertia behaviour when the skill is used
+
+**Claim:** for a skill the solver actually applies, one of the four condensed-memory
+interventions (`empty`, `corrupt`, `irrelevant`, `filler`) produces a statistically
+detectable drop in first-attempt success or a decision-level trajectory divergence;
+the same intervention on a skill that is never applied produces near-zero divergence
+(Zhao et al. 2026; [`docs/plans/2026-08-high-confidence-review-fixes.md`](plans/2026-08-high-confidence-review-fixes.md)).
+
+- **Depends on:** the P1 faithfulness writer in that plan (`run_intervened_trials` plus
+  `IntervenedSkillStore` / `Retriever.bundle_hook` on eval fixtures only).
+- **Engineering gate (not this claim):** the scorer does not treat missing intervention
+  trials as detectable change; tagged `faithfulness:*` rows cannot enter lift; production
+  retrieve never receives the hook. Verified by unit tests, not by a live-model result.
+- **Research outcome (this claim):** whether Recertia's solver actually uses condensed
+  skill bodies on `repo-chore` (then `research-synthesis`) traffic, or whether it ignores
+  them the way Zhao et al. observed.
+- **Status:** `under evaluation` — the P1 writer tags eval fixtures under
+  `IntervenedSkillStore` / `bundle_hook`; live-model movement on `repo-chore` traffic
+  has not produced a stable interval.
+- **Why it might be false anyway:** Zhao's finding may generalise: the solver may lean
+  on the raw trajectory / request more than the retrieved skill text, in which case
+  interventions of used skills will also show near-zero divergence. That is a useful
+  negative result, not a harness bug.
+
 ---
 
 ## Adding a new assumption
