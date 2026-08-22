@@ -1491,7 +1491,8 @@ numbers recompute from storage.
 Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`, `corrupt`,
 `irrelevant`, `filler` — replace the retrieved skill body in memory (never on the
 production retrieve path). `Retriever` accepts an optional `bundle_hook` constructor
-argument; bootstrap, the retrieve node, and `recertia skills search` omit it. An
+argument; bootstrap, the retrieve node, and `recertia skills search` omit it. The
+hook is constructor-only and read-only after init. An
 eval-only `IntervenedSkillStore` overlay replaces the skill body at `get_version`.
 `recertia faithfulness run --trials N` writes tagged observations through that overlay;
 `--trials 0` scores stored rows only. Arms with zero intervened trials are `scored=False`
@@ -1517,8 +1518,9 @@ omitted (promote / shadow-advance), the skill must still carry at least one non-
 certification criterion. Rejections are `applicability_reject` ledger entries and do not
 grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
 draft/candidate/shadow and a warning on already-approved seeds. The curator job re-lints
-the active set and emits specificity-review proposals; it does not `lint_reject`
-approved seeds and does not auto-demote.
+the active set and emits specificity-review proposals (persisted to
+`proposals.jsonl` so later curator runs skip the same finding set); it does not
+`lint_reject` approved seeds and does not auto-demote.
 
 <a id="ch-architecture-risk-and-governance"></a>
 
@@ -1757,7 +1759,7 @@ time.
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
 | **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | single-operator §5 deltas accepted-with-owner; tenant signature open |
 | **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
-| **RW-HCI** | engineering | Ye/Zhao high-confidence review fixes (honest faithfulness scorer, paired lift gap, exact applicability, writer) | P0+P1 landed; `a9` under evaluation |
+| **RW-HCI** | engineering | Ye/Zhao high-confidence review fixes (honest faithfulness scorer, paired lift gap, exact applicability, writer, curator proposal log) | P0+P1+leftovers landed; `a9` under evaluation |
 
 Deliberately out of scope for this year (unchanged from
 [measurement-and-scope.md](architecture/measurement-and-scope.md) §18): fine-tuning, learned retrieval

@@ -77,9 +77,12 @@ class Retriever:
         self._index = index
         self.config = config or RetrievalConfig()
         # Eval-only. Production callers (bootstrap, retrieve node, CLI search) omit this.
-        # The hook must not live on RetrievalConfig so a policy flag cannot turn it on.
-        self.bundle_hook = bundle_hook
+        # Constructor-only; not on RetrievalConfig so a policy flag cannot turn it on.
+        self._bundle_hook = bundle_hook
 
+    @property
+    def bundle_hook(self) -> BundleHook | None:
+        return self._bundle_hook
 
     @property
     def index(self) -> SkillIndex:
@@ -143,8 +146,8 @@ class Retriever:
 
         explanation.returned = candidates
         bundle = MemoryBundle(skills=candidates)
-        if self.bundle_hook is not None:
-            bundle = self.bundle_hook(bundle)
+        if self._bundle_hook is not None:
+            bundle = self._bundle_hook(bundle)
         return bundle, explanation
 
 

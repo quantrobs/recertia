@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tagged `faithfulness:*` observations through `IntervenedSkillStore` +
   `Retriever.bundle_hook`. Those rows cannot enter lift or contribution samples.
   T3, import-forbidden from nodes/jobs (Zhao et al. 2026). Production omits the hook.
+  `Retriever.bundle_hook` is constructor-only (read-only after init). Curator
+  persists specificity proposals to `proposals.jsonl` so weekly runs do not
+  re-flag the same skill.
 
 - **Applicability gate** — environment (run `ToolRuntime` when present), exact
   locked-criterion match, contagion structural hash (embedding cosine is advisory).

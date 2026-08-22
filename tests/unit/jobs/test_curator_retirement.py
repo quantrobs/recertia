@@ -156,3 +156,14 @@ def test_curator_flags_low_specificity_active_skills(tmp_path: Path) -> None:
     second = curator_active_set_and_dedup(store, ledger=ledger, existing_proposals=proposals)
     assert not [p for p in second if p.payload.get("specificity")]
     assert not any(entry.action == "lint_reject" for entry in ledger.entries())
+
+
+def test_curator_persists_specificity_across_process_restarts(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    seed_approved_for_tests(store, _skill("vague-seed"), active=True)
+    log = tmp_path / "proposals.jsonl"
+    first = curator_active_set_and_dedup(store, proposals_path=log)
+    assert any(p.payload.get("specificity") for p in first)
+    assert log.is_file()
+    second = curator_active_set_and_dedup(store, proposals_path=log)
+    assert not [p for p in second if p.payload.get("specificity")]

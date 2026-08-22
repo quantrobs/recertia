@@ -51,3 +51,15 @@ def test_bootstrap_source_does_not_pass_bundle_hook() -> None:
     ):
         text = (root / rel).read_text(encoding="utf-8")
         assert "bundle_hook" not in text, rel
+
+
+def test_bundle_hook_cannot_be_assigned_after_construction(tmp_path: Path) -> None:
+    index = SkillIndex(tmp_path / "index.db")
+    retriever = Retriever(index)
+    try:
+        retriever.bundle_hook = lambda bundle: bundle  # type: ignore[misc]
+        raised = False
+    except AttributeError:
+        raised = True
+    index.close()
+    assert raised

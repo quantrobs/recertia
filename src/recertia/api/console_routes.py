@@ -1190,7 +1190,11 @@ def register_console_routes(app: FastAPI, ctx: ConsoleContext) -> None:
             elif name in {"curator", "curate"}:
                 result = runner.run(
                     "curator",
-                    lambda: curator_active_set_and_dedup(store, trajectory_store=traj),
+                    lambda: curator_active_set_and_dedup(
+                        store,
+                        trajectory_store=traj,
+                        proposals_path=runs_root / "proposals.jsonl",
+                    ),
                     budget=budget,
                 )
             elif name == "practice":
