@@ -127,6 +127,23 @@ class JobQuota(BaseModel):
         )
 
 
+class StateManagement(BaseModel):
+    """Working-set residency and read-only caches (ADR-0018). T2; default offload is off."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    idle_offload_enabled: bool = False
+    quiet_threshold_s: float = Field(default=60.0, ge=0.0)
+    eligible_surfaces: list[str] = Field(
+        default_factory=lambda: ["workspace", "checkpoint", "retrieval_index"]
+    )
+    restore_latency_budget_frac: float = Field(default=0.05, ge=0.0, le=1.0)
+    tool_result_cache_enabled: bool = True
+    tool_result_cache_ttl_s: float = Field(default=120.0, ge=0.0)
+    retrieval_cache_enabled: bool = True
+    retrieval_cache_ttl_s: float = Field(default=30.0, ge=0.0)
+
+
 class Policy(BaseModel):
     """Versioned T2 policy document: thresholds, budgets, and authoring prior pointer."""
 
@@ -145,4 +162,5 @@ class Policy(BaseModel):
     improvement: ImprovementFlags = Field(default_factory=ImprovementFlags)
     improvement_limits: ImprovementLimits = Field(default_factory=ImprovementLimits)
     job_quota: JobQuota = Field(default_factory=JobQuota)
+    state_management: StateManagement = Field(default_factory=StateManagement)
     notes: list[str] = Field(default_factory=list)

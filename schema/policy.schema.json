@@ -197,6 +197,61 @@
       },
       "title": "PolicyBudgets",
       "type": "object"
+    },
+    "StateManagement": {
+      "additionalProperties": false,
+      "description": "Working-set residency and read-only caches (ADR-0018). T2; default offload is off.",
+      "properties": {
+        "idle_offload_enabled": {
+          "default": false,
+          "title": "Idle Offload Enabled",
+          "type": "boolean"
+        },
+        "quiet_threshold_s": {
+          "default": 60.0,
+          "minimum": 0.0,
+          "title": "Quiet Threshold S",
+          "type": "number"
+        },
+        "eligible_surfaces": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Eligible Surfaces",
+          "type": "array"
+        },
+        "restore_latency_budget_frac": {
+          "default": 0.05,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Restore Latency Budget Frac",
+          "type": "number"
+        },
+        "tool_result_cache_enabled": {
+          "default": true,
+          "title": "Tool Result Cache Enabled",
+          "type": "boolean"
+        },
+        "tool_result_cache_ttl_s": {
+          "default": 120.0,
+          "minimum": 0.0,
+          "title": "Tool Result Cache Ttl S",
+          "type": "number"
+        },
+        "retrieval_cache_enabled": {
+          "default": true,
+          "title": "Retrieval Cache Enabled",
+          "type": "boolean"
+        },
+        "retrieval_cache_ttl_s": {
+          "default": 30.0,
+          "minimum": 0.0,
+          "title": "Retrieval Cache Ttl S",
+          "type": "number"
+        }
+      },
+      "title": "StateManagement",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -263,6 +318,9 @@
     },
     "job_quota": {
       "$ref": "#/$defs/JobQuota"
+    },
+    "state_management": {
+      "$ref": "#/$defs/StateManagement"
     },
     "notes": {
       "items": {

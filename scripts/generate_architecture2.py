@@ -90,6 +90,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "adr/0015-improvement-plane-search.md",
             "adr/0016-interval-bounded-retirement.md",
             "adr/0017-version-write-budget.md",
+            "adr/0018-idle-state-offloading.md",
         ),
     ),
     (

@@ -41,10 +41,21 @@
     "max_status_writes_per_tick": 50,
     "max_compress_candidates_per_tick": 1
   },
+  "state_management": {
+    "idle_offload_enabled": false,
+    "quiet_threshold_s": 60.0,
+    "eligible_surfaces": ["workspace", "checkpoint", "retrieval_index"],
+    "restore_latency_budget_frac": 0.05,
+    "tool_result_cache_enabled": true,
+    "tool_result_cache_ttl_s": 120.0,
+    "retrieval_cache_enabled": true,
+    "retrieval_cache_ttl_s": 30.0
+  },
   "notes": [
     "P0″ default policy. HEX and compress remain off until a lift interval exists.",
     "JobQuota spend lives in .recertia/job_quota.json (T0 sidecar), not this document.",
     "min_independent_runs is the observation/trial floor before established lift language is allowed.",
-    "faithfulness_interventions_enabled stays false on the production path; the eval CLI may still run tagged trials."
+    "faithfulness_interventions_enabled stays false on the production path; the eval CLI may still run tagged trials.",
+    "state_management.idle_offload_enabled stays false until a Phase 0 RSS baseline exists (ADR-0018)."
   ]
 }
