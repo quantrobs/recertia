@@ -158,6 +158,8 @@ def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
     sightings = _task_class_sightings(ctx, state.task.task_class)
     near = _nearest_duplicate(ctx, state.task.request or "")
 
+    from recertia.memory.procedural.applicability import environment_model_from_registry
+
     draft, facts, verdict = distill_success(
         state,
         workdir=ctx.workdir,
@@ -165,6 +167,8 @@ def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
         prior=prior,
         task_class_sightings=sightings,
         near_duplicate_of=near,
+        environment=environment_model_from_registry(),
+        locked_criteria=list(state.criteria),
     )
 
     if draft is not None and state.execution_guide is not None:

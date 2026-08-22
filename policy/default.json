@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "version": "p-2026.08.1",
-  "authoring_prior_version": "ap-2026.07.1",
+  "version": "p-2026.08.2",
+  "authoring_prior_version": "ap-2026.08.1",
   "budgets": {
     "default_max_attempts": 3,
     "default_max_cost_usd": 1.0,
@@ -11,6 +11,8 @@
   "evidence_floor": 30,
   "active_cap_per_task_class": 50,
   "require_tool_approval_for_non_read": true,
+  "min_independent_runs": 5,
+  "faithfulness_interventions_enabled": false,
   "improvement": {
     "miner_lint": true,
     "fail_cluster_curriculum": true,
@@ -41,6 +43,8 @@
   },
   "notes": [
     "P0″ default policy. HEX and compress remain off until a lift interval exists.",
-    "JobQuota spend lives in .recertia/job_quota.json (T0 sidecar), not this document."
+    "JobQuota spend lives in .recertia/job_quota.json (T0 sidecar), not this document.",
+    "min_independent_runs is the observation/trial floor before established lift language is allowed.",
+    "faithfulness_interventions_enabled stays false on the production path; the eval CLI may still run tagged trials."
   ]
 }

@@ -23,6 +23,8 @@ sys.path.insert(0, str(REPO_ROOT))
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
 from contracts.cluster import FailureClusterRow  # noqa: E402
 from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, MetricReport  # noqa: E402
+from contracts.applicability import ApplicabilityReport, EnvironmentModel  # noqa: E402
+from contracts.faithfulness import FaithfulnessReport  # noqa: E402
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
 from contracts.goal import Goal  # noqa: E402
@@ -71,6 +73,9 @@ MODELS: dict[str, type] = {
     "control_baseline.schema.json": ControlBaseline,
     "eval_observation.schema.json": EvalObservation,
     "metric_report.schema.json": MetricReport,
+    "applicability_report.schema.json": ApplicabilityReport,
+    "environment_model.schema.json": EnvironmentModel,
+    "faithfulness_report.schema.json": FaithfulnessReport,
     "goal.schema.json": Goal,
     "migration_program.schema.json": MigrationProgram,
     "registered_workspace.schema.json": RegisteredWorkspace,

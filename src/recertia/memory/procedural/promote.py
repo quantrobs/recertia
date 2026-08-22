@@ -69,6 +69,13 @@ def promote_to_approved(
     if violations:
         raise PromotionError(f"skill not eligible for approval: {violations}")
 
+    from recertia.memory.procedural.applicability import refuse_if_inapplicable
+
+    applicability = refuse_if_inapplicable(ver, store=store)
+    if not applicability.ok:
+        reasons = [r.message for r in applicability.reasons]
+        raise PromotionError(f"applicability gate refused {skill_id}@v{version}: {reasons}")
+
     extra_dirs = _predecessor_golden_dirs(
         store,
         ver,

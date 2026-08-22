@@ -12,7 +12,7 @@ from contracts.budget import Budget
 from contracts.criteria import SensitivityProof, SkillCertificationCriterion
 from contracts.fact import Fact, FactProvenance
 from contracts.run import RunState, Task
-from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
 from recertia.api import create_app
 from recertia.evals.second_domain import research_synthesis_lift, second_domain_fixture_ready
 from recertia.graph.ops import OperationLedger
@@ -89,6 +89,12 @@ def _skill(skill_id: str, *, scope: str = "project") -> SkillVersion:
                 run="true",
                 sensitivity_proof=proof,
                 preregistered=True,
+            )
+        ],
+        failure_modes=[
+            FailureMode(
+                symptom="Trivial shell step exits non-zero in the fixture workspace",
+                response="Restore the snapshot and re-run the shell step",
             )
         ],
         provenance=Provenance(

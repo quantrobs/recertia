@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/EnvironmentModel",
+  "additionalProperties": false,
+  "description": "Execution environment the distiller and applicability gate are allowed to assume.",
+  "properties": {
+    "tools": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tools",
+      "type": "array"
+    },
+    "backend": {
+      "default": "container",
+      "title": "Backend",
+      "type": "string"
+    },
+    "limits": {
+      "additionalProperties": true,
+      "title": "Limits",
+      "type": "object"
+    }
+  },
+  "title": "EnvironmentModel",
+  "type": "object"
+}

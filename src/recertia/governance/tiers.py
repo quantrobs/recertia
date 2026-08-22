@@ -38,17 +38,21 @@ TIER_BY_MODULE_PREFIX: dict[str, Tier] = {
     "recertia.governance": "T3",
     "recertia.evals.ablation": "T3",
     "recertia.evals.fake_edges": "T3",
+    "recertia.evals.interventions": "T3",
+    "recertia.evals.faithfulness": "T3",
 }
 
 T3_FORBIDDEN_FOR_RUNS_AND_JOBS: tuple[str, ...] = (
     "recertia.governance",
     "recertia.evals.ablation",
+    "recertia.evals.interventions",
+    "recertia.evals.faithfulness",
 )
 """Per ADR-0005: "the eval harness, ablation sampler, promotion thresholds, and sandbox policy
 must be unreachable from any code path a run or job can invoke — enforced by module boundaries
 and asserted in CI, not by convention." ``recertia.evals.fake_edges`` is T3-tiered for review
-hygiene but may be read by offline jobs; only ``ablation`` and ``governance`` are import-forbidden
-from ``recertia.nodes`` / ``recertia.jobs``.
+hygiene but may be read by offline jobs; ``ablation``, ``interventions``, ``faithfulness``, and
+``governance`` are import-forbidden from ``recertia.nodes`` / ``recertia.jobs``.
 """
 
 

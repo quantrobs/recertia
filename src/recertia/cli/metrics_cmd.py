@@ -52,3 +52,5 @@ def metrics_cmd(
     typer.echo(text)
     if report.causal_lift is not None and report.causal_lift.status == "not_established":
         typer.echo("claim=not established (interval includes zero)", err=True)
+    elif report.causal_lift is not None and report.causal_lift.status == "low_run_count":
+        typer.echo("claim=not established (independent run count below floor)", err=True)

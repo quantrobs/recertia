@@ -10,6 +10,7 @@ from contracts.eval import (
     CausalLiftResult,
     ConfidenceInterval,
     LiftStatus,
+    RunVariance,
 )
 
 
@@ -62,6 +63,43 @@ def newcombe_wilson_difference(
     return ConfidenceInterval(low=low, high=high, level=level, method="newcombe_wilson")
 
 
+def run_variance(rates: Sequence[float]) -> RunVariance:
+    """Sample std-dev, best, worst, and absolute best–worst gap over independent rates."""
+
+    vals = [float(r) for r in rates]
+    n = len(vals)
+    if n == 0:
+        return RunVariance(n_runs=0)
+    best = max(vals)
+    worst = min(vals)
+    gap = abs(best - worst)
+    if n == 1:
+        return RunVariance(
+            n_runs=1,
+            std_dev=0.0,
+            best_rate=best,
+            worst_rate=worst,
+            best_worst_gap=gap,
+        )
+    mean_rate = sum(vals) / n
+    var = sum((x - mean_rate) ** 2 for x in vals) / (n - 1)
+    return RunVariance(
+        n_runs=n,
+        std_dev=math.sqrt(var),
+        best_rate=best,
+        worst_rate=worst,
+        best_worst_gap=gap,
+    )
+
+
+def bernoulli_rates(sample: BinomialSample) -> list[float]:
+    """Reproducible 0/1 vector from a binomial sample (successes first)."""
+
+    if sample.trials == 0:
+        return []
+    return [1.0] * sample.successes + [0.0] * (sample.trials - sample.successes)
+
+
 def classify_lift(estimate: float | None, interval: ConfidenceInterval | None) -> LiftStatus:
     if estimate is None or interval is None:
         return "insufficient_data"
@@ -81,8 +119,29 @@ def causal_lift(
     snapshot_id: str | None = None,
     model_version: str | None = None,
     window: str | None = None,
+    min_independent_runs: int = 5,
+    treatment_rates: Sequence[float] | None = None,
+    control_rates: Sequence[float] | None = None,
 ) -> CausalLiftResult:
-    """Compute treatment − control first-attempt success with status language (specs §19)."""
+    """Compute treatment − control first-attempt success with status language (specs §19).
+
+    ``independent_runs`` is the observation/trial count (min of the two arms), not the
+    snapshot count, so a 100-trial window still establishes lift. Below
+    ``min_independent_runs`` an otherwise-established interval is reported as
+    ``low_run_count``.
+    """
+
+    independent_runs = min(treatment.trials, control.trials)
+    t_rates = list(treatment_rates) if treatment_rates is not None else bernoulli_rates(treatment)
+    c_rates = list(control_rates) if control_rates is not None else bernoulli_rates(control)
+    t_var = run_variance(t_rates) if t_rates else None
+    c_var = run_variance(c_rates) if c_rates else None
+    lift_var = None
+    if treatment_rates is not None and control_rates is not None:
+        paired = min(len(treatment_rates), len(control_rates))
+        if paired:
+            lifts = [float(treatment_rates[i]) - float(control_rates[i]) for i in range(paired)]
+            lift_var = run_variance(lifts)
 
     if treatment.trials == 0 or control.trials == 0:
         return CausalLiftResult(
@@ -95,11 +154,18 @@ def causal_lift(
             snapshot_id=snapshot_id,
             model_version=model_version,
             window=window,
+            treatment_variance=t_var,
+            control_variance=c_var,
+            lift_variance=lift_var,
+            min_independent_runs=min_independent_runs,
+            independent_runs=independent_runs,
         )
     assert treatment.rate is not None and control.rate is not None
     estimate = treatment.rate - control.rate
     interval = newcombe_wilson_difference(treatment, control, level=level)
     status = classify_lift(estimate, interval)
+    if status in ("established_positive", "established_negative") and independent_runs < min_independent_runs:
+        status = "low_run_count"
     return CausalLiftResult(
         task_class=task_class,
         treatment=treatment,
@@ -110,6 +176,11 @@ def causal_lift(
         snapshot_id=snapshot_id,
         model_version=model_version,
         window=window,
+        treatment_variance=t_var,
+        control_variance=c_var,
+        lift_variance=lift_var,
+        min_independent_runs=min_independent_runs,
+        independent_runs=independent_runs,
     )
 
 

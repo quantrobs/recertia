@@ -35,6 +35,7 @@ class AuthoringPrior(BaseModel):
     require_parameter_or_recurrence: bool = True
     require_non_judge_criterion: bool = True
     require_sensitivity_proof: bool = True
+    require_failure_modes: bool = True
     max_steps: int = Field(default=12, ge=1, le=50)
     prefer_shell_when_applicable: bool = True
     notes: list[str] = Field(default_factory=list)
@@ -139,6 +140,8 @@ class Policy(BaseModel):
     evidence_floor: int = Field(default=30, ge=1)
     active_cap_per_task_class: int = Field(default=50, ge=1)
     require_tool_approval_for_non_read: bool = True
+    min_independent_runs: int = Field(default=5, ge=1)
+    faithfulness_interventions_enabled: bool = False
     improvement: ImprovementFlags = Field(default_factory=ImprovementFlags)
     improvement_limits: ImprovementLimits = Field(default_factory=ImprovementLimits)
     job_quota: JobQuota = Field(default_factory=JobQuota)

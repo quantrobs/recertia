@@ -30,6 +30,11 @@
       "title": "Require Sensitivity Proof",
       "type": "boolean"
     },
+    "require_failure_modes": {
+      "default": true,
+      "title": "Require Failure Modes",
+      "type": "boolean"
+    },
     "max_steps": {
       "default": 12,
       "maximum": 50,

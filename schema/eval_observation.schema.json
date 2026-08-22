@@ -212,6 +212,7 @@
           "enum": [
             "human_authored",
             "mined_from_human_artifact",
+            "mined_from_paper",
             "self_distilled"
           ],
           "type": "string"

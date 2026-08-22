@@ -16,7 +16,7 @@ from contracts.criteria import (
 )
 from contracts.eval import BinomialSample
 from contracts.run import Task
-from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import SkillStats
 from contracts.status import SkillStatus
 from recertia.evals.statistics import causal_lift
@@ -116,6 +116,12 @@ def test_intentionally_bad_skill_blocked_by_regression_gate(tmp_path: Path) -> N
                         base, fingerprint="m4-intentionally-bad"
                     )
                 }
+            )
+        ],
+        failure_modes=[
+            FailureMode(
+                symptom="MUST_EXIST.txt is missing after the no-op step",
+                response="Write the missing file or refuse promotion of the no-op skill",
             )
         ],
         provenance=Provenance(

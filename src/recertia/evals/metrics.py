@@ -21,6 +21,23 @@ def first_attempt_success_sample(rows: Sequence[dict[str, Any]]) -> BinomialSamp
     return BinomialSample(successes=successes, trials=trials)
 
 
+def _arm_rate_series(rows: Sequence[dict[str, Any]]) -> list[float]:
+    """Per-snapshot rates when ≥2 snapshots exist, else the Bernoulli 0/1 vector."""
+
+    snaps: dict[str, list[int]] = {}
+    bernoulli: list[float] = []
+    for row in rows:
+        success = 1 if row.get("first_attempt_success") else 0
+        bernoulli.append(float(success))
+        snap = str(row.get("snapshot_id") or "")
+        pair = snaps.setdefault(snap, [0, 0])
+        pair[0] += success
+        pair[1] += 1
+    if len(snaps) >= 2:
+        return [succ / trials for succ, trials in snaps.values() if trials]
+    return bernoulli
+
+
 def build_metric_report(
     rows: Sequence[dict[str, Any]],
     *,
@@ -44,6 +61,7 @@ def build_metric_report(
     precision_at_3: float | None = None,
     prior_precision_at_3: float | None = None,
     skills_added: int | None = None,
+    min_independent_runs: int = 5,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
     # User-facing metrics and lift exclude fixtures and synthetic practice
@@ -54,6 +72,7 @@ def build_metric_report(
         if not r.get("is_eval_fixture")
         and r.get("arm") != "practice"
         and r.get("arm") != "shadow"
+        and not str(r.get("strategy") or "").startswith("faithfulness:")
     ]
     treatment = [r for r in non_eval if r.get("arm", "treatment") == "treatment"]
     control = [r for r in non_eval if r.get("arm") == "control"]
@@ -91,12 +110,17 @@ def build_metric_report(
     if not abstentions:
         unavailable["abstention_precision"] = "no abstentions in window"
 
+    t_rates = _arm_rate_series(treatment)
+    c_rates = _arm_rate_series(control)
     lift = causal_lift(
         first_attempt_success_sample(treatment),
         first_attempt_success_sample(control),
         task_class=task_class or "unknown",
         snapshot_id=snapshot_id,
         model_version=model_version,
+        min_independent_runs=min_independent_runs,
+        treatment_rates=t_rates or None,
+        control_rates=c_rates or None,
     )
 
     merge_gap = None

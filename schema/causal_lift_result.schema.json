@@ -53,6 +53,70 @@
       ],
       "title": "ConfidenceInterval",
       "type": "object"
+    },
+    "RunVariance": {
+      "additionalProperties": false,
+      "description": "Best\u2013worst gap and sample std-dev over independent run (or snapshot) rates.",
+      "properties": {
+        "n_runs": {
+          "minimum": 0,
+          "title": "N Runs",
+          "type": "integer"
+        },
+        "std_dev": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Std Dev"
+        },
+        "best_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Rate"
+        },
+        "worst_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worst Rate"
+        },
+        "best_worst_gap": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Worst Gap"
+        }
+      },
+      "required": [
+        "n_runs"
+      ],
+      "title": "RunVariance",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -94,7 +158,8 @@
         "established_positive",
         "established_negative",
         "not_established",
-        "insufficient_data"
+        "insufficient_data",
+        "low_run_count"
       ],
       "title": "Status",
       "type": "string"
@@ -134,6 +199,51 @@
       ],
       "default": null,
       "title": "Window"
+    },
+    "treatment_variance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunVariance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "control_variance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunVariance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "lift_variance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunVariance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "min_independent_runs": {
+      "default": 5,
+      "minimum": 1,
+      "title": "Min Independent Runs",
+      "type": "integer"
+    },
+    "independent_runs": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Independent Runs",
+      "type": "integer"
     }
   },
   "required": [

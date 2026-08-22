@@ -58,7 +58,7 @@ def mine_from_arxiv(
     from recertia.jobs.arxiv import ArxivClient, paper_to_payload
 
     c = client or ArxivClient()
-    papers = []
+    papers: list = []
     ids = [x for x in (arxiv_ids or []) if str(x).strip()]
     if ids:
         papers.extend(c.fetch_by_ids(ids))

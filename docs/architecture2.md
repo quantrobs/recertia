@@ -1473,6 +1473,40 @@ retrieval helps this task class. Per-skill retirement uses a separate randomized
 shadow-versus-suppression contrast (§7.2) — not a class baseline subtracted from a selected
 skill — so the same measurement program serves both questions without conflating them.
 
+### 11.5 Multi-run variance and the independent-run floor
+
+A Newcombe–Wilson interval that excludes zero is not enough. `CausalLiftResult` also
+carries per-arm and (when paired windows exist) per-lift `RunVariance`: sample std-dev,
+best rate, worst rate, and the absolute best–worst gap. Independent runs are
+**observation/trial counts**, not snapshot counts, so a 100-trial window can still
+establish lift. Below the policy floor (`min_independent_runs`, default 5) the status is
+`low_run_count` even if the interval excludes zero. `recertia lift` prints the variance
+fields and refuses established language below the floor. Per-run Bernoulli vectors live
+in `EvalStore` so the numbers recompute from storage.
+
+### 11.6 Faithfulness interventions (eval-only)
+
+Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`, `corrupt`,
+`irrelevant`, `filler` — replace the retrieved skill body in memory (never on the
+production retrieve path). The harness records first-attempt success against the
+unmodified baseline and decision-level trajectory divergence (event-kind Jaccard and
+Levenshtein). The faithfulness score is the fraction of interventions that move success
+or the trajectory. Observation rows are tagged `strategy=faithfulness:<name>` and treated
+as eval fixtures so they cannot enter lift. `recertia.evals.interventions` and
+`recertia.evals.faithfulness` are T3 and import-forbidden from `nodes/` and `jobs/`.
+The production flag `faithfulness_interventions_enabled` is false.
+
+### 11.7 Applicability and specificity before promotion
+
+Distillation injects the current environment model (tools from the registry) and the
+locked `TaskCriterion[]` summary. Before `candidate` / `approved`, an applicability gate
+rejects skills that name unavailable tools, whose success claims cannot be evaluated by
+locked criteria, or that are structural near-duplicates of retired / quarantined /
+benched / low-contribution skills. Rejections are `applicability_reject` ledger entries
+and do not grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
+draft/candidate/shadow and a warning on already-approved seeds, so the seed library stays
+green while new drafts must carry concrete `failure_modes`.
+
 <a id="ch-architecture-risk-and-governance"></a>
 
 > Source: [`architecture/risk-and-governance.md`](architecture/risk-and-governance.md)
@@ -4069,6 +4103,9 @@ class LedgerEntry(BaseModel):
         "revoke_lineage",
         "compose_block",
         "publish_patch_template",
+        "lift_report",
+        "faithfulness_report",
+        "applicability_reject",
     ]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver
@@ -6305,6 +6342,9 @@ interval are numbers.
 | **Retrieval-Augmented Generation**, Lewis et al., NeurIPS 2020 **[B]** | The retrieval substrate |
 | **The Bitter Lesson**, Sutton, 2019 **[B]** | The standing argument against elaborate hand-built scaffolding; the reason `architecture/overview.md` defers parametric learning rather than dismissing it |
 | **Next-Generation Agentic Reinforcement Learning Systems Enable Self-Evolving Agents**, Yan et al., arXiv:2607.01120, 2026 **[F]** | ATDP / trajectory substrate for step-granular learning signals and offline replay; informed ADR-0011. Weight-update loop and evolution control plane rejected (ADR-0005); scaffolding-only adaptation only |
+| **On the Fragility of Self-Improving Agents: Variance, Task Order, and Underspecification**, Ye et al., arXiv:2608.18066, 2026 **[F]** | Memory-based self-improvers amplify evaluation variance (71% of cases) and degrade under shuffled task order; underspecification produces inapplicable memories. Directly supports multi-run lift reporting, order stress-tests, stronger criteria/env specification at distillation, and pre-promotion filtering |
+| **Large Language Model Agents Are Not Always Faithful Self-Evolvers**, Zhao et al., arXiv:2601.22436, 2026 **[F]** | Causal interventions show agents depend on raw experience but frequently ignore or misinterpret condensed experience. Supports faithfulness tests on retrieved skills via trajectory events, more specific/actionable skill content, and uncertainty-gated retrieval |
+| **Building Multi-Agent Systems: When and How to Use Them**, Morgan et al., ICIS 2025 **[F]** | Practical decision checklist (context overflow, specialization, parallelism, high risk, maintainability). Supports keeping single-agent default and using structured handoffs / local-context protection only if measurement shows a clear ceiling |
 
 ## 6. Ideas used without a specific citation
 

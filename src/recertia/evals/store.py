@@ -269,6 +269,7 @@ class EvalStore:
                    COUNT(*) AS trials
             FROM observations
             WHERE task_class = ? AND is_eval_fixture = 0
+              AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')
         """
         params: list[object] = [task_class]
         if snapshot_id is not None:
@@ -281,6 +282,76 @@ class EvalStore:
                 successes=int(row["successes"] or 0), trials=int(row["trials"] or 0)
             )
         return out
+
+    def success_vectors(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, list[float]]:
+        """Per-observation Bernoulli outcomes (1.0/0.0) per arm, in recorded order.
+
+        Faithfulness-tagged rows (``strategy`` prefixed with ``faithfulness:``) and eval
+        fixtures are excluded so they cannot be mistaken for lift data.
+        """
+
+        sql = """
+            SELECT arm, first_attempt_success, strategy
+            FROM observations
+            WHERE task_class = ? AND is_eval_fixture = 0
+        """
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            sql += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        sql += " ORDER BY recorded_at ASC, run_id ASC"
+        out: dict[str, list[float]] = {}
+        for row in self._conn.execute(sql, params):
+            strategy = row["strategy"] or ""
+            if str(strategy).startswith("faithfulness:"):
+                continue
+            out.setdefault(row["arm"], []).append(1.0 if row["first_attempt_success"] else 0.0)
+        return out
+
+    def snapshot_rates(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, list[float]]:
+        """Per-snapshot success rates per arm (one rate per snapshot with trials)."""
+
+        sql = """
+            SELECT arm, snapshot_id,
+                   SUM(first_attempt_success) AS successes,
+                   COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND is_eval_fixture = 0
+              AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')
+        """
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            sql += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        sql += " GROUP BY arm, snapshot_id ORDER BY snapshot_id ASC"
+        out: dict[str, list[float]] = {}
+        for row in self._conn.execute(sql, params):
+            trials = int(row["trials"] or 0)
+            if trials <= 0:
+                continue
+            out.setdefault(row["arm"], []).append(int(row["successes"] or 0) / trials)
+        return out
+
+    def arm_rate_series(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[list[float], list[float]]:
+        """Rates used for variance: per-snapshot if ≥2 snapshots, else Bernoulli 0/1.
+
+        Best/worst gap is only meaningful across independent windows. A single snapshot
+        falls back to the 0/1 observation vector so std_dev is still reproducible.
+        """
+
+        snaps = self.snapshot_rates(task_class=task_class, snapshot_id=snapshot_id)
+        treatment_snaps = snaps.get("treatment", [])
+        control_snaps = snaps.get("control", [])
+        if len(treatment_snaps) >= 2 or len(control_snaps) >= 2:
+            return treatment_snaps, control_snaps
+        vectors = self.success_vectors(task_class=task_class, snapshot_id=snapshot_id)
+        return vectors.get("treatment", []), vectors.get("control", [])
 
     def contribution_samples(
         self, *, skill_id: str, version: int, task_class: str, snapshot_id: str | None = None
