@@ -41,6 +41,7 @@ time.
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
 | **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | single-operator §5 deltas accepted-with-owner; tenant signature open |
 | **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
+| **RW-HCI** | engineering | Ye/Zhao high-confidence review fixes (honest faithfulness scorer, paired lift gap, exact applicability, writer, curator proposal log) | P0+P1+leftovers landed; `a9` under evaluation |
 
 Deliberately out of scope for this year (unchanged from
 [measurement-and-scope.md](measurement-and-scope.md) §18): fine-tuning, learned retrieval

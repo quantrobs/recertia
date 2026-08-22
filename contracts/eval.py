@@ -32,11 +32,24 @@ class BinomialSample(BaseModel):
         return self.successes / self.trials
 
 
+class RunVariance(BaseModel):
+    """Best–worst gap and sample std-dev over independent run (or snapshot) rates."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_runs: int = Field(ge=0)
+    std_dev: float | None = None
+    best_rate: float | None = None
+    worst_rate: float | None = None
+    best_worst_gap: float | None = None
+
+
 LiftStatus = Literal[
     "established_positive",
     "established_negative",
     "not_established",
     "insufficient_data",
+    "low_run_count",
 ]
 
 
@@ -54,12 +67,19 @@ class CausalLiftResult(BaseModel):
     snapshot_id: str | None = None
     model_version: str | None = None
     window: str | None = None
+    treatment_variance: RunVariance | None = None
+    control_variance: RunVariance | None = None
+    lift_variance: RunVariance | None = None
+    min_independent_runs: int = Field(default=5, ge=1)
+    independent_runs: int = Field(default=0, ge=0)
 
     def render_status(self) -> str:
         if self.status == "not_established":
             return "not established"
         if self.status == "insufficient_data":
             return "insufficient data"
+        if self.status == "low_run_count":
+            return "low run count"
         if self.status == "established_positive":
             return "established positive"
         return "established negative"

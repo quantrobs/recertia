@@ -58,7 +58,7 @@ def mine_from_arxiv(
     from recertia.jobs.arxiv import ArxivClient, paper_to_payload
 
     c = client or ArxivClient()
-    papers = []
+    papers: list = []
     ids = [x for x in (arxiv_ids or []) if str(x).strip()]
     if ids:
         papers.extend(c.fetch_by_ids(ids))
@@ -104,6 +104,8 @@ def curator_active_set_and_dedup(
     eval_store: EvalStore | None = None,
     config: AutonomyConfig | None = None,
     ledger=None,
+    existing_proposals: list[Proposal] | None = None,
+    proposals_path: Path | None = None,
 ) -> list[Proposal]:
     """Recompute the active set, propose retirements, attach retrieval-only ReplayPacks."""
 
@@ -167,8 +169,62 @@ def curator_active_set_and_dedup(
                 except LifecycleError:
                     continue
 
+    flagged = 0
+    from recertia.jobs.proposals_log import ProposalLog
+    from recertia.memory.procedural.lint import lint_report
+
+    existing = list(existing_proposals or [])
+    if proposals_path is not None:
+        existing.extend(ProposalLog(proposals_path).load())
+    already = {
+        (p.skill_id, p.version, tuple(sorted(set(p.payload.get("codes") or ()))))
+        for p in existing
+        if p.payload.get("specificity")
+    }
+    seen_specificity: set[tuple[str, int, tuple[str, ...]]] = set(already)
+    new_specificity: list[Proposal] = []
+
+    for version, status, stats in store.iter_loaded():
+        if flagged >= 8:
+            break
+        if status.lifecycle != "approved" or not status.active:
+            continue
+        report = lint_report(
+            version, status, stats, store=store, skip_if_hash_matches=False
+        )
+        hits = [finding for finding in report.findings if finding.code in {"SPEC", "VAGUE"}]
+        if not hits:
+            continue
+        codes = tuple(sorted({finding.code for finding in hits}))
+        key = (version.skill_id, version.version, codes)
+        if key in seen_specificity:
+            continue
+        seen_specificity.add(key)
+        flagged_proposal = Proposal(
+            kind="curate",
+            skill_id=version.skill_id,
+            version=version.version,
+            rationale=(
+                f"specificity review {version.skill_id}@v{version.version}: "
+                + "; ".join(finding.code for finding in hits[:4])
+            ),
+            payload={
+                "specificity": True,
+                "codes": list(codes),
+                "messages": [finding.message for finding in hits],
+                "finding_hash": "-".join(codes),
+            },
+        )
+        proposals.append(flagged_proposal)
+        new_specificity.append(flagged_proposal)
+        flagged += 1
+
+    if proposals_path is not None:
+        ProposalLog(proposals_path).append(new_specificity)
+
     if trajectory_store is None:
         return proposals
+
 
     packs_attached = 0
     max_packs = 5

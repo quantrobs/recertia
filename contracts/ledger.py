@@ -25,6 +25,9 @@ LedgerAction = Literal[
     "revoke_lineage",
     "compose_block",
     "publish_patch_template",
+    "lift_report",
+    "faithfulness_report",
+    "applicability_reject",
 ]
 
 

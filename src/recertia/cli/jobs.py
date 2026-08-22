@@ -140,7 +140,10 @@ def jobs_run(
             result = runner.run(
                 "curator",
                 lambda: curator_active_set_and_dedup(
-                    store, trajectory_store=traj_store, eval_store=eval_store
+                    store,
+                    trajectory_store=traj_store,
+                    eval_store=eval_store,
+                    proposals_path=runs_root / "proposals.jsonl",
                 ),
                 budget=budget,
             )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from contracts.lint import LintFinding, LintReport, lint_content_hash
+from contracts.lint import LintFinding, LintReport, LintSeverity, lint_content_hash
 from contracts.profiles import validate_approved_skill, validate_candidate_skill
 from contracts.skill import SkillVersion
 from contracts.stats import SkillStats
@@ -13,6 +13,12 @@ from recertia.memory.procedural.store import SkillStore
 from recertia.solver.claims import ClaimScheduler
 
 _WHEN_CLAUSE = re.compile(r"\b(when|if|before|unless|only)\b", re.I)
+_VAGUE = re.compile(
+    r"\b(be careful|handle edge cases|edge cases|as appropriate|generally|"
+    r"try to|make sure|etc\.?|and so on|do the right thing)\b",
+    re.I,
+)
+_PROMOTION_DRAFT = frozenset({"draft", "candidate", "shadow"})
 
 
 def lint_skill(
@@ -56,6 +62,7 @@ def lint_report(
             findings.append(LintFinding(code="PROFILE", severity="error", message=message))
 
     findings.extend(_packaging_findings(version))
+    findings.extend(_specificity_findings(version, status))
 
     if store is not None and version.uses:
         for message in _check_uses_resolve(version, store):
@@ -66,6 +73,62 @@ def lint_report(
             findings.append(LintFinding(code="COMPOSE", severity="error", message=message))
 
     return LintReport(findings=findings, content_hash=digest)
+
+
+def _specificity_severity(status: SkillStatus) -> LintSeverity:
+    """ERROR for drafts entering the pipeline; WARNING for already-approved seeds."""
+
+    return "error" if status.lifecycle in _PROMOTION_DRAFT else "warning"
+
+
+def _specificity_findings(version: SkillVersion, status: SkillStatus) -> list[LintFinding]:
+    findings: list[LintFinding] = []
+    severity = _specificity_severity(status)
+    if not version.preconditions:
+        findings.append(
+            LintFinding(
+                code="SPEC",
+                severity=severity,
+                message="preconditions required: name the tools, files, or env the skill assumes",
+            )
+        )
+    if not version.failure_modes:
+        findings.append(
+            LintFinding(
+                code="SPEC",
+                severity=severity,
+                message="failure_modes required: each entry is condition → observed failure → recovery",
+            )
+        )
+    else:
+        for i, mode in enumerate(version.failure_modes):
+            if len(mode.symptom.strip()) < 12 or len(mode.response.strip()) < 12:
+                findings.append(
+                    LintFinding(
+                        code="SPEC",
+                        severity=severity,
+                        message=(
+                            f"failure_modes[{i}] is too thin; name the observed failure "
+                            "and the recovery action"
+                        ),
+                    )
+                )
+    blobs = [version.intent, version.title]
+    blobs.extend(step.intent for step in version.steps)
+    blobs.extend(mode.symptom for mode in version.failure_modes)
+    blobs.extend(mode.response for mode in version.failure_modes)
+    for blob in blobs:
+        match = _VAGUE.search(blob)
+        if match:
+            findings.append(
+                LintFinding(
+                    code="VAGUE",
+                    severity=severity,
+                    message=f"vague language {match.group(0)!r} — name the condition and the recovery",
+                )
+            )
+            break
+    return findings
 
 
 def _packaging_findings(version: SkillVersion) -> list[LintFinding]:

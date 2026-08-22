@@ -74,6 +74,15 @@ def maybe_advance_shadow_to_candidate(
     if lift < required_lift:
         raise LifecycleError(f"self_distilled bar not met: lift={lift} need>={required_lift}")
 
+    from recertia.memory.procedural.applicability import refuse_if_inapplicable
+
+    applicability = refuse_if_inapplicable(version_doc, store=store, ledger=ledger)
+    if not applicability.ok:
+        raise LifecycleError(
+            f"applicability gate refused {skill_id}@v{version}: "
+            f"{[r.message for r in applicability.reasons]}"
+        )
+
     # Shadow evidence makes this version eligible for the golden-gated
     # promotion service; it is not itself an approval authority.
     candidate = status.model_copy(update={"lifecycle": "candidate", "active": False})

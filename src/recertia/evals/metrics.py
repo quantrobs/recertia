@@ -21,6 +21,32 @@ def first_attempt_success_sample(rows: Sequence[dict[str, Any]]) -> BinomialSamp
     return BinomialSample(successes=successes, trials=trials)
 
 
+def _arm_snapshot_rates(rows: Sequence[dict[str, Any]]) -> dict[str, float]:
+    snaps: dict[str, list[int]] = {}
+    for row in rows:
+        success = 1 if row.get("first_attempt_success") else 0
+        snap = str(row.get("snapshot_id") or "")
+        pair = snaps.setdefault(snap, [0, 0])
+        pair[0] += success
+        pair[1] += 1
+    return {sid: succ / trials for sid, (succ, trials) in snaps.items() if trials}
+
+
+def _arm_rate_series(
+    rows: Sequence[dict[str, Any]],
+) -> tuple[list[float], list[float]]:
+    """Per-snapshot rates when ≥2 snapshots exist, else the Bernoulli 0/1 vector.
+
+    Second list is unused; kept so callers that only need rates stay simple.
+    """
+
+    snaps = _arm_snapshot_rates(rows)
+    bernoulli = [1.0 if r.get("first_attempt_success") else 0.0 for r in rows]
+    if len(snaps) >= 2:
+        return [snaps[sid] for sid in sorted(snaps)], bernoulli
+    return bernoulli, bernoulli
+
+
 def build_metric_report(
     rows: Sequence[dict[str, Any]],
     *,
@@ -44,6 +70,7 @@ def build_metric_report(
     precision_at_3: float | None = None,
     prior_precision_at_3: float | None = None,
     skills_added: int | None = None,
+    min_independent_runs: int = 5,
 ) -> MetricReport:
     unavailable: dict[str, str] = {}
     # User-facing metrics and lift exclude fixtures and synthetic practice
@@ -54,6 +81,7 @@ def build_metric_report(
         if not r.get("is_eval_fixture")
         and r.get("arm") != "practice"
         and r.get("arm") != "shadow"
+        and not str(r.get("strategy") or "").startswith("faithfulness:")
     ]
     treatment = [r for r in non_eval if r.get("arm", "treatment") == "treatment"]
     control = [r for r in non_eval if r.get("arm") == "control"]
@@ -91,12 +119,26 @@ def build_metric_report(
     if not abstentions:
         unavailable["abstention_precision"] = "no abstentions in window"
 
+    t_map = _arm_snapshot_rates(treatment)
+    c_map = _arm_snapshot_rates(control)
+    if len(t_map) >= 2 or len(c_map) >= 2:
+        t_rates = [t_map[sid] for sid in sorted(t_map)]
+        c_rates = [c_map[sid] for sid in sorted(c_map)]
+        paired = [t_map[sid] - c_map[sid] for sid in sorted(set(t_map) & set(c_map))]
+    else:
+        t_rates, _ = _arm_rate_series(treatment)
+        c_rates, _ = _arm_rate_series(control)
+        paired = []
     lift = causal_lift(
         first_attempt_success_sample(treatment),
         first_attempt_success_sample(control),
         task_class=task_class or "unknown",
         snapshot_id=snapshot_id,
         model_version=model_version,
+        min_independent_runs=min_independent_runs,
+        treatment_rates=t_rates or None,
+        control_rates=c_rates or None,
+        paired_lifts=paired,
     )
 
     merge_gap = None

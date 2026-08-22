@@ -1,14 +1,19 @@
 {
   "schema_version": "1.0",
-  "version": "ap-2026.07.1",
+  "version": "ap-2026.08.1",
   "require_parameter_or_recurrence": true,
   "require_non_judge_criterion": true,
   "require_sensitivity_proof": true,
+  "require_failure_modes": true,
   "max_steps": 12,
   "prefer_shell_when_applicable": true,
   "notes": [
     "Prefer parameterised shell steps over opaque model calls when the transcript is shell-shaped.",
     "Every reusable draft needs at least one required non-judge criterion with a rejecting sensitivity proof.",
-    "Emit input_bindings only when a later step consumes a named earlier output; do not invent ordering-only edges from transcript order."
+    "Emit input_bindings only when a later step consumes a named earlier output; do not invent ordering-only edges from transcript order.",
+    "Do not emit generic step lists. Each step must name the artifact, command, or tool and the condition under which it runs.",
+    "failure_modes is required: each entry is condition → observed failure → recovery, not a slogan.",
+    "Preconditions and environment assumptions are first-class. Name the tools and files the skill needs.",
+    "Vague language is refused: never 'be careful', 'handle edge cases', 'as appropriate', or 'try to'."
   ]
 }

@@ -52,3 +52,54 @@ The control arm supplies the class-level `RetrievalAblationEffect` that answers 
 retrieval helps this task class. Per-skill retirement uses a separate randomized
 shadow-versus-suppression contrast (§7.2) — not a class baseline subtracted from a selected
 skill — so the same measurement program serves both questions without conflating them.
+
+### 11.5 Multi-run variance and the independent-run floor
+
+A Newcombe–Wilson interval that excludes zero is not enough. `CausalLiftResult` also
+carries per-arm and (when paired windows exist) per-lift `RunVariance`: sample std-dev,
+best rate, worst rate, and the absolute best–worst gap. Independent runs are
+**observation/trial counts**, not snapshot counts, so a 100-trial window can still
+establish lift. Below the policy floor (`min_independent_runs`, default 5) the status is
+`low_run_count` even if the interval excludes zero. `recertia lift` prints the variance
+fields and refuses established language below the floor. Best/worst **gap** is printed
+only for ≥2 snapshots paired on `snapshot_id`; a single snapshot's Bernoulli 0/1 vector
+does not report a multi-run gap. Per-run Bernoulli vectors live in `EvalStore` so the
+numbers recompute from storage.
+
+### 11.6 Faithfulness interventions (eval-only)
+
+Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`, `corrupt`,
+`irrelevant`, `filler` — replace the retrieved skill body in memory (never on the
+production retrieve path). `Retriever` accepts an optional `bundle_hook` constructor
+argument; bootstrap, the retrieve node, and `recertia skills search` omit it. The
+hook is constructor-only and read-only after init. An
+eval-only `IntervenedSkillStore` overlay replaces the skill body at `get_version`.
+`recertia faithfulness run --trials N` writes tagged observations through that overlay;
+`--trials 0` scores stored rows only. Arms with zero intervened trials are `scored=False`
+and the report `score` is `None` (missing data is not 0.0 or 1.0). Trajectory divergence
+is pairwise by `fixture_id` (median Jaccard and normalized edit distance); concatenated
+bags are not used. Observation rows are tagged `strategy=faithfulness:<name>` and treated
+as eval fixtures so they cannot enter lift or contribution samples.
+`recertia.evals.interventions` and `recertia.evals.faithfulness` are T3 and
+import-forbidden from `nodes/` and `jobs/`. The production flag
+`faithfulness_interventions_enabled` is false and is not a runtime switch — constructor
+injection is the only gate.
+
+### 11.7 Applicability and specificity before promotion
+
+Distillation injects the current environment model (tools from `ctx.tools` when present)
+and the locked `TaskCriterion[]` summary. Before `candidate` / `approved`, an
+applicability gate rejects skills that name unavailable tools, whose success claims do
+not **exactly** match a required locked criterion (`kind` + `run`/`expr`/`metric`), or
+that are structural-hash near-duplicates of retired / quarantined / benched /
+low-contribution skills. Hashed-embedding cosine near-duplicates are recorded as
+`advisory:` contagion reasons and do not block promotion. When locked criteria are
+omitted (promote / shadow-advance), the skill must still carry at least one non-judge
+certification criterion. Rejections are `applicability_reject` ledger entries and do not
+grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
+draft/candidate/shadow and a warning on already-approved seeds. The curator job re-lints
+the active set and emits specificity-review proposals (persisted to
+`proposals.jsonl` so later curator runs skip the same finding set); it does not
+`lint_reject` approved seeds and does not auto-demote.
+
+

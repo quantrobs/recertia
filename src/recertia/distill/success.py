@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from contracts.criteria import SkillCertificationCriterion
+from contracts.criteria import SkillCertificationCriterion, TaskCriterion
 from contracts.fact import Fact, FactProvenance
 from contracts.policy import AuthoringPrior
 from contracts.run import ReusabilityVerdict, RunState
@@ -16,6 +16,7 @@ from contracts.skill import (
     FailureMode,
     Hygiene,
     Parameter,
+    Precondition,
     Provenance,
     SkillVersion,
     Step,
@@ -36,6 +37,8 @@ def distill_success(
     task_class_sightings: int = 1,
     near_duplicate_of: tuple[str, int] | None = None,
     one_off_counts: dict[str, int] | None = None,
+    environment: object | None = None,
+    locked_criteria: list[TaskCriterion] | None = None,
 ) -> tuple[SkillVersion | None, list[Fact], ReusabilityVerdict]:
     """Author a draft skill from a solved scratch/apply attempt.
 
@@ -52,13 +55,17 @@ def distill_success(
     if not commands:
         commands = _infer_commands_from_workdir(workdir, request)
 
+    env_tools, env_backend = _environment_summary(environment)
+    locked = locked_criteria if locked_criteria is not None else list(state.criteria)
+    criteria_summary = _criteria_summary(locked)
+
     params, parametrized = _extract_parameters(request, commands)
     skill_id = _skill_id_from_request(request)
     steps = [
         Step(
             id=f"step_{i}",
             tool="shell",
-            intent=f"Execute distilled shell step {i} for {skill_id}",
+            intent=f"Execute distilled shell step {i} for {skill_id} when the workspace is writable",
             inputs={"command": cmd},
             resources=[],
         )
@@ -75,35 +82,45 @@ def distill_success(
         ]
 
     check_cmd = _default_check_command(workdir, request)
-    cert = SkillCertificationCriterion(
-        id="artifact-present",
-        kind="command",
-        run=check_cmd,
-        authored_by="distiller",
-        weight=1.0,
-        preregistered=True,
-    )
+    cert = _cert_from_locked(locked, check_cmd)
     neg = empty_negative_fixture()
     proof = author_sensitivity_proof(cert, negative_workdir=neg)
     cert = cert.model_copy(update={"sensitivity_proof": proof})
 
     now = datetime.now(timezone.utc)
+    used_tools = sorted({step.tool for step in steps if step.tool})
+    preconditions = [
+        Precondition(
+            kind="tool_available",
+            value=tool,
+            description=f"Requires {tool} (backend={env_backend})",
+        )
+        for tool in used_tools
+    ]
     version = SkillVersion(
         skill_id=skill_id,
         version=1 if near_duplicate_of is None else near_duplicate_of[1] + 1,
         supersedes=near_duplicate_of[1] if near_duplicate_of else None,
         title=_title(request),
-        intent=_intent(request),
+        intent=_intent(
+            request,
+            env_tools=env_tools,
+            env_backend=env_backend,
+            criteria_summary=criteria_summary,
+        ),
         task_class=task_class,
         tags=[task_class, "distilled"],
         parameters=params,
-        preconditions=[],
+        preconditions=preconditions,
         steps=steps,
         certification_criteria=[cert],
         failure_modes=[
             FailureMode(
-                symptom="certification criterion fails",
-                response="restore snapshot and re-check parameters",
+                symptom="Certification command exits non-zero after the distilled steps run",
+                response=(
+                    "Restore the workspace snapshot, re-check parameters, "
+                    "and re-run the criterion command"
+                ),
             )
         ],
         provenance=Provenance(
@@ -139,7 +156,6 @@ def distill_success(
     if verdict.verdict != "reusable":
         return None, facts, verdict
     return version, facts, verdict
-
 
 def _extract_parameters(
     request: str, commands: list[str]
@@ -204,11 +220,73 @@ def _title(request: str) -> str:
     return text[:120]
 
 
-def _intent(request: str) -> str:
+def _intent(
+    request: str,
+    *,
+    env_tools: list[str] | None = None,
+    env_backend: str | None = None,
+    criteria_summary: str | None = None,
+) -> str:
     text = request.strip()
     if len(text) < 20:
         text = f"Distilled skill covering request: {text}"
+    extras: list[str] = []
+    if env_backend:
+        extras.append(f"when running on the {env_backend} backend")
+    if env_tools:
+        extras.append("with tools " + ", ".join(env_tools[:6]))
+    if criteria_summary:
+        extras.append("measured by " + criteria_summary)
+    if extras:
+        text = text.rstrip(".") + " " + " ".join(extras)
     return text[:500]
+
+
+def _environment_summary(environment: object | None) -> tuple[list[str], str]:
+    if environment is not None and hasattr(environment, "tools"):
+        tools = list(getattr(environment, "tools") or [])
+        backend = str(getattr(environment, "backend", "container"))
+        return tools, backend
+    from recertia.memory.procedural.applicability import environment_model_from_registry
+
+    env = environment_model_from_registry()
+    return list(env.tools), env.backend
+
+
+def _criteria_summary(criteria: list[TaskCriterion] | None) -> str | None:
+    if not criteria:
+        return None
+    parts = []
+    for criterion in criteria:
+        if not criterion.is_required:
+            continue
+        detail = criterion.run or criterion.expr or criterion.metric or criterion.kind
+        parts.append(f"{criterion.id}:{criterion.kind}:{detail}")
+    return "; ".join(parts[:4]) if parts else None
+
+
+def _cert_from_locked(
+    locked: list[TaskCriterion] | None, fallback_run: str
+) -> SkillCertificationCriterion:
+    if locked:
+        for criterion in locked:
+            if criterion.is_required and criterion.kind != "judge" and criterion.run:
+                return SkillCertificationCriterion(
+                    id=criterion.id,
+                    kind="command",
+                    run=criterion.run,
+                    authored_by="distiller",
+                    weight=1.0,
+                    preregistered=True,
+                )
+    return SkillCertificationCriterion(
+        id="artifact-present",
+        kind="command",
+        run=fallback_run,
+        authored_by="distiller",
+        weight=1.0,
+        preregistered=True,
+    )
 
 
 def _extract_facts(state: RunState, workdir: Path, skill_id: str) -> list[Fact]:

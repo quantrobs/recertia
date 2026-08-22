@@ -14,7 +14,7 @@ from contracts.criteria import (
     mint_rejecting_proof,
 )
 from contracts.run import RunManifest, RunState, SkillCandidateRef, Task
-from contracts.skill import Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
 from contracts.stats import Contribution, SkillStats
 from contracts.status import SkillStatus
 from recertia.evals.store import EvalStore
@@ -64,6 +64,12 @@ def _skill(
             )
         ],
         certification_criteria=[_proven("ok", criterion_run)],
+        failure_modes=[
+            FailureMode(
+                symptom="Fixture command exits non-zero on a dirty workspace",
+                response="Restore the snapshot and re-run the fixture command",
+            )
+        ],
         provenance=Provenance(
             distilled_from_run="live-mix",
             distilled_at=_NOW,

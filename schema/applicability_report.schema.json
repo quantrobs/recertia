@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/ApplicabilityReport",
+  "$defs": {
+    "ApplicabilityReason": {
+      "additionalProperties": false,
+      "properties": {
+        "check": {
+          "enum": [
+            "environment",
+            "criterion",
+            "contagion"
+          ],
+          "title": "Check",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check",
+        "message"
+      ],
+      "title": "ApplicabilityReason",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Outcome of the environment / criterion / contagion gate.",
+  "properties": {
+    "skill_id": {
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    },
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "environment_ok": {
+      "default": true,
+      "title": "Environment Ok",
+      "type": "boolean"
+    },
+    "criterion_ok": {
+      "default": true,
+      "title": "Criterion Ok",
+      "type": "boolean"
+    },
+    "contagion_ok": {
+      "default": true,
+      "title": "Contagion Ok",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "$ref": "#/$defs/ApplicabilityReason"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "structural_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Structural Hash"
+    }
+  },
+  "required": [
+    "skill_id",
+    "version",
+    "ok"
+  ],
+  "title": "ApplicabilityReport",
+  "type": "object"
+}

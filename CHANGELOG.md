@@ -9,7 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Variance-aware causal lift** — `RunVariance` on `CausalLiftResult` (std-dev, best,
+  worst, best–worst gap); `low_run_count` when independent trials are below
+  `Policy.min_independent_runs` (default 5). `EvalStore` exposes Bernoulli vectors
+  and per-snapshot rates. `recertia lift` prints the gap and refuses established
+  language below the floor (Ye et al. 2026).
+- **Faithfulness interventions** — eval-only `empty` / `corrupt` / `irrelevant` /
+  `filler` transformers (`recertia.evals.interventions`) and
+  `recertia faithfulness`. Trajectory Jaccard + normalized edit-distance, pairwise
+  by fixture; zero-trial arms are unscored (`score` is None). `--trials N` writes
+  tagged `faithfulness:*` observations through `IntervenedSkillStore` +
+  `Retriever.bundle_hook`. Those rows cannot enter lift or contribution samples.
+  T3, import-forbidden from nodes/jobs (Zhao et al. 2026). Production omits the hook.
+  `Retriever.bundle_hook` is constructor-only (read-only after init). Curator
+  persists specificity proposals to `proposals.jsonl` so weekly runs do not
+  re-flag the same skill.
+
+- **Applicability gate** — environment (run `ToolRuntime` when present), exact
+  locked-criterion match, contagion structural hash (embedding cosine is advisory).
+  Distiller injects the environment model and criterion summary. Ledger action
+  `applicability_reject`. Distill routes a failing draft to `one_off`. Promote
+  requires a non-judge certification criterion.
+
+- **Specificity lint** — `SPEC` / `VAGUE` on drafts; `require_failure_modes` on the
+  authoring prior (`ap-2026.08.1`). Warnings only for already-approved seeds.
+  Missing preconditions are a SPEC finding. Curator emits specificity-review
+  proposals against the active set and does not `lint_reject` approved seeds.
+
+- Ledger actions `lift_report`, `faithfulness_report`, `applicability_reject`.
 - **arXiv paper ingestion (Miner)** — `src/recertia/jobs/arxiv.py` Atom client;
+
   `mine_from_arxiv` proposals with `curation=mined_from_paper`; CLI `--arxiv-id` /
   `--arxiv-query` / `--arxiv-max` on `recertia jobs run mine`; optional `--submit`
   for candidate drafts only. Docs: `docs/architecture/arxiv-ingest.md`.

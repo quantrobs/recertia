@@ -115,11 +115,19 @@ class EvalStore:
                 if column not in existing:
                     self._conn.execute(f"ALTER TABLE observations ADD COLUMN {column} {definition}")
 
-    def append_run(self, state: RunState) -> EvalObservation:
+    def append_run(
+        self,
+        state: RunState,
+        *,
+        strategy_override: str | None = None,
+        force_eval_fixture: bool = False,
+    ) -> EvalObservation:
         """Append an observation derived only from a completed, locked ``RunState``.
 
         The run ID is a primary key and is never replaced.  The canonical run payload hash is
         retained with the derived fields so callers cannot rewrite an observation after the fact.
+        ``strategy_override`` / ``force_eval_fixture`` let the faithfulness writer tag rows
+        without forging an observation.
         """
 
         if state.terminal is None:
@@ -147,6 +155,8 @@ class EvalStore:
         valid_non_judge_evidence = bool(required_non_judge) and all(
             criterion_id in results for criterion_id in required_non_judge
         )
+        is_fixture = bool(state.task.is_eval_fixture or force_eval_fixture)
+        fixture_id = state.task.task_id if is_fixture else None
         obs = EvalObservation(
             run_id=state.run_id,
             task_class=state.task.task_class,
@@ -156,10 +166,10 @@ class EvalStore:
             first_attempt_success=state.terminal == "solved" and state.attempt_no == 1,
             predicted_success=state.predicted_success,
             terminal=state.terminal,
-            fixture_id=state.task.task_id if state.task.is_eval_fixture else None,
-            is_eval_fixture=state.task.is_eval_fixture,
+            fixture_id=fixture_id,
+            is_eval_fixture=is_fixture,
             recorded_at=datetime.now(timezone.utc),
-            strategy=state.strategy,
+            strategy=strategy_override if strategy_override is not None else state.strategy,
             attempt_no=state.attempt_no,
             cost_usd=state.spent.cost_usd,
             abstention_confirmed=state.terminal == "abstained" and state.failure is not None,
@@ -269,6 +279,7 @@ class EvalStore:
                    COUNT(*) AS trials
             FROM observations
             WHERE task_class = ? AND is_eval_fixture = 0
+              AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')
         """
         params: list[object] = [task_class]
         if snapshot_id is not None:
@@ -282,12 +293,109 @@ class EvalStore:
             )
         return out
 
+    def success_vectors(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, list[float]]:
+        """Per-observation Bernoulli outcomes (1.0/0.0) per arm, in recorded order.
+
+        Faithfulness-tagged rows (``strategy`` prefixed with ``faithfulness:``) and eval
+        fixtures are excluded so they cannot be mistaken for lift data.
+        """
+
+        sql = """
+            SELECT arm, first_attempt_success, strategy
+            FROM observations
+            WHERE task_class = ? AND is_eval_fixture = 0
+        """
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            sql += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        sql += " ORDER BY recorded_at ASC, run_id ASC"
+        out: dict[str, list[float]] = {}
+        for row in self._conn.execute(sql, params):
+            strategy = row["strategy"] or ""
+            if str(strategy).startswith("faithfulness:"):
+                continue
+            out.setdefault(row["arm"], []).append(1.0 if row["first_attempt_success"] else 0.0)
+        return out
+
+    def snapshot_rate_map(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, dict[str, float]]:
+        """arm → snapshot_id → rate, excluding fixtures and faithfulness-tagged rows."""
+
+        sql = """
+            SELECT arm, snapshot_id,
+                   SUM(first_attempt_success) AS successes,
+                   COUNT(*) AS trials
+            FROM observations
+            WHERE task_class = ? AND is_eval_fixture = 0
+              AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')
+        """
+        params: list[object] = [task_class]
+        if snapshot_id is not None:
+            sql += " AND snapshot_id = ?"
+            params.append(snapshot_id)
+        sql += " GROUP BY arm, snapshot_id ORDER BY snapshot_id ASC"
+        out: dict[str, dict[str, float]] = {}
+        for row in self._conn.execute(sql, params):
+            trials = int(row["trials"] or 0)
+            if trials <= 0:
+                continue
+            out.setdefault(row["arm"], {})[row["snapshot_id"]] = (
+                int(row["successes"] or 0) / trials
+            )
+        return out
+
+    def snapshot_rates(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> dict[str, list[float]]:
+        """Per-snapshot success rates per arm (one rate per snapshot with trials)."""
+
+        mapped = self.snapshot_rate_map(task_class=task_class, snapshot_id=snapshot_id)
+        return {
+            arm: [mapped[arm][sid] for sid in sorted(mapped[arm])]
+            for arm in mapped
+        }
+
+    def arm_rate_series(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[list[float], list[float]]:
+        """Rates used for per-arm variance: per-snapshot if ≥2 snapshots, else Bernoulli 0/1."""
+
+        treatment, control, _paired, _kind = self.variance_inputs(
+            task_class=task_class, snapshot_id=snapshot_id
+        )
+        return treatment, control
+
+    def variance_inputs(
+        self, *, task_class: str, snapshot_id: str | None = None
+    ) -> tuple[list[float], list[float], list[float], str]:
+        """Treatment rates, control rates, paired-on-snapshot lifts, and series kind.
+
+        Kind is ``snapshot`` when either arm has ≥2 snapshots, else ``bernoulli``.
+        Paired lifts use the intersection of snapshot ids only.
+        """
+
+        mapped = self.snapshot_rate_map(task_class=task_class, snapshot_id=snapshot_id)
+        t_map = mapped.get("treatment", {})
+        c_map = mapped.get("control", {})
+        if len(t_map) >= 2 or len(c_map) >= 2:
+            t_rates = [t_map[sid] for sid in sorted(t_map)]
+            c_rates = [c_map[sid] for sid in sorted(c_map)]
+            paired = [t_map[sid] - c_map[sid] for sid in sorted(set(t_map) & set(c_map))]
+            return t_rates, c_rates, paired, "snapshot"
+        vectors = self.success_vectors(task_class=task_class, snapshot_id=snapshot_id)
+        return vectors.get("treatment", []), vectors.get("control", []), [], "bernoulli"
+
     def contribution_samples(
         self, *, skill_id: str, version: int, task_class: str, snapshot_id: str | None = None
     ) -> tuple[BinomialSample, BinomialSample]:
         """Return randomized shadow and suppression samples for one skill."""
 
-        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        extra = " AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')"
+        suffix = extra + (" AND snapshot_id = ?" if snapshot_id is not None else "")
         params: list[object] = [task_class, skill_id, version]
         if snapshot_id is not None:
             params.append(snapshot_id)
@@ -327,7 +435,8 @@ class EvalStore:
         per-skill round trips; skills with no evidence are absent from the result.
         """
 
-        suffix = " AND snapshot_id = ?" if snapshot_id is not None else ""
+        extra = " AND (strategy IS NULL OR strategy NOT LIKE 'faithfulness:%')"
+        suffix = extra + (" AND snapshot_id = ?" if snapshot_id is not None else "")
         params: list[object] = [task_class]
         if snapshot_id is not None:
             params.append(snapshot_id)

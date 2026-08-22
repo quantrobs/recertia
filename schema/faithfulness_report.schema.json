@@ -1,0 +1,450 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/recertia/recertia/schema/FaithfulnessReport",
+  "$defs": {
+    "BinomialSample": {
+      "additionalProperties": false,
+      "properties": {
+        "successes": {
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "trials": {
+          "minimum": 0,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "successes",
+        "trials"
+      ],
+      "title": "BinomialSample",
+      "type": "object"
+    },
+    "CausalLiftResult": {
+      "additionalProperties": false,
+      "description": "Treatment \u2212 control first-attempt success with a difference CI (specs \u00a719).",
+      "properties": {
+        "task_class": {
+          "title": "Task Class",
+          "type": "string"
+        },
+        "treatment": {
+          "$ref": "#/$defs/BinomialSample"
+        },
+        "control": {
+          "$ref": "#/$defs/BinomialSample"
+        },
+        "estimate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Estimate"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConfidenceInterval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "established_positive",
+            "established_negative",
+            "not_established",
+            "insufficient_data",
+            "low_run_count"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        },
+        "treatment_variance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunVariance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "control_variance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunVariance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lift_variance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunVariance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "min_independent_runs": {
+          "default": 5,
+          "minimum": 1,
+          "title": "Min Independent Runs",
+          "type": "integer"
+        },
+        "independent_runs": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Independent Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "task_class",
+        "treatment",
+        "control",
+        "estimate",
+        "interval",
+        "status"
+      ],
+      "title": "CausalLiftResult",
+      "type": "object"
+    },
+    "ConfidenceInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "title": "Low",
+          "type": "number"
+        },
+        "high": {
+          "title": "High",
+          "type": "number"
+        },
+        "level": {
+          "default": 0.95,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Level",
+          "type": "number"
+        },
+        "method": {
+          "default": "newcombe_wilson",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "high"
+      ],
+      "title": "ConfidenceInterval",
+      "type": "object"
+    },
+    "FaithfulnessArmResult": {
+      "additionalProperties": false,
+      "description": "One intervention versus the unmodified retrieval baseline.",
+      "properties": {
+        "intervention": {
+          "enum": [
+            "empty",
+            "corrupt",
+            "irrelevant",
+            "filler"
+          ],
+          "title": "Intervention",
+          "type": "string"
+        },
+        "strategy": {
+          "title": "Strategy",
+          "type": "string"
+        },
+        "performance_delta": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Performance Delta"
+        },
+        "lift": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CausalLiftResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "divergence": {
+          "$ref": "#/$defs/TrajectoryDivergence"
+        },
+        "detectable_change": {
+          "title": "Detectable Change",
+          "type": "boolean"
+        },
+        "skill_used": {
+          "default": true,
+          "title": "Skill Used",
+          "type": "boolean"
+        },
+        "scored": {
+          "default": true,
+          "title": "Scored",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "intervention",
+        "strategy",
+        "divergence",
+        "detectable_change"
+      ],
+      "title": "FaithfulnessArmResult",
+      "type": "object"
+    },
+    "RunVariance": {
+      "additionalProperties": false,
+      "description": "Best\u2013worst gap and sample std-dev over independent run (or snapshot) rates.",
+      "properties": {
+        "n_runs": {
+          "minimum": 0,
+          "title": "N Runs",
+          "type": "integer"
+        },
+        "std_dev": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Std Dev"
+        },
+        "best_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Rate"
+        },
+        "worst_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worst Rate"
+        },
+        "best_worst_gap": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Best Worst Gap"
+        }
+      },
+      "required": [
+        "n_runs"
+      ],
+      "title": "RunVariance",
+      "type": "object"
+    },
+    "TrajectoryDivergence": {
+      "additionalProperties": false,
+      "description": "Decision-level divergence between a baseline trajectory and an intervened one.",
+      "properties": {
+        "jaccard": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Jaccard",
+          "type": "number"
+        },
+        "edit_distance": {
+          "minimum": 0,
+          "title": "Edit Distance",
+          "type": "integer"
+        },
+        "event_count_baseline": {
+          "minimum": 0,
+          "title": "Event Count Baseline",
+          "type": "integer"
+        },
+        "event_count_intervened": {
+          "minimum": 0,
+          "title": "Event Count Intervened",
+          "type": "integer"
+        },
+        "normalized_edit": {
+          "default": 0.0,
+          "minimum": 0.0,
+          "title": "Normalized Edit",
+          "type": "number"
+        }
+      },
+      "required": [
+        "jaccard",
+        "edit_distance",
+        "event_count_baseline",
+        "event_count_intervened"
+      ],
+      "title": "TrajectoryDivergence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Fraction of *scored* interventions that moved success or the trajectory.\n\n``score`` is None when no arm had intervened trials \u2014 missing data is not 0.0 or 1.0.",
+  "properties": {
+    "skill_id": {
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "integer"
+    },
+    "task_class": {
+      "title": "Task Class",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Snapshot Id"
+    },
+    "score": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Score"
+    },
+    "scored_arms": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Scored Arms",
+      "type": "integer"
+    },
+    "arms": {
+      "items": {
+        "$ref": "#/$defs/FaithfulnessArmResult"
+      },
+      "title": "Arms",
+      "type": "array"
+    },
+    "baseline_successes": {
+      "minimum": 0,
+      "title": "Baseline Successes",
+      "type": "integer"
+    },
+    "baseline_trials": {
+      "minimum": 0,
+      "title": "Baseline Trials",
+      "type": "integer"
+    },
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "skill_id",
+    "version",
+    "task_class",
+    "baseline_successes",
+    "baseline_trials",
+    "at"
+  ],
+  "title": "FaithfulnessReport",
+  "type": "object"
+}

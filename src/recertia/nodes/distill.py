@@ -158,6 +158,12 @@ def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
     sightings = _task_class_sightings(ctx, state.task.task_class)
     near = _nearest_duplicate(ctx, state.task.request or "")
 
+    from recertia.memory.procedural.applicability import (
+        environment_model_from_registry,
+        refuse_if_inapplicable,
+    )
+
+    environment = environment_model_from_registry(ctx.tools)
     draft, facts, verdict = distill_success(
         state,
         workdir=ctx.workdir,
@@ -165,7 +171,31 @@ def _author_or_reject(state: RunState, ctx: NodeContext) -> NodeOutcome:
         prior=prior,
         task_class_sightings=sightings,
         near_duplicate_of=near,
+        environment=environment,
+        locked_criteria=list(state.criteria),
     )
+
+    if draft is not None:
+        applicability = refuse_if_inapplicable(
+            draft,
+            environment=environment,
+            locked_criteria=list(state.criteria),
+            store=ctx.store,
+            ledger=ctx.ledger,
+        )
+        if not applicability.ok:
+            reasons = "; ".join(r.message for r in applicability.reasons)
+            verdict = ReusabilityVerdict(
+                verdict="one_off",
+                parameterisable=False,
+                context_free=True,
+                checkable=True,
+                not_duplicate=True,
+                bounded=True,
+                reason=f"applicability gate refused draft: {reasons}",
+            )
+            draft = None
+
 
     if draft is not None and state.execution_guide is not None:
         from recertia.nodes.guide_stitch import reject_guide_leak

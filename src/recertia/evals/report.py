@@ -25,8 +25,11 @@ def assemble_metric_report(
 ) -> MetricReport:
     """Build a report with honest ``unavailable`` holes, including yield/precision/decay."""
 
+    from recertia.policy_load import load_policy
+
     rows = eval_store.metric_rows(task_class=task_class, snapshot_id=snapshot_id)
     snap = snapshot_id or (rows[0]["snapshot_id"] if rows else "none")
+    min_runs = load_policy().min_independent_runs
     _updated, pressure = recompute_active_set(skill_store, config=DEFAULT_AUTONOMY)
     mean_pressure = sum(pressure.values()) / len(pressure) if pressure else 0.0
     canary = run_judge_canary(root=canary_root, model_version=model_version)
@@ -67,6 +70,7 @@ def assemble_metric_report(
         precision_at_3=precision,
         prior_precision_at_3=prior,
         skills_added=skills_added,
+        min_independent_runs=min_runs,
     )
 
 
@@ -81,4 +85,8 @@ def weekly_claim(report: MetricReport) -> str:
         return "not established"
     if lift.status == "not_established":
         return "not established"
+    if lift.status == "low_run_count":
+        return "low run count"
+    if lift.status == "insufficient_data":
+        return "insufficient_data"
     return lift.status

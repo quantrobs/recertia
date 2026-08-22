@@ -96,6 +96,9 @@ class LedgerEntry(BaseModel):
         "revoke_lineage",
         "compose_block",
         "publish_patch_template",
+        "lift_report",
+        "faithfulness_report",
+        "applicability_reject",
     ]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver

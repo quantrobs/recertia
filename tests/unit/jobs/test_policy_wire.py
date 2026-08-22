@@ -11,7 +11,9 @@ from recertia.policy_load import QuotaSidecar, iso_week_id, load_policy
 
 def test_policy_loads_and_merges_quota_sidecar(tmp_path: Path) -> None:
     policy = load_policy()
-    assert policy.version == "p-2026.08.1"
+    assert policy.version == "p-2026.08.2"
+    assert policy.min_independent_runs == 5
+    assert policy.faithfulness_interventions_enabled is False
     assert policy.improvement.practice_hex_search is False
     assert policy.job_quota.weekly_token_cap == 500_000
 

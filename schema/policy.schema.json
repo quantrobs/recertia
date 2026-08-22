@@ -244,6 +244,17 @@
       "title": "Require Tool Approval For Non Read",
       "type": "boolean"
     },
+    "min_independent_runs": {
+      "default": 5,
+      "minimum": 1,
+      "title": "Min Independent Runs",
+      "type": "integer"
+    },
+    "faithfulness_interventions_enabled": {
+      "default": false,
+      "title": "Faithfulness Interventions Enabled",
+      "type": "boolean"
+    },
     "improvement": {
       "$ref": "#/$defs/ImprovementFlags"
     },

@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from contracts.run import MemoryBundle, SkillCandidateRef
 from recertia.retrieval.config import RetrievalConfig
@@ -20,6 +21,9 @@ from recertia.retrieval.preconditions import (
     evaluate_all,
     parse_preconditions_json,
 )
+
+BundleHook = Callable[[MemoryBundle], MemoryBundle]
+
 
 
 @dataclass
@@ -63,9 +67,22 @@ def reciprocal_rank_fusion(
 
 
 class Retriever:
-    def __init__(self, index: SkillIndex, config: RetrievalConfig | None = None) -> None:
+    def __init__(
+        self,
+        index: SkillIndex,
+        config: RetrievalConfig | None = None,
+        *,
+        bundle_hook: BundleHook | None = None,
+    ) -> None:
         self._index = index
         self.config = config or RetrievalConfig()
+        # Eval-only. Production callers (bootstrap, retrieve node, CLI search) omit this.
+        # Constructor-only; not on RetrievalConfig so a policy flag cannot turn it on.
+        self._bundle_hook = bundle_hook
+
+    @property
+    def bundle_hook(self) -> BundleHook | None:
+        return self._bundle_hook
 
     @property
     def index(self) -> SkillIndex:
@@ -128,7 +145,11 @@ class Retriever:
         candidates = self._top_candidates(final, lexical, vector)
 
         explanation.returned = candidates
-        return MemoryBundle(skills=candidates), explanation
+        bundle = MemoryBundle(skills=candidates)
+        if self._bundle_hook is not None:
+            bundle = self._bundle_hook(bundle)
+        return bundle, explanation
+
 
     def _generate_candidates(
         self, query: str

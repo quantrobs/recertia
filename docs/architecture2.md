@@ -1473,6 +1473,55 @@ retrieval helps this task class. Per-skill retirement uses a separate randomized
 shadow-versus-suppression contrast (§7.2) — not a class baseline subtracted from a selected
 skill — so the same measurement program serves both questions without conflating them.
 
+### 11.5 Multi-run variance and the independent-run floor
+
+A Newcombe–Wilson interval that excludes zero is not enough. `CausalLiftResult` also
+carries per-arm and (when paired windows exist) per-lift `RunVariance`: sample std-dev,
+best rate, worst rate, and the absolute best–worst gap. Independent runs are
+**observation/trial counts**, not snapshot counts, so a 100-trial window can still
+establish lift. Below the policy floor (`min_independent_runs`, default 5) the status is
+`low_run_count` even if the interval excludes zero. `recertia lift` prints the variance
+fields and refuses established language below the floor. Best/worst **gap** is printed
+only for ≥2 snapshots paired on `snapshot_id`; a single snapshot's Bernoulli 0/1 vector
+does not report a multi-run gap. Per-run Bernoulli vectors live in `EvalStore` so the
+numbers recompute from storage.
+
+### 11.6 Faithfulness interventions (eval-only)
+
+Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`, `corrupt`,
+`irrelevant`, `filler` — replace the retrieved skill body in memory (never on the
+production retrieve path). `Retriever` accepts an optional `bundle_hook` constructor
+argument; bootstrap, the retrieve node, and `recertia skills search` omit it. The
+hook is constructor-only and read-only after init. An
+eval-only `IntervenedSkillStore` overlay replaces the skill body at `get_version`.
+`recertia faithfulness run --trials N` writes tagged observations through that overlay;
+`--trials 0` scores stored rows only. Arms with zero intervened trials are `scored=False`
+and the report `score` is `None` (missing data is not 0.0 or 1.0). Trajectory divergence
+is pairwise by `fixture_id` (median Jaccard and normalized edit distance); concatenated
+bags are not used. Observation rows are tagged `strategy=faithfulness:<name>` and treated
+as eval fixtures so they cannot enter lift or contribution samples.
+`recertia.evals.interventions` and `recertia.evals.faithfulness` are T3 and
+import-forbidden from `nodes/` and `jobs/`. The production flag
+`faithfulness_interventions_enabled` is false and is not a runtime switch — constructor
+injection is the only gate.
+
+### 11.7 Applicability and specificity before promotion
+
+Distillation injects the current environment model (tools from `ctx.tools` when present)
+and the locked `TaskCriterion[]` summary. Before `candidate` / `approved`, an
+applicability gate rejects skills that name unavailable tools, whose success claims do
+not **exactly** match a required locked criterion (`kind` + `run`/`expr`/`metric`), or
+that are structural-hash near-duplicates of retired / quarantined / benched /
+low-contribution skills. Hashed-embedding cosine near-duplicates are recorded as
+`advisory:` contagion reasons and do not block promotion. When locked criteria are
+omitted (promote / shadow-advance), the skill must still carry at least one non-judge
+certification criterion. Rejections are `applicability_reject` ledger entries and do not
+grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
+draft/candidate/shadow and a warning on already-approved seeds. The curator job re-lints
+the active set and emits specificity-review proposals (persisted to
+`proposals.jsonl` so later curator runs skip the same finding set); it does not
+`lint_reject` approved seeds and does not auto-demote.
+
 <a id="ch-architecture-risk-and-governance"></a>
 
 > Source: [`architecture/risk-and-governance.md`](architecture/risk-and-governance.md)
@@ -1710,6 +1759,7 @@ time.
 | **RW-C5** | gated | Multi-tenant console chrome | Phase-4 gate |
 | **RW-TM** | ops + docs | Signed threat model; NIST AI RMF if tenant GA proceeds | single-operator §5 deltas accepted-with-owner; tenant signature open |
 | **RW-HY** | hygiene | Spec/README drift (license, "aspirational" API table) | shipped |
+| **RW-HCI** | engineering | Ye/Zhao high-confidence review fixes (honest faithfulness scorer, paired lift gap, exact applicability, writer, curator proposal log) | P0+P1+leftovers landed; `a9` under evaluation |
 
 Deliberately out of scope for this year (unchanged from
 [measurement-and-scope.md](architecture/measurement-and-scope.md) §18): fine-tuning, learned retrieval
@@ -4069,6 +4119,9 @@ class LedgerEntry(BaseModel):
         "revoke_lineage",
         "compose_block",
         "publish_patch_template",
+        "lift_report",
+        "faithfulness_report",
+        "applicability_reject",
     ]
     target: str                # skill version, fact id, policy version
     evidence: dict             # criteria results, eval ids, approver
@@ -6037,6 +6090,30 @@ system weaken the controls that measure or constrain it.
   (`references.md` §8 original note); we are ahead of reported practice here, which cuts both
   ways.
 
+## a9. Condensed-memory interventions change Recertia behaviour when the skill is used
+
+**Claim:** for a skill the solver actually applies, one of the four condensed-memory
+interventions (`empty`, `corrupt`, `irrelevant`, `filler`) produces a statistically
+detectable drop in first-attempt success or a decision-level trajectory divergence;
+the same intervention on a skill that is never applied produces near-zero divergence
+(Zhao et al. 2026; [`docs/plans/2026-08-high-confidence-review-fixes.md`](plans/2026-08-high-confidence-review-fixes.md)).
+
+- **Depends on:** the P1 faithfulness writer in that plan (`run_intervened_trials` plus
+  `IntervenedSkillStore` / `Retriever.bundle_hook` on eval fixtures only).
+- **Engineering gate (not this claim):** the scorer does not treat missing intervention
+  trials as detectable change; tagged `faithfulness:*` rows cannot enter lift; production
+  retrieve never receives the hook. Verified by unit tests, not by a live-model result.
+- **Research outcome (this claim):** whether Recertia's solver actually uses condensed
+  skill bodies on `repo-chore` (then `research-synthesis`) traffic, or whether it ignores
+  them the way Zhao et al. observed.
+- **Status:** `under evaluation` — the P1 writer tags eval fixtures under
+  `IntervenedSkillStore` / `bundle_hook`; live-model movement on `repo-chore` traffic
+  has not produced a stable interval.
+- **Why it might be false anyway:** Zhao's finding may generalise: the solver may lean
+  on the raw trajectory / request more than the retrieved skill text, in which case
+  interventions of used skills will also show near-zero divergence. That is a useful
+  negative result, not a harness bug.
+
 ---
 
 ## Adding a new assumption
@@ -6305,6 +6382,9 @@ interval are numbers.
 | **Retrieval-Augmented Generation**, Lewis et al., NeurIPS 2020 **[B]** | The retrieval substrate |
 | **The Bitter Lesson**, Sutton, 2019 **[B]** | The standing argument against elaborate hand-built scaffolding; the reason `architecture/overview.md` defers parametric learning rather than dismissing it |
 | **Next-Generation Agentic Reinforcement Learning Systems Enable Self-Evolving Agents**, Yan et al., arXiv:2607.01120, 2026 **[F]** | ATDP / trajectory substrate for step-granular learning signals and offline replay; informed ADR-0011. Weight-update loop and evolution control plane rejected (ADR-0005); scaffolding-only adaptation only |
+| **On the Fragility of Self-Improving Agents: Variance, Task Order, and Underspecification**, Ye et al., arXiv:2608.18066, 2026 **[F]** | Memory-based self-improvers amplify evaluation variance (71% of cases) and degrade under shuffled task order; underspecification produces inapplicable memories. Directly supports multi-run lift reporting, order stress-tests, stronger criteria/env specification at distillation, and pre-promotion filtering |
+| **Large Language Model Agents Are Not Always Faithful Self-Evolvers**, Zhao et al., arXiv:2601.22436, 2026 **[F]** | Causal interventions show agents depend on raw experience but frequently ignore or misinterpret condensed experience. Supports faithfulness tests on retrieved skills via trajectory events, more specific/actionable skill content, and uncertainty-gated retrieval |
+| **Building Multi-Agent Systems: When and How to Use Them**, Morgan et al., ICIS 2025 **[F]** | Practical decision checklist (context overflow, specialization, parallelism, high risk, maintainability). Supports keeping single-agent default and using structured handoffs / local-context protection only if measurement shows a clear ceiling |
 
 ## 6. Ideas used without a specific citation
 
