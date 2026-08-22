@@ -129,3 +129,42 @@ def test_contagion_near_duplicate_is_rejected(tmp_path: Path) -> None:
     entries = ledger.entries()
     assert entries
     assert entries[-1].action == "applicability_reject"
+
+
+def test_contagion_embedding_near_duplicate_is_rejected(tmp_path: Path) -> None:
+    """Same title/intent/tools (embedding) but different step intent (hash diverges)."""
+
+    store = SkillStore(tmp_path / "skills")
+    rejected = _skill(skill_id="retired-twin")
+    store.write_version(rejected)
+    store.write_status(
+        SkillStatus(skill_id="retired-twin", version=1, lifecycle="benched", active=False)
+    )
+    store.write_stats(
+        SkillStats(
+            skill_id="retired-twin",
+            version=1,
+            contribution=Contribution(
+                applications=10,
+                successes=0,
+                suppressed_applications=10,
+                suppressed_successes=8,
+            ),
+        )
+    )
+    near = _skill(skill_id="new-twin").model_copy(
+        update={
+            "steps": [
+                _skill().steps[0].model_copy(
+                    update={"intent": "Run the applicable packaged command with a dry-run first"}
+                )
+            ]
+        }
+    )
+    from recertia.memory.procedural.applicability import structural_hash
+
+    assert structural_hash(rejected) != structural_hash(near)
+    report = check_applicability(near, store=store)
+    assert report.ok is False
+    assert report.contagion_ok is False
+

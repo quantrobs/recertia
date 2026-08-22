@@ -167,8 +167,49 @@ def curator_active_set_and_dedup(
                 except LifecycleError:
                     continue
 
+    flagged = 0
+    from recertia.memory.procedural.lint import lint_report
+
+    for version, status, stats in store.iter_loaded():
+        if flagged >= 8:
+            break
+        if status.lifecycle != "approved" or not status.active:
+            continue
+        report = lint_report(
+            version, status, stats, store=store, skip_if_hash_matches=False
+        )
+        hits = [finding for finding in report.findings if finding.code in {"SPEC", "VAGUE"}]
+        if not hits:
+            continue
+        proposals.append(
+            Proposal(
+                kind="curate",
+                skill_id=version.skill_id,
+                version=version.version,
+                rationale=(
+                    f"specificity review {version.skill_id}@v{version.version}: "
+                    + "; ".join(finding.code for finding in hits[:4])
+                ),
+                payload={
+                    "specificity": True,
+                    "codes": [finding.code for finding in hits],
+                    "messages": [finding.message for finding in hits],
+                },
+            )
+        )
+        if ledger is not None and hasattr(ledger, "append"):
+            ledger.append(
+                actor="curator-specificity",
+                action="lint_reject",
+                target=f"{version.skill_id}@v{version.version}",
+                evidence={"codes": [finding.code for finding in hits], "review": True},
+                at=datetime.now(timezone.utc),
+            )
+        flagged += 1
+
     if trajectory_store is None:
         return proposals
+
 
     packs_attached = 0
     max_packs = 5

@@ -7,8 +7,11 @@ from contracts.criteria import SkillCertificationCriterion
 from contracts.eval import BinomialSample
 from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
 from recertia.evals.faithfulness import (
+    IntervenedSkillStore,
+    bundle_hook_for,
     edit_distance,
     evaluate_faithfulness,
+    event_kinds,
     jaccard,
     strategy_tag,
     trajectory_divergence,
@@ -163,3 +166,54 @@ def test_ledger_tag_cannot_be_mistaken_for_lift(tmp_path: Path) -> None:
     assert entry.action == "faithfulness_report"
     assert entry.evidence["production_path"] is False
     assert strategy_tag("empty") == "faithfulness:empty"
+
+
+def test_event_kinds_from_trajectory_objects() -> None:
+    class _Ev:
+        def __init__(self, kind: str) -> None:
+            self.event_kind = kind
+
+    assert event_kinds([_Ev("retrieval_result"), "plan_choice", _Ev("terminal")]) == [
+        "retrieval_result",
+        "plan_choice",
+        "terminal",
+    ]
+
+
+def test_intervened_store_replaces_target_body_only() -> None:
+    class _Inner:
+        def __init__(self, skill: SkillVersion) -> None:
+            self.skill = skill
+
+        def get_version(self, skill_id: str, version: int) -> SkillVersion:
+            return self.skill
+
+    original = _skill()
+    overlay = IntervenedSkillStore(
+        _Inner(original),
+        skill_id=original.skill_id,
+        version=1,
+        intervention="empty",
+    )
+    emptied = overlay.get_version(original.skill_id, 1)
+    assert emptied.steps[0].intent != original.steps[0].intent
+    assert emptied.failure_modes == []
+
+
+def test_bundle_hook_for_irrelevant_swaps_identity() -> None:
+    from contracts.run import MemoryBundle, SkillCandidateRef
+
+    hook = bundle_hook_for(
+        skill_id="used-skill",
+        version=1,
+        intervention="irrelevant",
+        donor_id="other-domain",
+        donor_version=2,
+    )
+    bundle = MemoryBundle(
+        skills=[SkillCandidateRef(skill_id="used-skill", version=1, score=0.9)]
+    )
+    swapped = hook(bundle)
+    assert swapped.skills[0].skill_id == "other-domain"
+    assert swapped.skills[0].version == 2
+

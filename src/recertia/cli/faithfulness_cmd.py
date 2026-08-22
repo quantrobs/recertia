@@ -28,6 +28,7 @@ def faithfulness_run(
     donor_version: int = typer.Option(1, "--donor-version"),
     eval_db: Path = typer.Option(Path(".recertia/evals.db"), "--eval-db"),
     ledger_path: Optional[Path] = typer.Option(None, "--ledger"),
+    runs_root: Optional[Path] = typer.Option(None, "--runs-root"),
     trials: int = typer.Option(0, "--trials", help="Reserved; transformers always run."),
 ) -> None:
     """Materialise interventions in memory, score stored tagged trials, write a ledger tag."""
@@ -36,7 +37,7 @@ def faithfulness_run(
     import json
 
     from contracts.eval import BinomialSample
-    from recertia.evals.faithfulness import evaluate_faithfulness, strategy_tag
+    from recertia.evals.faithfulness import evaluate_faithfulness, event_kinds, strategy_tag
     from recertia.evals.interventions import apply_intervention
     from recertia.evals.store import EvalStore
     from recertia.memory.procedural.store import SkillStore
@@ -62,6 +63,23 @@ def faithfulness_run(
     finally:
         eval_store.close()
 
+    traj = None
+    if runs_root is not None:
+        from recertia.trajectory.store import TrajectoryStore
+
+        traj = TrajectoryStore(runs_root / "trajectories")
+
+    def _kinds(rows: list) -> list[str]:
+        kinds: list[str] = []
+        for obs in rows:
+            if traj is not None:
+                events = traj.list_events(obs.run_id)
+                if events:
+                    kinds.extend(event_kinds(events))
+                    continue
+            kinds.append(obs.terminal or "unknown")
+        return kinds
+
     baseline_rows = [
         obs
         for obs in observations
@@ -83,18 +101,19 @@ def faithfulness_run(
             successes=sum(1 for obs in rows if obs.first_attempt_success),
             trials=len(rows),
         )
-        events[name] = [obs.terminal or "unknown" for obs in rows]
+        events[name] = _kinds(rows)
 
     report = evaluate_faithfulness(
         skill=skill,
         baseline=baseline,
-        baseline_events=[obs.terminal or "unknown" for obs in baseline_rows],
+        baseline_events=_kinds(baseline_rows),
         outcomes=outcomes,  # type: ignore[arg-type]
         events=events,  # type: ignore[arg-type]
         donor=donor,
         skill_used=bool(baseline_rows),
         min_independent_runs=policy.min_independent_runs,
     )
+
     payload = report.model_dump(mode="json")
     payload["transformed"] = {
         name: {"title": body.title, "step_intents": [s.intent for s in body.steps]}

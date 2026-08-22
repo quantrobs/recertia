@@ -84,6 +84,14 @@ def _specificity_severity(status: SkillStatus) -> LintSeverity:
 def _specificity_findings(version: SkillVersion, status: SkillStatus) -> list[LintFinding]:
     findings: list[LintFinding] = []
     severity = _specificity_severity(status)
+    if not version.preconditions:
+        findings.append(
+            LintFinding(
+                code="SPEC",
+                severity=severity,
+                message="preconditions required: name the tools, files, or env the skill assumes",
+            )
+        )
     if not version.failure_modes:
         findings.append(
             LintFinding(

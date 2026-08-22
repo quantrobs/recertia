@@ -139,3 +139,14 @@ def test_curator_does_not_bench_below_floor(tmp_path: Path) -> None:
     curator_active_set_and_dedup(store, eval_store=eval_store)
     eval_store.close()
     assert store.get_status("thin", 1).lifecycle == "approved"
+
+
+def test_curator_flags_low_specificity_active_skills(tmp_path: Path) -> None:
+    store = SkillStore(tmp_path / "skills")
+    seed_approved_for_tests(store, _skill("vague-seed"), active=True)
+    proposals = curator_active_set_and_dedup(store)
+    flagged = [p for p in proposals if p.payload.get("specificity")]
+    assert flagged
+    assert flagged[0].skill_id == "vague-seed"
+    assert "SPEC" in flagged[0].payload["codes"]
+

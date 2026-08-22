@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from contracts.criteria import SkillCertificationCriterion
-from contracts.skill import FailureMode, Hygiene, Provenance, SkillVersion, Step
+from contracts.skill import FailureMode, Hygiene, Precondition, Provenance, SkillVersion, Step
 from contracts.status import SkillStatus
 from recertia.memory.procedural.lint import lint_report
 from recertia.validation.sensitivity import author_sensitivity_proof, empty_negative_fixture
@@ -29,7 +29,11 @@ def _minimal(**overrides) -> SkillVersion:
         task_class="repo-chore",
         steps=[Step(id="step_1", tool="shell", intent="Run the packaged command")],
         certification_criteria=[cert],
+        preconditions=[
+            Precondition(kind="tool_available", value="shell", description="Needs shell")
+        ],
         provenance=Provenance(distilled_from_run="r", distilled_at=now),
+
         hygiene=Hygiene(secret_scan="passed", scanned_at=now),
     )
     payload.update(overrides)
@@ -70,6 +74,14 @@ def test_approved_seed_without_failure_modes_is_warning_not_error() -> None:
     assert not any(f.code == "SPEC" and f.severity == "error" for f in report.findings)
 
 
+def test_draft_without_preconditions_is_spec_error() -> None:
+    version = _minimal(preconditions=[])
+    status = SkillStatus(skill_id=version.skill_id, version=1, lifecycle="draft")
+    report = lint_report(version, status, skip_if_hash_matches=False)
+    messages = [f.message for f in report.findings if f.code == "SPEC"]
+    assert any("preconditions required" in m for m in messages)
+
+
 def test_concrete_failure_mode_passes_draft() -> None:
     version = _minimal(
         failure_modes=[
@@ -82,3 +94,4 @@ def test_concrete_failure_mode_passes_draft() -> None:
     status = SkillStatus(skill_id=version.skill_id, version=1, lifecycle="draft")
     report = lint_report(version, status, skip_if_hash_matches=False)
     assert not any(f.code in {"SPEC", "VAGUE"} and f.severity == "error" for f in report.findings)
+

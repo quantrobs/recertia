@@ -20,13 +20,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from contracts.applicability import ApplicabilityReport, EnvironmentModel  # noqa: E402
 from contracts.branch import BranchState, MergeAudit  # noqa: E402
 from contracts.cluster import FailureClusterRow  # noqa: E402
 from contracts.eval import CausalLiftResult, ControlBaseline, EvalObservation, MetricReport  # noqa: E402
-from contracts.applicability import ApplicabilityReport, EnvironmentModel  # noqa: E402
-from contracts.faithfulness import FaithfulnessReport  # noqa: E402
 from contracts.fact import Fact  # noqa: E402
 from contracts.failure import FailureSignal, FailureVerdict  # noqa: E402
+from contracts.faithfulness import FaithfulnessReport  # noqa: E402
 from contracts.goal import Goal  # noqa: E402
 from contracts.guide import ExecutionGuide  # noqa: E402
 from contracts.ledger import LedgerEntry  # noqa: E402

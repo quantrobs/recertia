@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
+from recertia.jobs import Proposal
 from recertia.jobs.arxiv import (
     ArxivPaper,
     normalize_arxiv_id,
@@ -13,7 +12,6 @@ from recertia.jobs.arxiv import (
     parse_atom_feed,
 )
 from recertia.jobs.workers import draft_from_mine_proposal, mine_from_arxiv
-from recertia.jobs import Proposal
 from recertia.memory.procedural.store import SkillStore
 
 SAMPLE_ATOM = b"""<?xml version="1.0" encoding="UTF-8"?>

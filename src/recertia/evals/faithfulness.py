@@ -17,6 +17,7 @@ from contracts.faithfulness import (
     FaithfulnessReport,
     TrajectoryDivergence,
 )
+from contracts.run import MemoryBundle
 from contracts.skill import SkillVersion
 from recertia.evals.interventions import apply_intervention
 from recertia.evals.statistics import causal_lift
@@ -31,6 +32,21 @@ _DEFAULT_INTERVENTIONS: tuple[FaithfulnessIntervention, ...] = (
 
 def strategy_tag(intervention: FaithfulnessIntervention) -> str:
     return f"{FAITHFULNESS_STRATEGY_PREFIX}{intervention}"
+
+
+def event_kinds(events: Sequence[object]) -> list[str]:
+    """Normalize trajectory events or raw kind strings to an event-kind sequence."""
+
+    kinds: list[str] = []
+    for event in events:
+        if isinstance(event, str):
+            if event:
+                kinds.append(event)
+            continue
+        kind = getattr(event, "event_kind", None)
+        if kind:
+            kinds.append(str(kind))
+    return kinds
 
 
 def jaccard(a: Sequence[str], b: Sequence[str]) -> float:
@@ -87,13 +103,73 @@ def detectable_change(
     return divergence.edit_distance >= min_edit_distance
 
 
+def bundle_hook_for(
+    *,
+    skill_id: str,
+    version: int,
+    intervention: FaithfulnessIntervention,
+    donor_id: str | None = None,
+    donor_version: int | None = None,
+):
+    """Eval-only Retriever.bundle_hook. Production Retriever() never receives this."""
+
+    def hook(bundle: MemoryBundle) -> MemoryBundle:
+        if not bundle.skills:
+            return bundle
+        if intervention == "empty":
+            return bundle
+        if intervention == "irrelevant" and donor_id:
+            skills = [
+                (
+                    candidate.model_copy(
+                        update={"skill_id": donor_id, "version": donor_version or candidate.version}
+                    )
+                    if candidate.skill_id == skill_id and candidate.version == version
+                    else candidate
+                )
+                for candidate in bundle.skills
+            ]
+            return bundle.model_copy(update={"skills": skills})
+        return bundle
+
+    return hook
+
+
+class IntervenedSkillStore:
+    """Eval-only overlay that replaces one skill body. Production store is never wrapped."""
+
+    def __init__(
+        self,
+        inner: object,
+        *,
+        skill_id: str,
+        version: int,
+        intervention: FaithfulnessIntervention,
+        donor: SkillVersion | None = None,
+    ) -> None:
+        self._inner = inner
+        self._skill_id = skill_id
+        self._version = version
+        self._intervention = intervention
+        self._donor = donor
+
+    def get_version(self, skill_id: str, version: int) -> SkillVersion:
+        original = self._inner.get_version(skill_id, version)  # type: ignore[attr-defined]
+        if skill_id == self._skill_id and version == self._version:
+            return apply_intervention(original, self._intervention, donor=self._donor)
+        return original
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
+
+
 def evaluate_faithfulness(
     *,
     skill: SkillVersion,
     baseline: BinomialSample,
-    baseline_events: Sequence[str],
+    baseline_events: Sequence[object],
     outcomes: dict[FaithfulnessIntervention, BinomialSample],
-    events: dict[FaithfulnessIntervention, Sequence[str]],
+    events: dict[FaithfulnessIntervention, Sequence[object]],
     donor: SkillVersion | None = None,
     skill_used: bool = True,
     snapshot_id: str | None = None,
@@ -105,6 +181,7 @@ def evaluate_faithfulness(
     with :func:`strategy_tag` and ``is_eval_fixture=True``.
     """
 
+    baseline_kinds = event_kinds(baseline_events)
     arms: list[FaithfulnessArmResult] = []
     for intervention in _DEFAULT_INTERVENTIONS:
         if intervention not in outcomes:
@@ -114,8 +191,8 @@ def evaluate_faithfulness(
         else:
             apply_intervention(skill, intervention)
         sample = outcomes[intervention]
-        intervened_events = list(events.get(intervention, []))
-        divergence = trajectory_divergence(baseline_events, intervened_events)
+        intervened_kinds = event_kinds(events.get(intervention, []))
+        divergence = trajectory_divergence(baseline_kinds, intervened_kinds)
         lift = causal_lift(
             baseline,
             sample,

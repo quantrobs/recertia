@@ -1488,13 +1488,18 @@ in `EvalStore` so the numbers recompute from storage.
 
 Condensed-memory *use* is falsifiable. Four controlled interventions — `empty`, `corrupt`,
 `irrelevant`, `filler` — replace the retrieved skill body in memory (never on the
-production retrieve path). The harness records first-attempt success against the
-unmodified baseline and decision-level trajectory divergence (event-kind Jaccard and
-Levenshtein). The faithfulness score is the fraction of interventions that move success
-or the trajectory. Observation rows are tagged `strategy=faithfulness:<name>` and treated
-as eval fixtures so they cannot enter lift. `recertia.evals.interventions` and
+production retrieve path). `Retriever` accepts an optional `bundle_hook` constructor
+argument; bootstrap, the retrieve node, and `recertia skills search` omit it. An
+eval-only `IntervenedSkillStore` overlay replaces the skill body at `get_version`.
+The harness records first-attempt success against the unmodified baseline and
+decision-level trajectory divergence (event-kind Jaccard and Levenshtein, from
+the trajectory store when `--runs-root` is passed). The faithfulness score is the
+fraction of interventions that move success or the trajectory. Observation rows
+are tagged `strategy=faithfulness:<name>` and treated as eval fixtures so they
+cannot enter lift. `recertia.evals.interventions` and
 `recertia.evals.faithfulness` are T3 and import-forbidden from `nodes/` and `jobs/`.
 The production flag `faithfulness_interventions_enabled` is false.
+
 
 ### 11.7 Applicability and specificity before promotion
 
@@ -1505,7 +1510,9 @@ locked criteria, or that are structural near-duplicates of retired / quarantined
 benched / low-contribution skills. Rejections are `applicability_reject` ledger entries
 and do not grow `library_yield`. Specificity lint (`SPEC` / `VAGUE`) is an error on
 draft/candidate/shadow and a warning on already-approved seeds, so the seed library stays
-green while new drafts must carry concrete `failure_modes`.
+green while new drafts must carry concrete `failure_modes` and explicit preconditions.
+The curator job re-lints the active set (`skip_if_hash_matches=False`) and emits
+specificity-review proposals for human review; it does not auto-demote seeds.
 
 <a id="ch-architecture-risk-and-governance"></a>
 

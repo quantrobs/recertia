@@ -18,13 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `filler` transformers (`recertia.evals.interventions`) and
   `recertia faithfulness`. Trajectory Jaccard + edit-distance; tagged
   `faithfulness:*` observations cannot enter lift. T3, import-forbidden from
-  nodes/jobs (Zhao et al. 2026).
+  nodes/jobs (Zhao et al. 2026). Optional `Retriever.bundle_hook` (constructor
+  only; production omits it) plus `IntervenedSkillStore` overlay. CLI
+  `--runs-root` reads trajectory event kinds.
+
 - **Applicability gate** — environment (registry tools), locked-criterion alignment,
   and contagion hash against retired/quarantined/benched/low-contribution skills.
   Distiller injects the environment model and criterion summary. Ledger action
-  `applicability_reject`.
+  `applicability_reject`. Distill routes a failing draft to `one_off` rather than
+  the review queue. Contagion uses structural hash plus hashed-embedding cosine.
+
 - **Specificity lint** — `SPEC` / `VAGUE` on drafts; `require_failure_modes` on the
   authoring prior (`ap-2026.08.1`). Warnings only for already-approved seeds.
+  Missing preconditions are a SPEC finding. Curator emits specificity-review
+  proposals against the active set.
+
 - Ledger actions `lift_report`, `faithfulness_report`, `applicability_reject`.
 - **arXiv paper ingestion (Miner)** — `src/recertia/jobs/arxiv.py` Atom client;
 

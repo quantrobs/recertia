@@ -6,14 +6,21 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
+from typing import Protocol
 
 from contracts.applicability import ApplicabilityReason, ApplicabilityReport, EnvironmentModel
 from contracts.criteria import TaskCriterion
 from contracts.skill import SkillVersion
 from contracts.stats import SkillStats
-from recertia.memory.procedural.store import SkillStore
+from contracts.status import SkillStatus
+
+
+class _LoadedStore(Protocol):
+    def iter_loaded(self) -> list[tuple[SkillVersion, SkillStatus, SkillStats]]: ...
+
 
 _CONTAGION_LIFECYCLES = frozenset({"quarantined", "benched", "deprecated"})
+_CONTAGION_COSINE = 0.97
 
 
 def environment_model_from_registry(registry: object | None = None) -> EnvironmentModel:
@@ -46,7 +53,7 @@ def check_applicability(
     *,
     environment: EnvironmentModel | None = None,
     locked_criteria: list[TaskCriterion] | None = None,
-    store: SkillStore | None = None,
+    store: _LoadedStore | None = None,
 ) -> ApplicabilityReport:
     """Reject skills that name missing tools, un-evaluable claims, or rejected near-duplicates."""
 
@@ -75,7 +82,7 @@ def refuse_if_inapplicable(
     *,
     environment: EnvironmentModel | None = None,
     locked_criteria: list[TaskCriterion] | None = None,
-    store: SkillStore | None = None,
+    store: _LoadedStore | None = None,
     ledger: object | None = None,
 ) -> ApplicabilityReport:
     """Run the gate and record ``applicability_reject`` on the ledger when it fails."""
@@ -176,7 +183,7 @@ def _is_low_contribution(stats: SkillStats) -> bool:
 
 def _contagion_ok(
     version: SkillVersion,
-    store: SkillStore | None,
+    store: _LoadedStore | None,
     digest: str,
     reasons: list[ApplicabilityReason],
 ) -> bool:
@@ -187,7 +194,7 @@ def _contagion_ok(
             continue
         if status.lifecycle not in _CONTAGION_LIFECYCLES and not _is_low_contribution(stats):
             continue
-        if structural_hash(other) != digest:
+        if not _near_duplicate(version, other, digest):
             continue
         reasons.append(
             ApplicabilityReason(
@@ -200,3 +207,19 @@ def _contagion_ok(
         )
         return False
     return True
+
+
+def _near_duplicate(version: SkillVersion, other: SkillVersion, digest: str) -> bool:
+    """True when structural hashes match, or hashed embeddings are near-identical."""
+
+    if structural_hash(other) == digest:
+        return True
+    if version.task_class != other.task_class:
+        return False
+    if [step.tool for step in version.steps] != [step.tool for step in other.steps]:
+        return False
+    from recertia.retrieval.index import cosine, embed_text, skill_document
+
+    sim = cosine(embed_text(skill_document(version)), embed_text(skill_document(other)))
+    return sim >= _CONTAGION_COSINE
+
