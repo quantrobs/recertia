@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Systems efficiency (ADR-0018, AgentSysBench / ClawGym II)** — hop telemetry now
+  emits `component_class`, `rss_bytes`, `workdir_bytes`, `idle_gap_ms` on
+  `node.finished`; `tool.invoked` / `retrieve.queried` carry a canonical key so
+  redundancy is countable; `model.completed` is emitted from `ModelClient.complete`.
+  Read-only tool-result cache (`solver/result_cache.py`) and retrieval cache
+  (`retrieval/cache.py`) key on snapshot hash; writes never cache; index rebuild
+  flushes retrieve. Idle working-set offload packs workdirs to a hash-checked
+  tarball on `max_steps` pause when `state_management.idle_offload_enabled` is
+  true (default **false**). Prefix-tree view over trajectory JSONL
+  (`trajectory/prefix_tree.py`) does not write a second stream. `recertia systems`
+  prints the six-property snapshot. Policy keys live under `state_management`.
+
 - **Variance-aware causal lift** — `RunVariance` on `CausalLiftResult` (std-dev, best,
   worst, best–worst gap); `low_run_count` when independent trials are below
   `Policy.min_independent_runs` (default 5). `EvalStore` exposes Bernoulli vectors

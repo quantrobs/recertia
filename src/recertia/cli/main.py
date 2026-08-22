@@ -38,6 +38,7 @@ from recertia.cli.skills import (
     skills_search,
 )
 from recertia.cli.soak_cmd import register_soak_commands
+from recertia.cli.systems_cmd import register_systems_commands
 from recertia.cli.tabletop_cmd import register_tabletop_commands
 from recertia.cli.workspaces import register_workspaces_commands
 
@@ -63,6 +64,7 @@ register_backup_commands(app)
 register_tabletop_commands(app)
 register_canary_commands(app)
 register_soak_commands(app)
+register_systems_commands(app)
 
 __all__ = [
     "app",
