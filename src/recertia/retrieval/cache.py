@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import Any, Mapping
 
 from recertia.ops.systems import canonical_args_hash
 from recertia.solver.result_cache import CacheStats
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass

@@ -159,6 +159,8 @@ class ToolRuntime:
             if self.result_cache is not None:
                 self.result_cache.store(tool, inputs, result, snapshot_hash=snapshot_hash)
                 emit_in_run("cache.miss", kind="tool", tool=tool_name)
+                if tool.side_effect not in ("read", "pure"):
+                    self.result_cache.invalidate_all()
             self._invocations.append(result)
             emit_in_run(
                 "tool.invoked",

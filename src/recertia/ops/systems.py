@@ -135,7 +135,15 @@ def snapshot_stat_hash(path: Path | str | None) -> str:
                 st = fp.stat()
             except OSError:
                 continue
-            rows.append(f"{rel_root}/{name}:{st.st_size}:{st.st_mtime_ns}")
+            digest = hashlib.sha256()
+            try:
+                with fp.open("rb") as fh:
+                    digest.update(fh.read(65536))
+            except OSError:
+                digest.update(b"")
+            rows.append(
+                f"{rel_root}/{name}:{st.st_size}:{st.st_mtime_ns}:{digest.hexdigest()[:12]}"
+            )
     return hashlib.sha256("\n".join(rows).encode()).hexdigest()[:16]
 
 

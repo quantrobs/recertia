@@ -133,17 +133,9 @@ def _parent_of(node: PrefixNode, roots: list[PrefixNode]) -> PrefixNode | None:
 
 
 def _mark_dead_leaves(roots: list[PrefixNode], events: Sequence[TrajectoryEvent]) -> list[int]:
-    """A leaf is dead when a later failure_classified exists for the same attempt and no terminal success."""
+    """A leaf is dead when its attempt failed and a later attempt exists."""
 
-    failed_attempts = {
-        e.attempt_no
-        for e in events
-        if e.event_kind == "failure_classified"
-    }
-    terminals = {e.event_kind for e in events if e.event_kind == "terminal"}
-    if "terminal" in {e.event_kind for e in events}:
-        # Keep successful terminals; only prune failed-attempt leaves when another attempt exists.
-        pass
+    failed_attempts = {e.attempt_no for e in events if e.event_kind == "failure_classified"}
     pruned: list[int] = []
 
     def mark(node: PrefixNode) -> None:
@@ -152,15 +144,13 @@ def _mark_dead_leaves(roots: list[PrefixNode], events: Sequence[TrajectoryEvent]
                 mark(child)
             return
         if node.attempt_no in failed_attempts and any(
-            sib.attempt_no > node.attempt_no
-            for sib in _siblings(node, roots)
+            sib.attempt_no > node.attempt_no for sib in _siblings(node, roots)
         ):
             node.dead = True
             pruned.append(node.seq)
 
     for root in roots:
         mark(root)
-    _ = terminals
     return pruned
 
 

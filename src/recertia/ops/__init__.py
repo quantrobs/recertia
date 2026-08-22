@@ -9,20 +9,21 @@ from recertia.ops.systems import (
     snapshot_from_events,
     workdir_bytes,
 )
+from recertia.ops.tabletop import inspect_run, run_tabletop
 
 __all__ = [
     "BackupError",
+    "SixPropertySnapshot",
     "backup_tree",
     "classify_week",
+    "component_class",
     "consecutive_counted",
     "default_archive_name",
     "inspect_run",
     "restore_tree",
-    "run_tabletop",
     "rss_bytes",
+    "run_tabletop",
     "snapshot_from_events",
     "status",
     "workdir_bytes",
-    "SixPropertySnapshot",
-    "component_class",
 ]

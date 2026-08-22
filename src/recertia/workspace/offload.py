@@ -93,8 +93,11 @@ class WorkingSetOffload:
         if staging.exists():
             shutil.rmtree(staging)
         staging.mkdir(parents=True, exist_ok=True)
+        extract_kw: dict = {"path": staging}
+        if hasattr(tarfile, "data_filter"):
+            extract_kw["filter"] = "data"
         with tarfile.open(archive, "r:gz") as tar:
-            tar.extractall(staging)
+            tar.extractall(**extract_kw)
         extracted = staging / "tree"
         if dest.exists():
             shutil.rmtree(dest)
